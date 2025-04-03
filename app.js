@@ -5,6 +5,9 @@ if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not
 if (typeof TOKENS === 'undefined') throw new Error("TOKENS not defined");
 if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET not defined");
 
+// Constants
+const COINGECKO_API = "https://api.coingecko.com/api/v3";
+
 // App state
 let provider, signer, userAddress;
 let currentNetwork = "ethereum";
@@ -33,9 +36,9 @@ window.addEventListener('load', async () => {
       document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
     }
     
-    // Set default tokens
+    // Set default tokens (ETH and USDT)
     const defaultFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
-    const defaultToToken = TOKENS.ethereum.find(t => t.symbol === "REWARD");
+    const defaultToToken = TOKENS.ethereum.find(t => t.symbol === "USDT");
     
     if (defaultFromToken && defaultToToken) {
       currentFromToken = defaultFromToken;
@@ -184,6 +187,7 @@ async function connectMetaMask() {
 
 function openInTrustWallet() {
   const currentUrl = encodeURIComponent(window.location.href);
+  document.getElementById('currentUrl').textContent = window.location.href;
   window.location.href = `https://link.trustwallet.com/open_url?coin_id=20000714&url=${currentUrl}`;
   setTimeout(() => {
     document.getElementById('manualSteps').style.display = 'block';
@@ -248,42 +252,97 @@ async function checkNetwork() {
 function showTokenList(type) {
   const modal = document.getElementById("tokenListModal");
   const tokenItems = document.getElementById("tokenItems");
+  const searchInput = document.getElementById("tokenSearch");
+  const noTokensFound = document.getElementById("noTokensFound");
   
   // Clear previous items
   tokenItems.innerHTML = '';
+  noTokensFound.style.display = 'none';
   
-  // Filter tokens for current network
-  const networkTokens = TOKENS[currentNetwork] || [];
-  
-  // Add tokens to list
-  networkTokens.forEach(token => {
-    const tokenItem = document.createElement('div');
-    tokenItem.className = 'dex-token-item';
-    tokenItem.innerHTML = `
-      <img src="https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png" 
-           onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-           alt="${token.symbol}">
-      <div>
-        <div class="dex-token-name">${token.name}</div>
-        <div class="dex-token-symbol">${token.symbol}</div>
-      </div>
-    `;
-    
-    tokenItem.addEventListener('click', () => {
-      if (type === 'from') {
-        currentFromToken = token;
-      } else {
-        currentToToken = token;
+  // Filter tokens for current network and other networks with same symbol
+  let networkTokens = [];
+  for (const network in TOKENS) {
+    TOKENS[network].forEach(token => {
+      // Skip REWARD token
+      if (token.symbol === "REWARD") return;
+      
+      // Add token if it's for current network or has same symbol
+      if (network === currentNetwork || 
+          TOKENS[currentNetwork].find(t => t.symbol === token.symbol) === undefined) {
+        networkTokens.push({
+          ...token,
+          originNetwork: network
+        });
       }
-      updateTokenSelectors();
-      hideTokenList();
-      updateToAmount();
+    });
+  }
+  
+  // Sort by priority
+  networkTokens.sort((a, b) => a.priority - b.priority);
+  
+  // Add search functionality
+  searchInput.oninput = (e) => {
+    const searchTerm = e.target.value.toLowerCase();
+    let hasVisibleItems = false;
+    const items = document.querySelectorAll('.dex-token-item');
+    
+    items.forEach(item => {
+      const name = item.dataset.name.toLowerCase();
+      const symbol = item.dataset.symbol.toLowerCase();
+      const address = item.dataset.address.toLowerCase();
+      
+      if (name.includes(searchTerm) || 
+          symbol.includes(searchTerm) || 
+          address.includes(searchTerm)) {
+        item.style.display = 'flex';
+        hasVisibleItems = true;
+      } else {
+        item.style.display = 'none';
+      }
     });
     
-    tokenItems.appendChild(tokenItem);
-  });
+    noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
+  };
+  
+  // Add tokens to list
+  if (networkTokens.length === 0) {
+    noTokensFound.style.display = 'block';
+  } else {
+    networkTokens.forEach(token => {
+      const tokenItem = document.createElement('div');
+      tokenItem.className = 'dex-token-item';
+      tokenItem.dataset.name = token.name.toLowerCase();
+      tokenItem.dataset.symbol = token.symbol.toLowerCase();
+      tokenItem.dataset.address = token.address.toLowerCase();
+      tokenItem.innerHTML = `
+        <img src="https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png" 
+             onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
+             alt="${token.symbol}">
+        <div>
+          <div class="dex-token-name">${token.name} ${token.originNetwork !== currentNetwork ? `(${token.originNetwork})` : ''}</div>
+          <div class="dex-token-symbol">${token.symbol}</div>
+          <div class="dex-token-address" style="font-size: 12px; color: var(--text3);">${token.address}</div>
+        </div>
+      `;
+      
+      tokenItem.addEventListener('click', () => {
+        if (type === 'from') {
+          currentFromToken = token;
+        } else {
+          currentToToken = token;
+        }
+        updateTokenSelectors();
+        hideTokenList();
+        updateToAmount();
+      });
+      
+      tokenItems.appendChild(tokenItem);
+    });
+  }
   
   modal.style.display = 'flex';
+  searchInput.value = '';
+  searchInput.focus();
 }
 
 function hideTokenList() {
@@ -327,15 +386,18 @@ function updateTokenSelectors() {
   updateSwapButton();
 }
 
-function updateToAmount() {
+async function updateToAmount() {
   const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
   
   if (currentFromToken && currentToToken && fromAmount > 0) {
-    const rate = getConversionRate(currentFromToken, currentToToken);
+    document.getElementById("exchangeRate").textContent = "Loading...";
+    document.getElementById("minReceived").textContent = "Loading...";
+    
+    const rate = await getConversionRate(currentFromToken, currentToToken);
     const toAmount = fromAmount * rate;
     
     document.getElementById("toAmount").value = toAmount.toFixed(6);
-    document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate} ${currentToToken.symbol}`;
+    document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
     document.getElementById("minReceived").textContent = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
   } else {
     document.getElementById("toAmount").value = '';
@@ -346,10 +408,21 @@ function updateToAmount() {
   updateSwapButton();
 }
 
-function getConversionRate(fromToken, toToken) {
+async function getConversionRate(fromToken, toToken) {
+  try {
+    // Get prices from CoinGecko
+    const fromPrice = await getTokenPrice(fromToken);
+    const toPrice = await getTokenPrice(toToken);
+    
+    if (fromPrice && toPrice) {
+      return fromPrice / toPrice;
+    }
+  } catch (err) {
+    console.error("Error getting conversion rate:", err);
+  }
+  
+  // Fallback to hardcoded rates if API fails
   const rates = {
-    'ETH-REWARD': 0.05,
-    'REWARD-ETH': 20,
     'ETH-USDT': 1800,
     'USDT-ETH': 0.00055,
     'ETH-USDC': 1800,
@@ -360,6 +433,37 @@ function getConversionRate(fromToken, toToken) {
   
   const pair = `${fromToken.symbol}-${toToken.symbol}`;
   return rates[pair] || 1;
+}
+
+async function getTokenPrice(token) {
+  if (!token.address || token.isNative) {
+    // Handle native tokens
+    const nativeIds = {
+      ethereum: 'ethereum',
+      bsc: 'binancecoin',
+      polygon: 'matic-network'
+    };
+    
+    const response = await fetch(`${COINGECKO_API}/simple/price?ids=${nativeIds[token.originNetwork || currentNetwork]}&vs_currencies=usd`);
+    const data = await response.json();
+    return data[nativeIds[token.originNetwork || currentNetwork]]?.usd;
+  } else {
+    // Handle contract tokens
+    const chainMap = {
+      ethereum: 'ethereum',
+      bsc: 'binance-smart-chain',
+      polygon: 'polygon-pos'
+    };
+    
+    try {
+      const response = await fetch(`${COINGECKO_API}/coins/${chainMap[token.originNetwork || currentNetwork]}/contract/${token.address}`);
+      const data = await response.json();
+      return data.market_data?.current_price?.usd;
+    } catch (err) {
+      console.error(`Error getting price for ${token.symbol}:`, err);
+      return null;
+    }
+  }
 }
 
 // =====================
