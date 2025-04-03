@@ -675,25 +675,39 @@ function updateTokenSelectors() {
 async function updateToAmount() {
   const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
   
-  if (currentFromToken && currentToToken && fromAmount > 0) {
+  if (currentFromToken && fromAmount > 0) {
     document.getElementById("exchangeRate").textContent = "Loading...";
     document.getElementById("minReceived").textContent = "Loading...";
     
     try {
-      const rate = await getConversionRate(currentFromToken, currentToToken);
-      if (rate) {
-        const toAmount = fromAmount * rate;
+      let rateText = '';
+      let minReceivedText = '';
+      
+      // Get price of fromToken in selected currency
+      const fromTokenPrice = await getTokenPrice(currentFromToken);
+      
+      if (fromTokenPrice) {
+        // Display rate as 1 FROM_TOKEN = X [CURRENCY]
+        rateText = `1 ${currentFromToken.symbol} = ${fromTokenPrice.toFixed(6)} ${currentCurrency.toUpperCase()}`;
         
-        document.getElementById("toAmount").value = toAmount.toFixed(6);
-        document.getElementById("exchangeRate").textContent = 
-          `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol} (${currentCurrency.toUpperCase()})`;
-        document.getElementById("minReceived").textContent = 
-          `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
+        // Calculate minimum received (only if toToken is selected)
+        if (currentToToken) {
+          const toTokenPrice = await getTokenPrice(currentToToken);
+          if (toTokenPrice) {
+            const rate = fromTokenPrice / toTokenPrice;
+            const toAmount = fromAmount * rate;
+            minReceivedText = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
+            document.getElementById("toAmount").value = toAmount.toFixed(6);
+          }
+        }
       } else {
+        rateText = 'Rate unavailable';
+        minReceivedText = '-';
         document.getElementById("toAmount").value = '';
-        document.getElementById("exchangeRate").textContent = 'Rate unavailable';
-        document.getElementById("minReceived").textContent = '-';
       }
+      
+      document.getElementById("exchangeRate").textContent = rateText;
+      document.getElementById("minReceived").textContent = minReceivedText;
     } catch (err) {
       console.error("Error updating amounts:", err);
       document.getElementById("toAmount").value = '';
@@ -746,7 +760,6 @@ function getHardcodedRate(fromToken, toToken) {
   return rates[pair] || null;
 }
 
-// Modify the getTokenPrice function to use the selected currency:
 async function getTokenPrice(token) {
   try {
     // Check cache first
@@ -825,7 +838,8 @@ async function getTokenPrice(token) {
         'USDC': { usd: 1, btc: 0.00003, eth: 0.0006 },
         'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
         'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
-        'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 }
+        'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 },
+        'AUTO': { usd: 7.78, btc: 0.00009486, eth: 0.004326 }
       };
       
       price = hardcodedPrices[token.symbol]?.[currentCurrency];
