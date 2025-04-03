@@ -1,4 +1,4 @@
-// app.js - Updated DEX Interface with Wallet Connection Fixes
+// app.js - Fully Fixed DEX Interface
 
 // Verify required globals
 if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
@@ -8,7 +8,7 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 // Constants
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
-const PRICE_CACHE_DURATION = 300000; // 5 minutes in ms
+const PRICE_CACHE_DURATION = 20000; // 20 seconds in ms
 const STABLECOIN_SYMBOLS = {
   ethereum: ['USDT', 'USDC', 'DAI'],
   bsc: ['USDT', 'BUSD', 'USDC', 'DAI'],
@@ -32,6 +32,27 @@ let currentToToken = null;
 let currentSlippage = 0.5; // 0.5% default slippage
 let currentCurrency = "usd";
 let debounceTimer;
+
+// Helper functions
+function isMobile() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+function updateNetworkLogo(network) {
+  const logoMap = {
+    ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+    bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
+    polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
+    arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
+    base: "https://cryptologos.cc/logos/base-logo.png"
+  };
+  
+  const logoElement = document.querySelector(".dex-nav-logo img");
+  if (logoMap[network]) {
+    logoElement.src = logoMap[network];
+    logoElement.alt = NETWORK_CONFIGS[network].chainName;
+  }
+}
 
 // Initialize on load
 window.addEventListener('load', async () => {
@@ -62,13 +83,16 @@ window.addEventListener('load', async () => {
 });
 
 // =====================
-// INITIALIZATION FUNCTIONS
+// WALLET CONNECTION FIXES
 // =====================
 
 function setupEventListeners() {
   console.log("Setting up event listeners...");
   
-  // Connect Wallet / Swap button
+  // Connect Wallet button
+  document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
+  
+  // Swap button
   document.getElementById("swapBtn").addEventListener("click", function(e) {
     if (!userAddress) {
       handleWalletConnection();
@@ -86,7 +110,7 @@ function setupEventListeners() {
   document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
   document.getElementById("closeSettings").addEventListener("click", hideSettings);
   
-  // Wallet connection
+  // Wallet connection modal
   document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
   document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
   
@@ -127,103 +151,61 @@ function setupEventListeners() {
     });
   });
 
-  // Custom slippage input
-  document.getElementById('slippageTolerance').addEventListener('change', function() {
-    const value = parseFloat(this.value);
-    if (isNaN(value) || value < 0.1 || value > 50) {
-      this.value = currentSlippage;
-      return;
-    }
-    document.querySelectorAll('.dex-slippage-option').forEach(opt => {
-      opt.classList.remove('active');
-    });
-    currentSlippage = value;
-    updateToAmount();
-  });
-
-  // Transaction deadline
-  document.getElementById('transactionDeadline').addEventListener('change', function() {
-    const value = parseInt(this.value);
-    if (isNaN(value) || value < 1 || value > 30) {
-      this.value = 20;
-    }
-  });
-  
   // Mobile-specific listeners
   if (isMobile()) {
     document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
   }
 }
 
-function initNetworkDropdown() {
-  const dropdown = document.getElementById("networkDropdown");
-  dropdown.innerHTML = '';
-  
-  Object.keys(NETWORK_CONFIGS).forEach(network => {
-    const link = document.createElement('a');
-    link.href = '#';
-    link.textContent = NETWORK_CONFIGS[network].chainName;
-    link.addEventListener('click', (e) => {
-      e.preventDefault();
-      handleNetworkChange(network);
-      dropdown.style.display = 'none';
-    });
-    dropdown.appendChild(link);
-  });
-}
-
-function initCurrencySelector() {
-  const container = document.createElement('div');
-  container.className = 'dex-currency-selector';
-  
-  CURRENCY_OPTIONS.forEach(currency => {
-    const option = document.createElement('div');
-    option.className = `dex-currency-option ${currency === currentCurrency ? 'active' : ''}`;
-    option.textContent = currency.toUpperCase();
-    option.addEventListener('click', () => {
-      currentCurrency = currency;
-      document.querySelectorAll('.dex-currency-option').forEach(opt => {
-        opt.classList.remove('active');
-      });
-      option.classList.add('active');
-      updateToAmount();
-    });
-    container.appendChild(option);
-  });
-  
-  document.querySelector('.dex-swap-info').prepend(container);
-}
-
-// =====================
-// WALLET FUNCTIONS (UPDATED)
-// =====================
-
-async function checkWalletEnvironment() {
-  const savedWallet = localStorage.getItem('walletConnected');
-  if (savedWallet === 'metamask' && window.ethereum) {
-    try {
-      await connectAndProcess();
-    } catch (err) {
-      console.error("Auto-connect error:", err);
-      localStorage.removeItem('walletConnected');
+async function handleWalletConnection() {
+  try {
+    if (userAddress) {
+      handleWalletDisconnect();
+      return;
     }
-  }
-  
-  if (window.ethereum && window.ethereum.chainId) {
-    const chainId = window.ethereum.chainId;
-    for (const network in NETWORK_CONFIGS) {
-      if (NETWORK_CONFIGS[network].chainId === chainId) {
-        if (currentNetwork !== network) {
-          currentNetwork = network;
-          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-          updateNetworkLogo(network);
-          setDefaultTokenPair();
-        }
-        break;
+
+    if (!window.ethereum) {
+      if (isMobile()) {
+        showWalletConnect();
+      } else {
+        updateStatus("Please install MetaMask", "error");
+        window.open('https://metamask.io/download.html', '_blank');
       }
+      return;
     }
+
+    showLoader();
+    updateStatus("Connecting wallet...", "success");
+
+    // Request account access
+    const accounts = await window.ethereum.request({ 
+      method: 'eth_requestAccounts' 
+    }).catch(err => {
+      if (err.code === 4001) {
+        updateStatus("Wallet connection cancelled", "error");
+      } else {
+        throw err;
+      }
+    });
+
+    if (!accounts || accounts.length === 0) {
+      throw new Error("No accounts found");
+    }
+
+    await initializeWallet();
+    updateSwapButton();
+    updateStatus("Wallet connected successfully", "success");
+  } catch (err) {
+    console.error("Wallet connection error:", err);
+    updateStatus("Error connecting wallet: " + err.message, "error");
+  } finally {
+    hideLoader();
   }
 }
+
+// =====================
+// WALLET MANAGEMENT
+// =====================
 
 async function initializeWallet() {
   try {
@@ -280,57 +262,38 @@ async function initializeWallet() {
   }
 }
 
-async function handleWalletConnection() {
-  try {
-    if (userAddress) {
-      handleWalletDisconnect();
-      return;
-    }
-
-    if (!window.ethereum) {
-      if (isMobile()) {
-        showWalletConnect();
-      } else {
-        updateStatus("Please install MetaMask", "error");
-        window.open('https://metamask.io/download.html', '_blank');
-      }
-      return;
-    }
-
-    showLoader();
-    updateStatus("Connecting wallet...", "success");
-
-    // Request account access
-    const accounts = await window.ethereum.request({ 
-      method: 'eth_requestAccounts' 
-    }).catch(err => {
-      if (err.code === 4001) {
-        updateStatus("Wallet connection cancelled", "error");
-      } else {
-        throw err;
-      }
-    });
-
-    if (!accounts || accounts.length === 0) {
-      throw new Error("No accounts found");
-    }
-
-    await initializeWallet();
-    updateSwapButton();
-    updateStatus("Wallet connected successfully", "success");
-  } catch (err) {
-    console.error("Wallet connection error:", err);
-    updateStatus("Error connecting wallet: " + err.message, "error");
-  } finally {
-    hideLoader();
-  }
+function handleWalletDisconnect() {
+  userAddress = null;
+  provider = null;
+  signer = null;
+  localStorage.removeItem('walletConnected');
+  updateWalletButton(false);
+  updateSwapButton();
+  updateStatus("Wallet disconnected", "success");
 }
 
-// ... [rest of the code remains the same, including all other functions] ...
+// =====================
+// UI UPDATES
+// =====================
 
-// =====================
-// UI FUNCTIONS (UPDATED)
-// =====================
+function updateWalletButton(isConnected) {
+  const btn = document.getElementById("connectWallet");
+  if (isConnected) {
+    btn.innerHTML = `
+      <i class="fas fa-wallet"></i>
+      <span>${userAddress.slice(0, 6)}...${userAddress.slice(-4)}</span>
+    `;
+    btn.classList.add('connected');
+  } else {
+    btn.innerHTML = `
+      <i class="fas fa-wallet"></i>
+      <span>Connect Wallet</span>
+    `;
+    btn.classList.remove('connected');
+  }
+  
+  updateSwapButton();
+}
 
 function updateSwapButton() {
   const btn = document.getElementById("swapBtn");
