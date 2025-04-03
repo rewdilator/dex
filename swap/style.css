@@ -109,7 +109,7 @@ body {
   }
   
   .dex-container {
-    padding-bottom: 125px !important;
+    padding-bottom: 135px !important;
   }
   .dex-balance {
     max-width: 120px;
@@ -1110,15 +1110,12 @@ body {
   color: var(--light-gray);
   padding: 20px 0;
   border-top: 1px solid var(--border);
-  margin-top: auto;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  margin-top: auto; /* Pushes footer to bottom */
   width: 100%;
-  z-index: 100; /* Ensure footer stays above other content */
+  z-index: 100;
+  /* Remove position: fixed */
+  position: static; /* or relative/sticky if needed */
 }
-
 .dex-footer-content {
   max-width: 1200px;
   margin: 0 auto;
