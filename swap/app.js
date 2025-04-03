@@ -201,17 +201,22 @@ function setDefaultTokenPair() {
   const networkTokens = TOKENS[currentNetwork];
   if (!networkTokens || networkTokens.length === 0) return;
   
-  // Try to find native token first
-  currentFromToken = networkTokens.find(t => t.isNative);
-  
-  // If no native token, use the first token
-  if (!currentFromToken && networkTokens.length > 0) {
-    currentFromToken = networkTokens[0];
+  // Always set BNB as default "from" token on BNB Chain
+  if (currentNetwork === 'bsc') {
+    currentFromToken = networkTokens.find(t => t.symbol === 'BNB' && t.isNative);
+  } else {
+    // Try to find native token first for other networks
+    currentFromToken = networkTokens.find(t => t.isNative);
+    
+    // If no native token, use the first token
+    if (!currentFromToken && networkTokens.length > 0) {
+      currentFromToken = networkTokens[0];
+    }
   }
   
   // Try to find a stablecoin as the default "to" token
   currentToToken = networkTokens.find(t => 
-    ['USDT', 'USDC', 'DAI'].includes(t.symbol) && t.logo
+    ['USDT', 'USDC', 'DAI', 'BUSD'].includes(t.symbol) && t.logo
   );
   
   // If no stablecoin, use the second token (if available)
