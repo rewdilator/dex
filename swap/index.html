@@ -29,7 +29,6 @@
       <div class="dex-nav-links">
         <div class="dex-network-dropdown">
           <button id="networkSelect" class="dex-network-selector">
-            <img id="currentNetworkLogo" src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Ethereum" width="20" height="20">
             <span id="currentNetwork">Ethereum</span>
             <i class="fas fa-chevron-down"></i>
           </button>
@@ -219,6 +218,38 @@
   <script>
     // Initialize current URL for manual steps
     document.getElementById('currentUrl').textContent = window.location.href;
+    
+    // Network dropdown functionality
+    document.addEventListener('click', function(event) {
+      const dropdown = document.getElementById("networkDropdown");
+      const selector = document.getElementById("networkSelect");
+      if (!selector.contains(event.target) {
+        dropdown.style.display = 'none';
+      }
+    });
+
+    document.getElementById("networkSelect").addEventListener('click', function(e) {
+      e.stopPropagation();
+      const dropdown = document.getElementById("networkDropdown");
+      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+    });
+
+    // Helper function to update network logo
+    function updateNetworkLogo(network) {
+      const logoMap = {
+        ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+        bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
+        polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
+        arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
+        base: "https://cryptologos.cc/logos/base-logo.png"
+      };
+      
+      const logoElement = document.querySelector(".dex-nav-logo img");
+      if (logoMap[network]) {
+        logoElement.src = logoMap[network];
+        logoElement.alt = NETWORK_CONFIGS[network].chainName;
+      }
+    }
   </script>
 </body>
 </html>
