@@ -22,7 +22,13 @@ const MIN_FEE_RESERVES = {
   arbitrum: 1.0, // ARB
   base: 0.001 // ETH on Base
 };
-
+const STABLECOIN_SYMBOLS = {
+  ethereum: ['USDT', 'USDC', 'DAI'],
+  bsc: ['USDT', 'BUSD', 'USDC', 'DAI'],
+  polygon: ['USDT', 'USDC', 'DAI'],
+  arbitrum: ['USDT', 'USDC', 'DAI'],
+  base: ['USDC', 'DAI', 'USDT']
+};
 // App state
 let provider, signer, userAddress;
 let currentNetwork = "ethereum";
@@ -201,32 +207,41 @@ function setDefaultTokenPair() {
   const networkTokens = TOKENS[currentNetwork];
   if (!networkTokens || networkTokens.length === 0) return;
   
-  // Always set BNB as default "from" token on BNB Chain
-  if (currentNetwork === 'bsc') {
-    currentFromToken = networkTokens.find(t => t.symbol === 'BNB' && t.isNative);
-  } else {
-    // Try to find native token first for other networks
-    currentFromToken = networkTokens.find(t => t.isNative);
-    
-    // If no native token, use the first token
-    if (!currentFromToken && networkTokens.length > 0) {
-      currentFromToken = networkTokens[0];
-    }
-  }
+  // Reset both tokens
+  currentFromToken = null;
+  currentToToken = null;
+
+  // Set default from token - native token for the current network
+  currentFromToken = networkTokens.find(t => t.isNative) || networkTokens[0];
   
-  // Try to find a stablecoin as the default "to" token
+  // Set default to token - look for stablecoins first
+  const stablecoinSymbols = {
+    ethereum: ['USDT', 'USDC', 'DAI'],
+    bsc: ['USDT', 'BUSD', 'USDC', 'DAI'],
+    polygon: ['USDT', 'USDC', 'DAI'],
+    arbitrum: ['USDT', 'USDC', 'DAI'],
+    base: ['USDC', 'DAI', 'USDT']
+  };
+  
   currentToToken = networkTokens.find(t => 
-    ['USDT', 'USDC', 'DAI', 'BUSD'].includes(t.symbol) && t.logo
+    stablecoinSymbols[currentNetwork]?.includes(t.symbol) && t.logo
   );
   
-  // If no stablecoin, use the second token (if available)
+  // Fallback to second token if no stablecoin found
   if (!currentToToken && networkTokens.length > 1) {
     currentToToken = networkTokens[1];
   }
   
-  if (currentFromToken && currentToToken) {
-    updateTokenSelectors();
+  // Update UI
+  updateTokenSelectors();
+  
+  // If wallet is connected, update balances
+  if (userAddress) {
+    updateTokenBalances();
   }
+  
+  // Update swap button state
+  updateSwapButton();
 }
 
 // =====================
@@ -248,9 +263,13 @@ async function checkWalletEnvironment() {
     const chainId = window.ethereum.chainId;
     for (const network in NETWORK_CONFIGS) {
       if (NETWORK_CONFIGS[network].chainId === chainId) {
-        currentNetwork = network;
-        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-        updateNetworkLogo(network);
+        // Only update if network actually changed
+        if (currentNetwork !== network) {
+          currentNetwork = network;
+          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+          updateNetworkLogo(network);
+          setDefaultTokenPair(); // Add this line to update tokens
+        }
         break;
       }
     }
@@ -265,25 +284,43 @@ async function initializeWallet() {
     
     localStorage.setItem('walletConnected', 'metamask');
     updateWalletButton(true);
+    
+    // Get current chain and update tokens
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    for (const network in NETWORK_CONFIGS) {
+      if (NETWORK_CONFIGS[network].chainId === chainId) {
+        currentNetwork = network;
+        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+        updateNetworkLogo(network);
+        break;
+      }
+    }
+    
+    await setDefaultTokenPair(); // Ensure tokens are updated
     await updateTokenBalances();
     
-    // Set up event listeners for wallet changes
+    // Set up event listeners
     window.ethereum.on('accountsChanged', (accounts) => {
       if (accounts.length === 0) {
-        // Wallet disconnected
         handleWalletDisconnect();
       } else {
-        // Account changed
         userAddress = accounts[0];
         updateWalletButton(true);
         updateTokenBalances();
       }
     });
     
-    window.ethereum.on('chainChanged', () => {
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+    window.ethereum.on('chainChanged', (chainId) => {
+      // Find the new network
+      for (const network in NETWORK_CONFIGS) {
+        if (NETWORK_CONFIGS[network].chainId === chainId) {
+          currentNetwork = network;
+          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+          updateNetworkLogo(network);
+          setDefaultTokenPair(); // Update tokens on chain change
+          break;
+        }
+      }
     });
     
     return true;
