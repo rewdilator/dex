@@ -685,8 +685,10 @@ async function updateToAmount() {
         const toAmount = fromAmount * rate;
         
         document.getElementById("toAmount").value = toAmount.toFixed(6);
-        document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
-        document.getElementById("minReceived").textContent = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
+        document.getElementById("exchangeRate").textContent = 
+          `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol} (${currentCurrency.toUpperCase()})`;
+        document.getElementById("minReceived").textContent = 
+          `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
       } else {
         document.getElementById("toAmount").value = '';
         document.getElementById("exchangeRate").textContent = 'Rate unavailable';
