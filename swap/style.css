@@ -49,7 +49,7 @@ body {
   padding: 20px;
   position: relative;
   flex: 1;
-  padding-bottom: 112px; /* Adjust this value based on your footer height */
+  padding-bottom: 112px !important;
 }
 
 .dex-navbar {
@@ -109,7 +109,7 @@ body {
   }
   
   .dex-container {
-    padding-bottom: 125px;
+    padding-bottom: 125px !important;
   }
   .dex-balance {
     max-width: 120px;
