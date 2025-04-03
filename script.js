@@ -5,27 +5,70 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (mobileMenuBtn && nav) {
         mobileMenuBtn.addEventListener('click', function() {
-            nav.style.display = nav.style.display === 'flex' ? 'none' : 'flex';
+            nav.classList.toggle('show');
+            this.innerHTML = nav.classList.contains('show') ? 
+                '<i class="fas fa-times"></i>' : '<i class="fas fa-bars"></i>';
         });
     }
-    
+
+    // Close mobile menu when clicking on a link
+    document.querySelectorAll('nav ul li a').forEach(link => {
+        link.addEventListener('click', () => {
+            if (window.innerWidth <= 768) {
+                nav.classList.remove('show');
+                mobileMenuBtn.innerHTML = '<i class="fas fa-bars"></i>';
+            }
+        });
+    });
+
+    // Handle all /swap navigation
+    document.querySelectorAll('a[href="/swap"], a[href^="/swap#"]').forEach(link => {
+        link.addEventListener('click', function(e) {
+            if (!this.href.endsWith('/swap') && !this.href.includes('/swap#')) return;
+            
+            e.preventDefault();
+            
+            // In a real app, you would navigate to your swap interface
+            console.log('Navigating to:', this.href);
+            
+            // For demo purposes, we'll show an alert
+            const hash = this.href.split('#')[1] || '';
+            const message = hash ? `Redirecting to swap interface and scrolling to ${hash} section` 
+                               : 'Redirecting to swap interface';
+            alert(message);
+            
+            // Actual implementation would be:
+            // window.location.href = '/swap' + (hash ? `#${hash}` : '');
+        });
+    });
+
     // Smooth scrolling for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        if (anchor.getAttribute('href') === '#') return;
+        if (anchor.href.includes('/swap#')) return; // Skip swap anchor links
+        
         anchor.addEventListener('click', function(e) {
             e.preventDefault();
             
             const targetId = this.getAttribute('href');
-            if (targetId === '#') return;
-            
             const targetElement = document.querySelector(targetId);
+            
             if (targetElement) {
-                targetElement.scrollIntoView({
+                window.scrollTo({
+                    top: targetElement.offsetTop - 80,
                     behavior: 'smooth'
                 });
+                
+                // Update URL without page reload
+                if (history.pushState) {
+                    history.pushState(null, null, targetId);
+                } else {
+                    location.hash = targetId;
+                }
             }
         });
     });
-    
+
     // Connect wallet button simulation
     const connectWalletBtn = document.getElementById('connect-wallet');
     if (connectWalletBtn) {
@@ -37,24 +80,12 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             this.textContent = '0x7f...3a4b';
             this.classList.add('connected');
-            // In a real app, you would add wallet connection logic here
         });
     }
-    
-    // Handle all navigation links to /swap
-    document.querySelectorAll('a[href="/swap"], a[href="/swap#features"], a[href="/swap#chains"]').forEach(link => {
-        link.addEventListener('click', function(e) {
-            // In a real app, this would navigate to your swap interface
-            // For this demo, we'll just prevent default and log
-            e.preventDefault();
-            console.log('Navigating to swap interface:', this.href);
-            // window.location.href = '/swap' + (this.hash || '');
-        });
-    });
-    
-    // Add animation class when elements come into view
+
+    // Animation on scroll
     const animateOnScroll = function() {
-        const elements = document.querySelectorAll('.feature-card, .chain-item, .cta-card');
+        const elements = document.querySelectorAll('.feature-card, .chain-item, .stat-item');
         
         elements.forEach(element => {
             const elementPosition = element.getBoundingClientRect().top;
@@ -65,10 +96,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     };
-    
-    // Initial check
+
+    // Initialize animations
     animateOnScroll();
-    
-    // Check on scroll
     window.addEventListener('scroll', animateOnScroll);
 });
