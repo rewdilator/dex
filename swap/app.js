@@ -158,6 +158,7 @@ function initNetworkDropdown() {
   });
 }
 
+// In the initCurrencySelector function, modify the click handler:
 function initCurrencySelector() {
   const container = document.createElement('div');
   container.className = 'dex-currency-selector';
@@ -172,6 +173,7 @@ function initCurrencySelector() {
         opt.classList.remove('active');
       });
       option.classList.add('active');
+      // Update the rates without changing the token
       updateToAmount();
     });
     container.appendChild(option);
@@ -742,6 +744,7 @@ function getHardcodedRate(fromToken, toToken) {
   return rates[pair] || null;
 }
 
+// Modify the getTokenPrice function to use the selected currency:
 async function getTokenPrice(token) {
   try {
     // Check cache first
