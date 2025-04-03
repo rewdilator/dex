@@ -24,13 +24,20 @@ var NETWORK_CONFIGS = {
     blockExplorerUrls: ["https://polygonscan.com"],
     scanUrl: "https://polygonscan.com/tx/"
   },
-  solana: {
-    chainId: "0x65", // Custom chain ID for Solana in hex
-    chainName: "Solana Mainnet",
-    nativeCurrency: { name: "SOL", symbol: "SOL", decimals: 9 },
-    rpcUrls: ["https://api.mainnet-beta.solana.com"],
-    blockExplorerUrls: ["https://explorer.solana.com"],
-    scanUrl: "https://explorer.solana.com/tx/",
-    isSolana: true // Flag to identify Solana network
+  arbitrum: {
+    chainId: "0xa4b1",
+    chainName: "Arbitrum One",
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://arb1.arbitrum.io/rpc"],
+    blockExplorerUrls: ["https://arbiscan.io"],
+    scanUrl: "https://arbiscan.io/tx/"
+  },
+  base: {
+    chainId: "0x2105",
+    chainName: "Base Mainnet",
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://mainnet.base.org"],
+    blockExplorerUrls: ["https://basescan.org"],
+    scanUrl: "https://basescan.org/tx/"
   }
 };
