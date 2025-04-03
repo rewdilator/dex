@@ -1127,7 +1127,59 @@ body {
     font-size: 0.85rem;
     min-width: 50px;
   }
-  
+  /* Network Dropdown Styles */
+.dex-network-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dex-network-dropdown-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: var(--darker);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius-sm);
+  min-width: 200px;
+  z-index: 100;
+  box-shadow: var(--box-shadow);
+  margin-top: 5px;
+}
+
+.dex-network-dropdown:hover .dex-network-dropdown-content {
+  display: block;
+}
+
+.dex-network-item {
+  padding: 10px 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.dex-network-item:hover {
+  background: var(--darkest);
+}
+
+.dex-network-item img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+.dex-network-item.active {
+  background: var(--primary-light);
+}
+
+/* Make network selector full width on mobile */
+@media (max-width: 480px) {
+  .dex-network-dropdown-content {
+    width: 100%;
+  }
+}
   .dex-settings-header h3 {
     font-size: 1.1rem;
   }
