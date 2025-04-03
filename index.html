@@ -1,209 +1,520 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OneDex: Home</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css">
-  <style>
-    .dex-token-selector {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 8px 12px;
-      color: var(--text1);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      min-width: 140px;
-      justify-content: space-between;
-    }
-    
-    .dex-token-selector img {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-    }
-    
-    .dex-token-selector span {
-      flex: 1;
-      text-align: left;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    
-    .dex-token-selector i {
-      margin-left: auto;
-    }
-    
-    #noTokensFound {
-      display: none;
-      text-align: center;
-      padding: 20px;
-      color: var(--text3);
-    }
-    
-    .token-network-badge {
-      font-size: 0.7em;
-      background: var(--bg3);
-      padding: 2px 5px;
-      border-radius: 4px;
-      margin-left: 5px;
-      color: var(--text2);
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DexSwap | Multi-Chain Decentralized Exchange</title>
+    <style>
+        :root {
+            --primary: #6e44ff;
+            --secondary: #00d1ff;
+            --dark: #0f0f2d;
+            --light: #f8f9fa;
+            --gray: #6c757d;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        body {
+            background-color: var(--dark);
+            color: white;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            padding: 20px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        nav ul {
+            display: flex;
+            list-style: none;
+        }
+        
+        nav ul li {
+            margin-left: 30px;
+        }
+        
+        nav ul li a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        nav ul li a:hover {
+            color: var(--secondary);
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(110, 68, 255, 0.3);
+        }
+        
+        .btn-outline {
+            border: 2px solid var(--primary);
+            color: var(--primary);
+        }
+        
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+        
+        /* Hero Section */
+        .hero {
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .hero h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.2;
+        }
+        
+        .hero p {
+            font-size: 20px;
+            color: var(--gray);
+            max-width: 700px;
+            margin: 0 auto 40px;
+        }
+        
+        .cta-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 60px;
+        }
+        
+        .app-preview {
+            background: linear-gradient(145deg, #1a1a4a, #0f0f2d);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            max-width: 900px;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .app-preview img {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Features Section */
+        .features {
+            padding: 100px 0;
+        }
+        
+        .section-title {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+        
+        .section-title h2 {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+        
+        .section-title p {
+            color: var(--gray);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            transition: all 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-10px);
+            background: rgba(255, 255, 255, 0.1);
+        }
+        
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(145deg, var(--primary), var(--secondary));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .feature-card h3 {
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .feature-card p {
+            color: var(--gray);
+        }
+        
+        /* Chains Section */
+        .chains {
+            padding: 80px 0;
+            background: rgba(255, 255, 255, 0.03);
+        }
+        
+        .chains-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 40px;
+        }
+        
+        .chain-item {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 15px 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .chain-item img {
+            width: 24px;
+            height: 24px;
+        }
+        
+        /* CTA Section */
+        .cta {
+            padding: 100px 0;
+            text-align: center;
+        }
+        
+        .cta h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        
+        .cta p {
+            color: var(--gray);
+            max-width: 600px;
+            margin: 0 auto 40px;
+        }
+        
+        /* Footer */
+        footer {
+            padding: 50px 0 30px;
+            background: rgba(255, 255, 255, 0.03);
+        }
+        
+        .footer-content {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .footer-column {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .footer-column h3 {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        
+        .footer-column ul {
+            list-style: none;
+        }
+        
+        .footer-column ul li {
+            margin-bottom: 10px;
+        }
+        
+        .footer-column ul li a {
+            color: var(--gray);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        
+        .footer-column ul li a:hover {
+            color: var(--secondary);
+        }
+        
+        .social-links {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .social-links a {
+            color: white;
+            font-size: 20px;
+            transition: all 0.3s ease;
+        }
+        
+        .social-links a:hover {
+            color: var(--secondary);
+        }
+        
+        .copyright {
+            text-align: center;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--gray);
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 36px;
+            }
+            
+            .hero p {
+                font-size: 18px;
+            }
+            
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            nav ul {
+                display: none;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-  <div class="dex-container">
-    <div class="dex-navbar">
-      <div class="dex-nav-logo">
-        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Logo">
-      </div>
-      <div class="dex-nav-links">
-        <button id="networkSelect" class="dex-network-selector">
-          <span id="currentNetwork">Ethereum</span>
-          <i class="fas fa-chevron-down"></i>
-        </button>
-        <button id="connectWallet" class="dex-wallet-btn">
-          <i class="fas fa-wallet"></i>
-          <span>Connect Wallet</span>
-        </button>
-      </div>
+    <div class="container">
+        <header>
+            <div class="logo">DexSwap</div>
+            <nav>
+                <ul>
+                    <li><a href="#">Home</a></li>
+                    <li><a href="#">Features</a></li>
+                    <li><a href="#">Chains</a></li>
+                    <li><a href="#">Docs</a></li>
+                    <li><a href="#">About</a></li>
+                </ul>
+            </nav>
+            <a href="#" class="btn btn-primary">Launch App</a>
+        </header>
+        
+        <section class="hero">
+            <h1>Trade Across Multiple Chains with One Click</h1>
+            <p>The most powerful decentralized exchange aggregator that connects liquidity across all major blockchains.</p>
+            <div class="cta-buttons">
+                <a href="#" class="btn btn-primary">Start Trading</a>
+                <a href="#" class="btn btn-outline">Learn More</a>
+            </div>
+            <div class="app-preview">
+                <img src="https://via.placeholder.com/900x500/1a1a4a/6e44ff?text=DexSwap+Interface" alt="DexSwap Interface">
+            </div>
+        </section>
+        
+        <section class="features">
+            <div class="section-title">
+                <h2>Why Choose DexSwap?</h2>
+                <p>We combine the best features from all major DEXs to give you the ultimate trading experience</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <h3>Lightning Fast</h3>
+                    <p>Our optimized routing algorithm finds the best prices and executes trades in milliseconds.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-percentage"></i>
+                    </div>
+                    <h3>Lowest Fees</h3>
+                    <p>Save up to 40% on fees by comparing rates across all major DEXs and choosing the best route.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h3>Secure</h3>
+                    <p>Non-custodial solution. Your keys, your coins. We never hold your funds.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-link"></i>
+                    </div>
+                    <h3>Cross-Chain</h3>
+                    <p>Swap tokens across different blockchains without needing to bridge assets manually.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Advanced Tools</h3>
+                    <p>Limit orders, price charts, and portfolio tracking all in one place.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <h3>Best Prices</h3>
+                    <p>Automatically splits your trade across multiple DEXs to get you the optimal price.</p>
+                </div>
+            </div>
+        </section>
+        
+        <section class="chains">
+            <div class="container">
+                <div class="section-title">
+                    <h2>Supported Blockchains</h2>
+                    <p>Trade across all major networks with seamless interoperability</p>
+                </div>
+                <div class="chains-grid">
+                    <div class="chain-item">
+                        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Ethereum">
+                        <span>Ethereum</span>
+                    </div>
+                    <div class="chain-item">
+                        <img src="https://cryptologos.cc/logos/bnb-bnb-logo.png" alt="BNB Chain">
+                        <span>BNB Chain</span>
+                    </div>
+                    <div class="chain-item">
+                        <img src="https://cryptologos.cc/logos/polygon-matic-logo.png" alt="Polygon">
+                        <span>Polygon</span>
+                    </div>
+                    <div class="chain-item">
+                        <img src="https://cryptologos.cc/logos/avalanche-avax-logo.png" alt="Avalanche">
+                        <span>Avalanche</span>
+                    </div>
+                    <div class="chain-item">
+                        <img src="https://cryptologos.cc/logos/fantom-ftm-logo.png" alt="Fantom">
+                        <span>Fantom</span>
+                    </div>
+                    <div class="chain-item">
+                        <img src="https://cryptologos.cc/logos/arbitrum-arb-logo.png" alt="Arbitrum">
+                        <span>Arbitrum</span>
+                    </div>
+                    <div class="chain-item">
+                        <img src="https://cryptologos.cc/logos/optimism-op-logo.png" alt="Optimism">
+                        <span>Optimism</span>
+                    </div>
+                    <div class="chain-item">
+                        <img src="https://cryptologos.cc/logos/solana-sol-logo.png" alt="Solana">
+                        <span>Solana</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <section class="cta">
+            <h2>Ready to Experience the Future of Trading?</h2>
+            <p>Join thousands of users who are already enjoying seamless cross-chain swaps with the best rates in DeFi.</p>
+            <a href="#" class="btn btn-primary">Launch DexSwap</a>
+        </section>
+        
+        <footer>
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-column">
+                        <div class="logo">DexSwap</div>
+                        <p style="margin-top: 20px; color: var(--gray);">The most powerful cross-chain DEX aggregator in Web3.</p>
+                        <div class="social-links" style="margin-top: 20px;">
+                            <a href="#"><i class="fab fa-twitter"></i></a>
+                            <a href="#"><i class="fab fa-discord"></i></a>
+                            <a href="#"><i class="fab fa-telegram"></i></a>
+                            <a href="#"><i class="fab fa-github"></i></a>
+                            <a href="#"><i class="fab fa-medium"></i></a>
+                        </div>
+                    </div>
+                    <div class="footer-column">
+                        <h3>Product</h3>
+                        <ul>
+                            <li><a href="#">Swap</a></li>
+                            <li><a href="#">Liquidity</a></li>
+                            <li><a href="#">Bridge</a></li>
+                            <li><a href="#">Staking</a></li>
+                            <li><a href="#">Analytics</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h3>Resources</h3>
+                        <ul>
+                            <li><a href="#">Documentation</a></li>
+                            <li><a href="#">API</a></li>
+                            <li><a href="#">Blog</a></li>
+                            <li><a href="#">FAQ</a></li>
+                            <li><a href="#">Roadmap</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-column">
+                        <h3>Company</h3>
+                        <ul>
+                            <li><a href="#">About Us</a></li>
+                            <li><a href="#">Careers</a></li>
+                            <li><a href="#">Press</a></li>
+                            <li><a href="#">Contact</a></li>
+                            <li><a href="#">Brand Assets</a></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="copyright">
+                    <p>&copy; 2023 DexSwap. All rights reserved.</p>
+                </div>
+            </div>
+        </footer>
     </div>
-
-    <div class="dex-main">
-      <div class="dex-swap-container">
-        <div class="dex-swap-header">
-          <h2>Swap</h2>
-          <button id="settingsBtn" class="dex-settings-btn">
-            <i class="fas fa-cog"></i>
-          </button>
-        </div>
-
-        <div class="dex-token-input">
-          <div class="dex-input-header">
-            <span>From</span>
-            <span class="dex-balance">Balance: 0</span>
-          </div>
-          <div class="dex-input-row">
-            <input type="number" placeholder="0.0" id="fromAmount">
-            <button id="fromTokenSelect" class="dex-token-selector">
-              <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" width="24" height="24">
-              <span>ETH</span>
-              <i class="fas fa-chevron-down"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="dex-swap-arrow">
-          <i class="fas fa-arrow-down"></i>
-        </div>
-
-        <div class="dex-token-input">
-          <div class="dex-input-header">
-            <span>To</span>
-          </div>
-          <div class="dex-input-row">
-            <input type="number" placeholder="0.0" id="toAmount" readonly>
-            <button id="toTokenSelect" class="dex-token-selector">
-              <img src="https://cryptologos.cc/logos/tether-usdt-logo.png" width="24" height="24">
-              <span>USDT</span>
-              <i class="fas fa-chevron-down"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="dex-swap-info">
-          <div class="dex-info-row">
-            <span>Rate</span>
-            <span id="exchangeRate">-</span>
-          </div>
-          <div class="dex-info-row">
-            <span>Minimum received</span>
-            <span id="minReceived">-</span>
-          </div>
-          <div class="dex-info-row">
-            <span>Price impact</span>
-            <span id="priceImpact"><0.01%</span>
-          </div>
-        </div>
-
-        <button id="swapBtn" class="dex-swap-btn" disabled>
-          <span id="swapBtnText">Connect Wallet</span>
-        </button>
-      </div>
-
-      <div class="dex-token-list" id="tokenListModal" style="display: none;">
-        <div class="dex-token-list-header">
-          <h3>Select Token</h3>
-          <button id="closeTokenList" class="dex-close-btn">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="dex-token-search">
-          <input type="text" placeholder="Search token name, symbol or paste address" id="tokenSearch">
-        </div>
-        <div id="noTokensFound">No tokens found matching your search</div>
-        <div class="dex-token-items" id="tokenItems">
-          <!-- Tokens will be populated here -->
-        </div>
-      </div>
-
-      <div class="dex-settings" id="settingsModal" style="display: none;">
-        <div class="dex-settings-header">
-          <h3>Transaction Settings</h3>
-          <button id="closeSettings" class="dex-close-btn">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="dex-settings-item">
-          <label>Slippage tolerance</label>
-          <div class="dex-slippage-options">
-            <button class="dex-slippage-option active">0.5%</button>
-            <button class="dex-slippage-option">1%</button>
-            <button class="dex-slippage-option">3%</button>
-            <input type="number" placeholder="Custom" class="dex-slippage-custom">
-          </div>
-        </div>
-      </div>
-
-      <div id="walletConnectModal" class="dex-wallet-modal" style="display: none;">
-        <div class="dex-wallet-content">
-          <button id="metaMaskBtn" class="dex-wallet-option">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask">
-            <span>MetaMask</span>
-          </button>
-          <button id="openTrustWallet" class="dex-wallet-option">
-            <img src="https://trustwallet.com/assets/images/media/assets/TWT.png" alt="Trust Wallet">
-            <span>Trust Wallet</span>
-          </button>
-          <div id="manualSteps" style="display: none; margin-top: 15px; color: var(--text2); font-size: 14px;">
-            <p>If Trust Wallet didn't open automatically:</p>
-            <ol style="margin-top: 10px; padding-left: 20px;">
-              <li>Open Trust Wallet</li>
-              <li>Go to Browser</li>
-              <li>Paste this URL: <span id="currentUrl" style="word-break: break-all;"></span></li>
-            </ol>
-          </div>
-          <button id="cancelWalletConnect" class="dex-cancel-btn">Cancel</button>
-        </div>
-      </div>
-    </div>
-
-    <div id="status" class="dex-status"></div>
-    <div id="loader" class="dex-loader"></div>
-  </div>
-
-  <script src="https://cdn.jsdelivr.net/npm/ethers@5.2/dist/ethers.umd.min.js"></script>
-  <script src="config/abi.js"></script>
-  <script src="config/networks.js"></script>
-  <script src="config/tokens.js"></script>
-  <script src="app.js"></script>
-  <script>
-    // Initialize current URL for manual steps
-    document.getElementById('currentUrl').textContent = window.location.href;
-  </script>
 </body>
 </html>
