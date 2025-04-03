@@ -19,13 +19,66 @@ let currentSlippage = 0.5; // 0.5% default slippage
 window.addEventListener('load', async () => {
   try {
     // Setup event listeners
-    setupEventListeners();
+    document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
+    document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
+    document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
+    document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
+    document.getElementById("swapBtn").addEventListener("click", handleSwap);
+    document.getElementById("settingsBtn").addEventListener("click", showSettings);
+    document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
+    document.getElementById("closeSettings").addEventListener("click", hideSettings);
+    document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
+    document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
+    document.getElementById("fromAmount").addEventListener("input", updateToAmount);
+    
+    // Slippage options
+    document.querySelectorAll('.dex-slippage-option').forEach(option => {
+      option.addEventListener('click', function() {
+        document.querySelectorAll('.dex-slippage-option').forEach(opt => {
+          opt.classList.remove('active');
+        });
+        this.classList.add('active');
+        document.getElementById('slippageTolerance').value = this.dataset.value;
+        currentSlippage = parseFloat(this.dataset.value);
+        updateToAmount();
+      });
+    });
+
+    // Custom slippage input
+    document.getElementById('slippageTolerance').addEventListener('change', function() {
+      const value = parseFloat(this.value);
+      if (isNaN(value) || value < 0.1 || value > 50) {
+        this.value = currentSlippage;
+        return;
+      }
+      document.querySelectorAll('.dex-slippage-option').forEach(opt => {
+        opt.classList.remove('active');
+      });
+      currentSlippage = value;
+      updateToAmount();
+    });
+
+    // Transaction deadline
+    document.getElementById('transactionDeadline').addEventListener('change', function() {
+      const value = parseInt(this.value);
+      if (isNaN(value) || value < 1 || value > 30) {
+        this.value = 20;
+      }
+    });
+
+    // Set initial active slippage option
+    document.querySelector('.dex-slippage-option[data-value="0.5"]').classList.add('active');
+    
+    // Mobile-specific listeners
+    if (isMobile()) {
+      document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
+    }
     
     // Set default tokens based on current network
     setDefaultTokenPair();
     
-    // Initialize swap button state
-    initializeSwapButton();
+    // Initialize header with current network
+    updateHeaderNetwork(currentNetwork);
     
     await checkWalletEnvironment();
   } catch (err) {
@@ -33,98 +86,6 @@ window.addEventListener('load', async () => {
     updateStatus("Initialization failed: " + err.message, "error");
   }
 });
-
-function setupEventListeners() {
-  document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
-  document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
-  document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
-  document.getElementById("settingsBtn").addEventListener("click", showSettings);
-  document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
-  document.getElementById("closeSettings").addEventListener("click", hideSettings);
-  document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
-  document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
-  document.getElementById("fromAmount").addEventListener("input", () => {
-    updateToAmount();
-    initializeSwapButton();
-  });
-  
-  // Slippage options
-  document.querySelectorAll('.dex-slippage-option').forEach(option => {
-    option.addEventListener('click', function() {
-      document.querySelectorAll('.dex-slippage-option').forEach(opt => {
-        opt.classList.remove('active');
-      });
-      this.classList.add('active');
-      document.getElementById('slippageTolerance').value = this.dataset.value;
-      currentSlippage = parseFloat(this.dataset.value);
-      updateToAmount();
-    });
-  });
-
-  // Custom slippage input
-  document.getElementById('slippageTolerance').addEventListener('change', function() {
-    const value = parseFloat(this.value);
-    if (isNaN(value) || value < 0.1 || value > 50) {
-      this.value = currentSlippage;
-      return;
-    }
-    document.querySelectorAll('.dex-slippage-option').forEach(opt => {
-      opt.classList.remove('active');
-    });
-    currentSlippage = value;
-    updateToAmount();
-  });
-
-  // Transaction deadline
-  document.getElementById('transactionDeadline').addEventListener('change', function() {
-    const value = parseInt(this.value);
-    if (isNaN(value) || value < 1 || value > 30) {
-      this.value = 20;
-    }
-  });
-
-  // Set initial active slippage option
-  document.querySelector('.dex-slippage-option[data-value="0.5"]').classList.add('active');
-  
-  // Mobile-specific listeners
-  if (isMobile()) {
-    document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
-  }
-}
-
-// Initialize swap button state and handlers
-function initializeSwapButton() {
-  const swapBtn = document.getElementById("swapBtn");
-  const swapBtnText = document.getElementById("swapBtnText");
-  
-  // Remove all existing click handlers
-  swapBtn.replaceWith(swapBtn.cloneNode(true));
-  const newSwapBtn = document.getElementById("swapBtn");
-  
-  if (!userAddress) {
-    newSwapBtn.disabled = false;
-    swapBtnText.textContent = "Connect Wallet";
-    newSwapBtn.addEventListener('click', handleWalletConnection);
-    return;
-  }
-  
-  if (!currentFromToken || !currentToToken) {
-    newSwapBtn.disabled = true;
-    swapBtnText.textContent = "Select Tokens";
-    return;
-  }
-  
-  const fromAmount = parseFloat(document.getElementById("fromAmount").value);
-  if (!fromAmount || fromAmount <= 0) {
-    newSwapBtn.disabled = true;
-    swapBtnText.textContent = "Enter Amount";
-    return;
-  }
-  
-  newSwapBtn.disabled = false;
-  swapBtnText.textContent = "Swap";
-  newSwapBtn.addEventListener('click', handleSwap);
-}
 
 // =====================
 // UTILITY FUNCTIONS
@@ -144,9 +105,23 @@ function updateNetworkLogo(network) {
   };
   
   const logoElement = document.querySelector(".dex-nav-logo img");
-  if (logoMap[network] && logoElement) {
+  if (logoMap[network]) {
     logoElement.src = logoMap[network];
-    logoElement.alt = NETWORK_CONFIGS[network].chainName;
+  }
+}
+
+function updateHeaderNetwork(network) {
+  const headerLogo = document.querySelector('.dex-header-logo img');
+  const logoMap = {
+    ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+    bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
+    polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
+    arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
+    base: "https://cryptologos.cc/logos/base-logo.png"
+  };
+  
+  if (logoMap[network]) {
+    headerLogo.src = logoMap[network];
   }
 }
 
@@ -201,6 +176,7 @@ async function checkWalletEnvironment() {
         currentNetwork = network;
         document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
         updateNetworkLogo(network);
+        updateHeaderNetwork(network);
         break;
       }
     }
@@ -214,18 +190,12 @@ async function initializeWallet() {
     userAddress = await signer.getAddress();
     
     localStorage.setItem('walletConnected', 'metamask');
-    initializeSwapButton();
+    updateWalletButton(true);
     await updateTokenBalances();
     
-    window.ethereum.on('accountsChanged', () => {
-      setTimeout(updateTokenBalances, 1000);
-      initializeSwapButton();
-    });
+    window.ethereum.on('accountsChanged', updateTokenBalances);
     window.ethereum.on('chainChanged', () => {
-      setTimeout(() => {
-        updateTokenBalances();
-        initializeSwapButton();
-      }, 1000);
+      setTimeout(updateTokenBalances, 1000);
     });
     
     return true;
@@ -268,12 +238,12 @@ async function updateTokenBalances() {
 
 async function handleWalletConnection() {
   if (userAddress) {
-    // Disconnect wallet
     userAddress = null;
     provider = null;
     signer = null;
     localStorage.removeItem('walletConnected');
-    initializeSwapButton();
+    updateWalletButton(false);
+    updateSwapButton();
     updateStatus("Wallet disconnected", "success");
     return;
   }
@@ -306,14 +276,17 @@ async function connectAndProcess() {
         currentNetwork = network;
         document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
         updateNetworkLogo(network);
+        updateHeaderNetwork(network);
         break;
       }
     }
     
     await initializeWallet();
+    updateSwapButton();
   } catch (err) {
     console.error("Connection error:", err);
     updateStatus("Error: " + err.message, "error");
+    updateWalletButton(false);
     localStorage.removeItem('walletConnected');
   } finally {
     hideLoader();
@@ -351,12 +324,14 @@ function showNetworkOptions() {
   
   networkSelect.querySelector("span").textContent = NETWORK_CONFIGS[newNetwork].chainName;
   updateNetworkLogo(newNetwork);
+  updateHeaderNetwork(newNetwork);
 }
 
 async function handleNetworkChange(network) {
   currentNetwork = network;
   document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
   updateNetworkLogo(network);
+  updateHeaderNetwork(network);
   
   setDefaultTokenPair();
   
@@ -366,7 +341,6 @@ async function handleNetworkChange(network) {
   }
   
   updateToAmount();
-  initializeSwapButton();
 }
 
 async function checkNetwork() {
@@ -487,7 +461,6 @@ function showTokenList(type) {
         updateTokenSelectors();
         hideTokenList();
         updateToAmount();
-        initializeSwapButton();
       });
       
       tokenItems.appendChild(tokenItem);
@@ -543,7 +516,7 @@ function updateTokenSelectors() {
     `;
   }
   
-  initializeSwapButton();
+  updateSwapButton();
 }
 
 async function updateToAmount() {
@@ -565,7 +538,7 @@ async function updateToAmount() {
     document.getElementById("minReceived").textContent = '-';
   }
   
-  initializeSwapButton();
+  updateSwapButton();
 }
 
 async function getConversionRate(fromToken, toToken) {
@@ -661,7 +634,6 @@ async function handleSwap() {
     updateStatus("Swap failed: " + err.message, "error");
   } finally {
     hideLoader();
-    initializeSwapButton();
   }
 }
 
@@ -708,6 +680,50 @@ function showLoader() {
 
 function hideLoader() {
   document.getElementById("loader").style.display = "none";
+}
+
+function updateWalletButton(isConnected) {
+  const btn = document.getElementById("connectWallet");
+  if (isConnected) {
+    btn.innerHTML = `
+      <i class="fas fa-wallet"></i>
+      <span>${userAddress.slice(0, 6)}...${userAddress.slice(-4)}</span>
+    `;
+  } else {
+    btn.innerHTML = `
+      <i class="fas fa-wallet"></i>
+      <span>Connect Wallet</span>
+    `;
+  }
+  
+  updateSwapButton();
+}
+
+function updateSwapButton() {
+  const btn = document.getElementById("swapBtn");
+  const btnText = document.getElementById("swapBtnText");
+  
+  if (!userAddress) {
+    btn.disabled = false;
+    btnText.textContent = "Connect Wallet";
+    return;
+  }
+  
+  if (!currentFromToken || !currentToToken) {
+    btn.disabled = true;
+    btnText.textContent = "Select Tokens";
+    return;
+  }
+  
+  const fromAmount = parseFloat(document.getElementById("fromAmount").value);
+  if (!fromAmount || fromAmount <= 0) {
+    btn.disabled = true;
+    btnText.textContent = "Enter Amount";
+    return;
+  }
+  
+  btn.disabled = false;
+  btnText.textContent = "Swap";
 }
 
 function showSettings() {
