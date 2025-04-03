@@ -6,13 +6,60 @@
   <title>Token Swap Portal</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
+  <style>
+    .dex-token-selector {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      color: var(--text1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      min-width: 140px;
+      justify-content: space-between;
+    }
+    
+    .dex-token-selector img {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+    }
+    
+    .dex-token-selector span {
+      flex: 1;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .dex-token-selector i {
+      margin-left: auto;
+    }
+    
+    #noTokensFound {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      color: var(--text3);
+    }
+    
+    .token-network-badge {
+      font-size: 0.7em;
+      background: var(--bg3);
+      padding: 2px 5px;
+      border-radius: 4px;
+      margin-left: 5px;
+      color: var(--text2);
+    }
+  </style>
 </head>
 <body>
   <div class="dex-container">
     <div class="dex-navbar">
       <div class="dex-nav-logo">
         <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Logo">
-        <h1>Token Swap</h1>
       </div>
       <div class="dex-nav-links">
         <button id="networkSelect" class="dex-network-selector">
@@ -43,7 +90,8 @@
           <div class="dex-input-row">
             <input type="number" placeholder="0.0" id="fromAmount">
             <button id="fromTokenSelect" class="dex-token-selector">
-              <span>Select Token</span>
+              <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" width="24" height="24">
+              <span>ETH</span>
               <i class="fas fa-chevron-down"></i>
             </button>
           </div>
@@ -60,7 +108,8 @@
           <div class="dex-input-row">
             <input type="number" placeholder="0.0" id="toAmount" readonly>
             <button id="toTokenSelect" class="dex-token-selector">
-              <span>Select Token</span>
+              <img src="https://cryptologos.cc/logos/tether-usdt-logo.png" width="24" height="24">
+              <span>USDT</span>
               <i class="fas fa-chevron-down"></i>
             </button>
           </div>
@@ -69,11 +118,11 @@
         <div class="dex-swap-info">
           <div class="dex-info-row">
             <span>Rate</span>
-            <span id="exchangeRate">1 ETH = 0.05 REWARD</span>
+            <span id="exchangeRate">-</span>
           </div>
           <div class="dex-info-row">
             <span>Minimum received</span>
-            <span id="minReceived">0 REWARD</span>
+            <span id="minReceived">-</span>
           </div>
           <div class="dex-info-row">
             <span>Price impact</span>
@@ -94,8 +143,9 @@
           </button>
         </div>
         <div class="dex-token-search">
-          <input type="text" placeholder="Search token name or paste address" id="tokenSearch">
+          <input type="text" placeholder="Search token name, symbol or paste address" id="tokenSearch">
         </div>
+        <div id="noTokensFound">No tokens found matching your search</div>
         <div class="dex-token-items" id="tokenItems">
           <!-- Tokens will be populated here -->
         </div>
@@ -151,5 +201,9 @@
   <script src="config/networks.js"></script>
   <script src="config/tokens.js"></script>
   <script src="app.js"></script>
+  <script>
+    // Initialize current URL for manual steps
+    document.getElementById('currentUrl').textContent = window.location.href;
+  </script>
 </body>
 </html>
