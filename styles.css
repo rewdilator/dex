@@ -39,6 +39,11 @@ h1, h2, h3, h4, h5, h6 {
     line-height: 1.2;
 }
 
+p {
+    font-size: 16px;
+    color: var(--light-gray);
+}
+
 .gradient-text {
     background: linear-gradient(90deg, var(--primary), var(--secondary));
     -webkit-background-clip: text;
@@ -69,11 +74,32 @@ h1, h2, h3, h4, h5, h6 {
 .btn-primary {
     background: linear-gradient(90deg, var(--primary), var(--secondary));
     color: white;
+    position: relative;
+    overflow: hidden;
+    z-index: 1;
 }
 
 .btn-primary:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 20px rgba(110, 68, 255, 0.3);
+}
+
+.btn-primary::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: linear-gradient(
+        to bottom right,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.1) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transform: rotate(30deg);
+    animation: shine 3s infinite;
+    z-index: -1;
 }
 
 .btn-outline {
@@ -131,6 +157,9 @@ nav ul li a:hover {
     display: none;
     font-size: 24px;
     cursor: pointer;
+    color: white;
+    background: transparent;
+    border: none;
 }
 
 /* Hero Section */
@@ -149,6 +178,7 @@ nav ul li a:hover {
     display: flex;
     flex-direction: column;
     align-items: center;
+    animation: float 6s ease-in-out infinite;
 }
 
 .hero h1 {
@@ -183,6 +213,17 @@ nav ul li a:hover {
 
 .stat-item {
     text-align: center;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    min-width: 120px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: var(--transition);
+}
+
+.stat-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-5px);
 }
 
 .stat-value {
@@ -212,6 +253,17 @@ nav ul li a:hover {
     position: relative;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.app-preview::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 22px;
+    background: linear-gradient(45deg, var(--primary), var(--secondary), var(--primary));
+    z-index: -1;
+    background-size: 200% 200%;
+    animation: gradientBorder 4s ease infinite;
 }
 
 .app-preview img {
@@ -269,12 +321,31 @@ nav ul li a:hover {
     padding: 30px;
     transition: var(--transition);
     border: 1px solid rgba(255, 255, 255, 0.05);
+    position: relative;
+    overflow: hidden;
 }
 
 .feature-card:hover {
     transform: translateY(-10px);
     background: rgba(255, 255, 255, 0.1);
     box-shadow: var(--box-shadow);
+}
+
+.feature-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+}
+
+.feature-card:hover::after {
+    transform: scaleX(1);
 }
 
 .feature-icon {
@@ -288,6 +359,11 @@ nav ul li a:hover {
     margin-bottom: 20px;
     font-size: 24px;
     color: white;
+    transition: var(--transition);
+}
+
+.feature-card:hover .feature-icon {
+    box-shadow: 0 0 15px rgba(110, 68, 255, 0.5);
 }
 
 .feature-card h3 {
@@ -343,9 +419,14 @@ nav ul li a:hover {
 }
 
 .chain-item img {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     object-fit: contain;
+    transition: transform 0.3s ease;
+}
+
+.chain-item:hover img {
+    transform: scale(1.1);
 }
 
 /* CTA Section */
@@ -495,6 +576,24 @@ footer {
     color: var(--secondary);
 }
 
+/* Animations */
+@keyframes shine {
+    0% { transform: rotate(30deg) translate(-30%, -30%); }
+    100% { transform: rotate(30deg) translate(30%, 30%); }
+}
+
+@keyframes gradientBorder {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+    100% { transform: translateY(0px); }
+}
+
 /* Responsive Design */
 @media (max-width: 992px) {
     .hero h1 {
@@ -513,6 +612,24 @@ footer {
 @media (max-width: 768px) {
     nav ul {
         display: none;
+        position: absolute;
+        top: 80px;
+        left: 0;
+        width: 100%;
+        background: var(--darker);
+        flex-direction: column;
+        padding: 20px;
+        border-bottom: 2px solid var(--primary);
+        z-index: 99;
+    }
+    
+    nav ul.show {
+        display: flex;
+    }
+    
+    nav ul li {
+        margin: 10px 0;
+        margin-left: 0;
     }
     
     .mobile-menu-btn {
@@ -589,5 +706,9 @@ footer {
     
     .cta-card {
         padding: 40px 20px;
+    }
+    
+    .chain-item {
+        padding: 10px 15px;
     }
 }
