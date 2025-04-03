@@ -627,6 +627,7 @@ body {
 }
 
 .dex-slippage-options {
+  color: white;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
@@ -634,6 +635,7 @@ body {
 
 .dex-slippage-option {
   background: var(--bg2);
+  color: white;
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 12px;
