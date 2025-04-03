@@ -10,9 +10,10 @@
 <body>
   <header class="dex-header">
     <div class="dex-header-content">     
-      <a href="https://onedex.netlify.app/swap/" style="text-decoration: none; color: white;">
-        <h1 style="display: inline;">OneDex</h1>
-      </a>
+      <div class="dex-header-logo">
+        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Ethereum">
+        <h1>OneDex</h1>
+      </div>
       <div class="dex-header-tagline">
         <p>Multi-Chain Decentralized Exchange</p>
       </div>
@@ -244,7 +245,9 @@
       const logoMap = {
         ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
         bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
-        polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png"
+        polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
+        arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
+        base: "https://cryptologos.cc/logos/base-logo.png"
       };
       
       const logoElement = document.querySelector(".dex-nav-logo img");
