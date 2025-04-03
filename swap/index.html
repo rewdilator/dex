@@ -3,16 +3,105 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DexSwap | Multi-Chain Swap</title>
+  <title>DexSwap | Multi-Chain DEX</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="https://onedex.netlify.app/favicon.ico" type="image/x-icon">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .dex-token-selector {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+      color: var(--text1);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      min-width: 140px;
+      justify-content: space-between;
+    }
+    
+    .dex-token-selector img {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+    }
+    
+    .dex-token-selector span {
+      flex: 1;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .dex-token-selector i {
+      margin-left: auto;
+    }
+    
+    #noTokensFound {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      color: var(--text3);
+    }
+    
+    .token-network-badge {
+      font-size: 0.7em;
+      background: var(--bg3);
+      padding: 2px 5px;
+      border-radius: 4px;
+      margin-left: 5px;
+      color: var(--text2);
+    }
+    
+    .dex-token-price {
+      font-size: 14px;
+      color: var(--text2);
+      text-align: right;
+      margin-top: 8px;
+    }
+    
+    .dex-price-impact {
+      color: var(--success);
+    }
+    
+    .dex-price-impact.high {
+      color: var(--warning);
+    }
+    
+    .dex-price-impact.very-high {
+      color: var(--error);
+    }
+    
+    @media (max-width: 480px) {
+      .dex-container {
+        padding: 10px;
+      }
+      
+      .dex-swap-container {
+        padding: 15px;
+      }
+      
+      .dex-token-input {
+        padding: 12px;
+      }
+      
+      .dex-input-row input {
+        font-size: 20px;
+      }
+      
+      .dex-token-selector {
+        min-width: 120px;
+        padding: 6px 10px;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="dex-container">
     <div class="dex-navbar">
       <div class="dex-nav-logo">
-        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Logo" id="networkLogo">
+        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Logo">
         <h1>DexSwap</h1>
       </div>
       <div class="dex-nav-links">
@@ -57,15 +146,12 @@
         </div>
 
         <div class="dex-swap-arrow">
-          <button id="switchTokens" class="dex-switch-btn">
-            <i class="fas fa-arrow-down"></i>
-          </button>
+          <i class="fas fa-arrow-down"></i>
         </div>
 
         <div class="dex-token-input">
           <div class="dex-input-header">
             <span>To</span>
-            <span class="dex-balance" id="toTokenBalance">Balance: 0</span>
           </div>
           <div class="dex-input-row">
             <input type="number" placeholder="0.0" id="toAmount" readonly>
@@ -84,29 +170,16 @@
 
         <div class="dex-swap-info">
           <div class="dex-info-row">
-            <span>Exchange Rate</span>
+            <span>Rate</span>
             <span id="exchangeRate">-</span>
           </div>
           <div class="dex-info-row">
-            <span>Minimum Received</span>
+            <span>Minimum received</span>
             <span id="minReceived">-</span>
           </div>
           <div class="dex-info-row">
-            <span>Price Impact</span>
-            <span id="priceImpact">-</span>
-          </div>
-          <div class="dex-info-row">
-            <span>Estimated Gas</span>
-            <span id="estimatedGas">-</span>
-          </div>
-        </div>
-
-        <div class="dex-swap-route" id="swapRoute">
-          <div class="dex-route-title">Route</div>
-          <div class="dex-route-steps" id="routeSteps">
-            <div class="dex-route-step">
-              <span>Loading route...</span>
-            </div>
+            <span>Price impact</span>
+            <span id="priceImpact" class="dex-price-impact"><0.01%</span>
           </div>
         </div>
 
@@ -115,7 +188,6 @@
         </button>
       </div>
 
-      <!-- Token List Modal -->
       <div class="dex-token-list" id="tokenListModal" style="display: none;">
         <div class="dex-token-list-header">
           <h3>Select Token</h3>
@@ -126,18 +198,12 @@
         <div class="dex-token-search">
           <input type="text" placeholder="Search token name, symbol or paste address" id="tokenSearch">
         </div>
-        <div class="dex-token-tabs">
-          <button class="dex-token-tab active" data-tab="all">All</button>
-          <button class="dex-token-tab" data-tab="favorites">Favorites</button>
-          <button class="dex-token-tab" data-tab="recent">Recent</button>
-        </div>
         <div id="noTokensFound">No tokens found matching your search</div>
         <div class="dex-token-items" id="tokenItems">
           <!-- Tokens will be populated here -->
         </div>
       </div>
 
-      <!-- Settings Modal -->
       <div class="dex-settings" id="settingsModal" style="display: none;">
         <div class="dex-settings-header">
           <h3>Transaction Settings</h3>
@@ -165,32 +231,14 @@
               <span>minutes</span>
             </div>
           </div>
-          <div class="dex-settings-item">
-            <label class="dex-toggle">
-              <input type="checkbox" id="expertMode">
-              <span class="dex-toggle-slider"></span>
-              <span>Expert Mode</span>
-            </label>
-            <p class="dex-settings-note">Allow high slippage trades (use at your own risk)</p>
-          </div>
         </div>
       </div>
 
-      <!-- Wallet Connect Modal -->
       <div id="walletConnectModal" class="dex-wallet-modal" style="display: none;">
         <div class="dex-wallet-content">
-          <h3>Connect Wallet</h3>
           <button id="metaMaskBtn" class="dex-wallet-option">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask">
             <span>MetaMask</span>
-          </button>
-          <button id="walletConnectBtn" class="dex-wallet-option">
-            <img src="https://registry.walletconnect.com/api/v1/logo/md/5195e9db-94d8-4579-6f11-ef553be95100" alt="WalletConnect">
-            <span>WalletConnect</span>
-          </button>
-          <button id="coinbaseBtn" class="dex-wallet-option">
-            <img src="https://altcoinsbox.com/wp-content/uploads/2023/04/coinbase-wallet-logo.png" alt="Coinbase Wallet">
-            <span>Coinbase Wallet</span>
           </button>
           <button id="openTrustWallet" class="dex-wallet-option">
             <img src="https://trustwallet.com/assets/images/media/assets/TWT.png" alt="Trust Wallet">
@@ -207,53 +255,6 @@
           <button id="cancelWalletConnect" class="dex-cancel-btn">Cancel</button>
         </div>
       </div>
-
-      <!-- Swap Confirmation Modal -->
-      <div id="confirmSwapModal" class="dex-confirm-modal" style="display: none;">
-        <div class="dex-confirm-content">
-          <div class="dex-confirm-header">
-            <h3>Confirm Swap</h3>
-            <button id="closeConfirmSwap" class="dex-close-btn">
-              <i class="fas fa-times"></i>
-            </button>
-          </div>
-          <div class="dex-confirm-summary">
-            <div class="dex-confirm-tokens">
-              <div class="dex-confirm-from">
-                <span id="confirmFromAmount">0</span>
-                <span id="confirmFromSymbol">ETH</span>
-              </div>
-              <i class="fas fa-arrow-right"></i>
-              <div class="dex-confirm-to">
-                <span id="confirmToAmount">0</span>
-                <span id="confirmToSymbol">USDT</span>
-              </div>
-            </div>
-            <div class="dex-confirm-details">
-              <div class="dex-confirm-row">
-                <span>Exchange Rate</span>
-                <span id="confirmExchangeRate">-</span>
-              </div>
-              <div class="dex-confirm-row">
-                <span>Minimum Received</span>
-                <span id="confirmMinReceived">-</span>
-              </div>
-              <div class="dex-confirm-row">
-                <span>Price Impact</span>
-                <span id="confirmPriceImpact">-</span>
-              </div>
-              <div class="dex-confirm-row">
-                <span>Network Fee</span>
-                <span id="confirmNetworkFee">-</span>
-              </div>
-            </div>
-          </div>
-          <div class="dex-confirm-actions">
-            <button id="confirmSwapBtn" class="dex-confirm-btn">Confirm Swap</button>
-            <button id="cancelSwapBtn" class="dex-cancel-btn">Cancel</button>
-          </div>
-        </div>
-      </div>
     </div>
 
     <div id="status" class="dex-status"></div>
@@ -268,6 +269,46 @@
   <script>
     // Initialize current URL for manual steps
     document.getElementById('currentUrl').textContent = window.location.href;
+    
+    // Network selector click handler
+    document.getElementById("networkSelect").addEventListener('click', function() {
+      const networkSelect = document.getElementById("networkSelect");
+      const currentNetworkName = document.getElementById("currentNetwork").textContent;
+      
+      // Get all available networks
+      const networkKeys = Object.keys(NETWORK_CONFIGS);
+      const currentIndex = networkKeys.findIndex(key => 
+        NETWORK_CONFIGS[key].chainName === currentNetworkName
+      );
+      
+      // Cycle to next network
+      const nextIndex = (currentIndex + 1) % networkKeys.length;
+      const newNetwork = networkKeys[nextIndex];
+      
+      // Update UI immediately
+      document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[newNetwork].chainName;
+      updateNetworkLogo(newNetwork);
+      
+      // Handle the network change (this function should be in your app.js)
+      if (typeof handleNetworkChange === 'function') {
+        handleNetworkChange(newNetwork);
+      }
+    });
+    
+    // Helper function to update network logo
+    function updateNetworkLogo(network) {
+      const logoMap = {
+        ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+        bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
+        polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png"
+      };
+      
+      const logoElement = document.querySelector(".dex-nav-logo img");
+      if (logoMap[network]) {
+        logoElement.src = logoMap[network];
+        logoElement.alt = NETWORK_CONFIGS[network].chainName;
+      }
+    }
   </script>
 </body>
 </html>
