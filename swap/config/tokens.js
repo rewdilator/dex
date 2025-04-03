@@ -64,7 +64,7 @@ arbitrum: [
     {
       name: "Ethereum",
       symbol: "ETH",
-      address: "0x0000000000000000000000000000000000000000",
+      address: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
       logo: "https://assets.coingecko.com/coins/images/279/standard/ethereum.png",
       abi: [],
       decimals: 18,
