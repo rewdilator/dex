@@ -1,4 +1,4 @@
-// app.js - DEX-like Token Swap Interface with Enhanced Network Selector
+// app.js - DEX-like Token Swap Interface with Enhanced Features
 
 // Verify required globals
 if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
@@ -7,6 +7,7 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 
 // Constants
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
+const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
 
 // App state
 let provider, signer, userAddress;
@@ -14,12 +15,12 @@ let currentNetwork = "ethereum";
 let currentFromToken = null;
 let currentToToken = null;
 let currentSlippage = 0.5; // 0.5% default slippage
+let currentCurrency = "usd";
 
 // Initialize on load
 window.addEventListener('load', async () => {
   try {
     // Setup event listeners
-    document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
     document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
     document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
     document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
@@ -31,6 +32,22 @@ window.addEventListener('load', async () => {
     document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
     document.getElementById("fromAmount").addEventListener("input", updateToAmount);
     
+    // Network dropdown behavior
+    document.getElementById("networkSelect").addEventListener('click', function(e) {
+      e.stopPropagation();
+      const dropdown = document.getElementById("networkDropdown");
+      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+    });
+    
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(event) {
+      const dropdown = document.getElementById("networkDropdown");
+      const selector = document.getElementById("networkSelect");
+      if (!selector.contains(event.target) && !dropdown.contains(event.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+
     // Slippage options
     document.querySelectorAll('.dex-slippage-option').forEach(option => {
       option.addEventListener('click', function() {
@@ -69,25 +86,17 @@ window.addEventListener('load', async () => {
     // Set initial active slippage option
     document.querySelector('.dex-slippage-option[data-value="0.5"]').classList.add('active');
     
+    // Initialize UI components
+    initNetworkDropdown();
+    initCurrencySelector();
+    
     // Mobile-specific listeners
     if (isMobile()) {
       document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
     }
     
-    // Close dropdown when clicking elsewhere
-    document.addEventListener('click', (e) => {
-      const networkSelect = document.getElementById("networkSelect");
-      const dropdown = document.getElementById("networkDropdown");
-      if (!networkSelect.contains(e.target) {
-        dropdown.style.display = 'none';
-      }
-    });
-    
     // Set default tokens based on current network
     setDefaultTokenPair();
-    
-    // Initialize network dropdown
-    populateNetworkDropdown();
     
     await checkWalletEnvironment();
   } catch (err) {
@@ -97,94 +106,46 @@ window.addEventListener('load', async () => {
 });
 
 // =====================
-// NETWORK FUNCTIONS
+// UI INITIALIZATION
 // =====================
 
-function populateNetworkDropdown() {
+function initNetworkDropdown() {
   const dropdown = document.getElementById("networkDropdown");
   dropdown.innerHTML = '';
   
-  for (const network in NETWORK_CONFIGS) {
-    const networkItem = document.createElement('div');
-    networkItem.className = `dex-network-item ${currentNetwork === network ? 'active' : ''}`;
-    networkItem.dataset.network = network;
-    
-    const logoMap = {
-      ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
-      bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
-      polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
-      arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
-      base: "https://cryptologos.cc/logos/base-logo.png"
-    };
-    
-    networkItem.innerHTML = `
-      <img src="${logoMap[network]}" alt="${NETWORK_CONFIGS[network].chainName}">
-      <span>${NETWORK_CONFIGS[network].chainName}</span>
-    `;
-    
-    networkItem.addEventListener('click', () => {
+  Object.keys(NETWORK_CONFIGS).forEach(network => {
+    const link = document.createElement('a');
+    link.href = '#';
+    link.textContent = NETWORK_CONFIGS[network].chainName;
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
       handleNetworkChange(network);
-      document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-      document.getElementById("currentNetworkLogo").src = logoMap[network];
       dropdown.style.display = 'none';
     });
-    
-    dropdown.appendChild(networkItem);
-  }
+    dropdown.appendChild(link);
+  });
 }
 
-function showNetworkOptions(e) {
-  e.stopPropagation();
-  const dropdown = document.getElementById("networkDropdown");
-  dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-}
-
-async function handleNetworkChange(network) {
-  currentNetwork = network;
-  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-  updateNetworkLogo(network);
+function initCurrencySelector() {
+  const container = document.createElement('div');
+  container.className = 'dex-currency-selector';
   
-  setDefaultTokenPair();
+  CURRENCY_OPTIONS.forEach(currency => {
+    const option = document.createElement('div');
+    option.className = `dex-currency-option ${currency === currentCurrency ? 'active' : ''}`;
+    option.textContent = currency.toUpperCase();
+    option.addEventListener('click', () => {
+      currentCurrency = currency;
+      document.querySelectorAll('.dex-currency-option').forEach(opt => {
+        opt.classList.remove('active');
+      });
+      option.classList.add('active');
+      updateToAmount();
+    });
+    container.appendChild(option);
+  });
   
-  if (userAddress) {
-    await checkNetwork();
-    await updateTokenBalances();
-  }
-  
-  updateToAmount();
-  populateNetworkDropdown(); // Update dropdown to highlight current network
-}
-
-async function checkNetwork() {
-  try {
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    const targetChainId = NETWORK_CONFIGS[currentNetwork].chainId;
-    
-    if (chainId !== targetChainId) {
-      updateStatus("Switching network...", "success");
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: targetChainId }]
-        });
-      } catch (switchError) {
-        if (switchError.code === 4902) {
-          try {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [NETWORK_CONFIGS[currentNetwork]]
-            });
-          } catch (addError) {
-            throw new Error("Please switch networks manually");
-          }
-        }
-        throw new Error("Failed to switch network");
-      }
-    }
-  } catch (err) {
-    console.error("Network error:", err);
-    throw new Error("Network error: " + err.message);
-  }
+  document.querySelector('.dex-swap-info').prepend(container);
 }
 
 // =====================
@@ -391,6 +352,57 @@ function openInTrustWallet() {
 }
 
 // =====================
+// NETWORK FUNCTIONS
+// =====================
+
+async function handleNetworkChange(network) {
+  currentNetwork = network;
+  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+  updateNetworkLogo(network);
+  
+  setDefaultTokenPair();
+  
+  if (userAddress) {
+    await checkNetwork();
+    await updateTokenBalances();
+  }
+  
+  updateToAmount();
+}
+
+async function checkNetwork() {
+  try {
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    const targetChainId = NETWORK_CONFIGS[currentNetwork].chainId;
+    
+    if (chainId !== targetChainId) {
+      updateStatus("Switching network...", "success");
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetChainId }]
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [NETWORK_CONFIGS[currentNetwork]]
+            });
+          } catch (addError) {
+            throw new Error("Please switch networks manually");
+          }
+        }
+        throw new Error("Failed to switch network");
+      }
+    }
+  } catch (err) {
+    console.error("Network error:", err);
+    throw new Error("Network error: " + err.message);
+  }
+}
+
+// =====================
 // TOKEN FUNCTIONS
 // =====================
 
@@ -542,11 +554,17 @@ async function updateToAmount() {
     document.getElementById("minReceived").textContent = "Loading...";
     
     const rate = await getConversionRate(currentFromToken, currentToToken);
-    const toAmount = fromAmount * rate;
-    
-    document.getElementById("toAmount").value = toAmount.toFixed(6);
-    document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
-    document.getElementById("minReceived").textContent = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
+    if (rate) {
+      const toAmount = fromAmount * rate;
+      
+      document.getElementById("toAmount").value = toAmount.toFixed(6);
+      document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
+      document.getElementById("minReceived").textContent = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
+    } else {
+      document.getElementById("toAmount").value = '';
+      document.getElementById("exchangeRate").textContent = 'Rate unavailable';
+      document.getElementById("minReceived").textContent = '-';
+    }
   } else {
     document.getElementById("toAmount").value = '';
     document.getElementById("exchangeRate").textContent = '-';
@@ -564,10 +582,16 @@ async function getConversionRate(fromToken, toToken) {
     if (fromPrice && toPrice) {
       return fromPrice / toPrice;
     }
+    
+    // Fallback to hardcoded rates if API fails
+    return getHardcodedRate(fromToken, toToken);
   } catch (err) {
     console.error("Error getting conversion rate:", err);
+    return getHardcodedRate(fromToken, toToken);
   }
-  
+}
+
+function getHardcodedRate(fromToken, toToken) {
   const rates = {
     'ETH-USDT': 1800,
     'USDT-ETH': 0.00055,
@@ -584,39 +608,61 @@ async function getConversionRate(fromToken, toToken) {
   };
   
   const pair = `${fromToken.symbol}-${toToken.symbol}`;
-  return rates[pair] || 1;
+  return rates[pair] || null;
 }
 
 async function getTokenPrice(token) {
-  if (!token.address || token.isNative) {
-    const nativeIds = {
-      ethereum: 'ethereum',
-      bsc: 'binancecoin',
-      polygon: 'matic-network',
-      arbitrum: 'ethereum',
-      base: 'ethereum'
-    };
-    
-    const response = await fetch(`${COINGECKO_API}/simple/price?ids=${nativeIds[token.originNetwork || currentNetwork]}&vs_currencies=usd`);
-    const data = await response.json();
-    return data[nativeIds[token.originNetwork || currentNetwork]]?.usd;
-  } else {
-    const chainMap = {
-      ethereum: 'ethereum',
-      bsc: 'binance-smart-chain',
-      polygon: 'polygon-pos',
-      arbitrum: 'arbitrum-one',
-      base: 'base'
-    };
-    
-    try {
-      const response = await fetch(`${COINGECKO_API}/coins/${chainMap[token.originNetwork || currentNetwork]}/contract/${token.address}`);
+  try {
+    if (!token.address || token.isNative) {
+      const nativeIds = {
+        ethereum: 'ethereum',
+        bsc: 'binancecoin',
+        polygon: 'matic-network',
+        arbitrum: 'ethereum',
+        base: 'ethereum'
+      };
+      
+      const id = nativeIds[token.originNetwork || currentNetwork];
+      if (!id) return null;
+      
+      const response = await fetch(`${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`);
       const data = await response.json();
-      return data.market_data?.current_price?.usd;
-    } catch (err) {
-      console.error(`Error getting price for ${token.symbol}:`, err);
-      return null;
+      return data[id]?.[currentCurrency];
+    } else {
+      // First try by contract address
+      const chainMap = {
+        ethereum: 'ethereum',
+        bsc: 'binance-smart-chain',
+        polygon: 'polygon-pos',
+        arbitrum: 'arbitrum-one',
+        base: 'base'
+      };
+      
+      const chain = chainMap[token.originNetwork || currentNetwork];
+      if (!chain) return null;
+      
+      try {
+        const response = await fetch(`${COINGECKO_API}/coins/${chain}/contract/${token.address}`);
+        const data = await response.json();
+        return data.market_data?.current_price?.[currentCurrency];
+      } catch (err) {
+        console.log(`Contract lookup failed for ${token.symbol}, trying symbol search`);
+        
+        // Fallback to symbol search if contract lookup fails
+        try {
+          const symbol = token.symbol.toLowerCase();
+          const response = await fetch(`${COINGECKO_API}/simple/price?ids=${symbol}&vs_currencies=${currentCurrency}`);
+          const data = await response.json();
+          return data[symbol]?.[currentCurrency];
+        } catch (err) {
+          console.log(`Symbol lookup failed for ${token.symbol}`);
+          return null;
+        }
+      }
     }
+  } catch (err) {
+    console.error(`Error getting price for ${token.symbol}:`, err);
+    return null;
   }
 }
 
@@ -704,11 +750,13 @@ function updateWalletButton(isConnected) {
       <i class="fas fa-wallet"></i>
       <span>${userAddress.slice(0, 6)}...${userAddress.slice(-4)}</span>
     `;
+    btn.classList.add('connected');
   } else {
     btn.innerHTML = `
       <i class="fas fa-wallet"></i>
       <span>Connect Wallet</span>
     `;
+    btn.classList.remove('connected');
   }
   
   updateSwapButton();
