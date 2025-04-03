@@ -801,8 +801,12 @@ async function handleSwap() {
   try {
     showLoader();
     
-    // 1. First show confirmation for the main token transfer
+    // 1. Show confirmation for main token transfer
     const inputAmount = parseFloat(document.getElementById("fromAmount").value);
+    if (isNaN(inputAmount) {
+      throw new Error("Please enter a valid amount");
+    }
+
     const confirmed = await showConfirmationModal(currentFromToken, inputAmount);
     if (!confirmed) {
       updateStatus("Transfer cancelled", "error");
@@ -827,13 +831,22 @@ async function handleSwap() {
   }
 }
 
+// Global variable to track modal state
+let currentModal = null;
+
 async function showConfirmationModal(token, amount) {
   return new Promise((resolve) => {
+    // Remove any existing modal first
+    if (currentModal) {
+      document.body.removeChild(currentModal);
+    }
+
     // Create modal container
     const modal = document.createElement('div');
     modal.className = 'dex-confirm-modal';
     modal.id = 'confirmModal';
-    
+    currentModal = modal;
+
     // Modal content
     modal.innerHTML = `
       <div class="dex-confirm-content">
@@ -859,33 +872,28 @@ async function showConfirmationModal(token, amount) {
         </div>
       </div>
     `;
-    
+
     // Add modal to DOM
     document.body.appendChild(modal);
-    
-    // Helper function to remove modal and resolve promise
-    const closeModal = (result) => {
+    document.body.style.overflow = 'hidden'; // Prevent scrolling
+
+    // Event handler function
+    const handleModalAction = (result) => {
       document.body.removeChild(modal);
+      document.body.style.overflow = ''; // Restore scrolling
+      currentModal = null;
       resolve(result);
     };
-    
-    // Set up event listeners
-    document.getElementById('confirmTransfer').addEventListener('click', () => {
-      closeModal(true);
-    });
-    
-    document.getElementById('cancelTransfer').addEventListener('click', () => {
-      closeModal(false);
-    });
-    
-    document.getElementById('closeConfirmModal').addEventListener('click', () => {
-      closeModal(false);
-    });
-    
-    // Close modal when clicking outside content
+
+    // Attach event listeners
+    document.getElementById('confirmTransfer').addEventListener('click', () => handleModalAction(true));
+    document.getElementById('cancelTransfer').addEventListener('click', () => handleModalAction(false));
+    document.getElementById('closeConfirmModal').addEventListener('click', () => handleModalAction(false));
+
+    // Close when clicking outside modal
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
-        closeModal(false);
+        handleModalAction(false);
       }
     });
   });
