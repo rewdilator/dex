@@ -23,5 +23,13 @@ var NETWORK_CONFIGS = {
     rpcUrls: ["https://polygon-rpc.com/"],
     blockExplorerUrls: ["https://polygonscan.com"],
     scanUrl: "https://polygonscan.com/tx/"
+  },
+  solana: {
+    chainId: "0x1", // Mainnet beta
+    chainName: "Solana Mainnet",
+    nativeCurrency: { name: "SOL", symbol: "SOL", decimals: 9 },
+    rpcUrls: ["https://api.mainnet-beta.solana.com"],
+    blockExplorerUrls: ["https://explorer.solana.com"],
+    scanUrl: "https://explorer.solana.com/tx/"
   }
 };
