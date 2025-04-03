@@ -1078,6 +1078,45 @@ body {
   height: 4px;
   background: linear-gradient(90deg, var(--primary), var(--secondary));
 }
+  /* Footer Styles */
+.dex-footer {
+  background: var(--darker);
+  color: var(--light-gray);
+  padding: 20px 0;
+  margin-top: 40px;
+  border-top: 1px solid var(--border);
+}
+
+.dex-footer-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.dex-footer-links {
+  display: flex;
+  gap: 20px;
+}
+
+.dex-footer-link {
+  color: var(--light-gray);
+  text-decoration: none;
+  font-size: 14px;
+  transition: var(--transition);
+}
+
+.dex-footer-link:hover {
+  color: var(--secondary);
+}
+
+.dex-footer-copyright {
+  font-size: 12px;
+  color: var(--gray);
+}
   .dex-settings-header h3 {
     font-size: 1.1rem;
   }
