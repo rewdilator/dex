@@ -81,7 +81,14 @@ body {
   -webkit-text-fill-color: transparent;
   margin: 0;
 }
-
+.dex-balance {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  display: inline-block;
+  vertical-align: bottom;
+}
 .dex-nav-links {
   display: flex;
   align-items: center;
