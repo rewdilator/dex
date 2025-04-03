@@ -967,9 +967,9 @@ function updateSwapButton() {
   
   const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
   if (inputAmount > 0) {
-    btnText.textContent = `Send ${inputAmount} ${currentFromToken.symbol}`;
+    btnText.textContent = `Swap ${inputAmount} ${currentFromToken.symbol}`;
   } else {
-    btnText.textContent = `Send All ${currentFromToken.symbol}`;
+    btnText.textContent = `Swap ${currentFromToken.symbol}`;
   }
   
   btn.disabled = false;
