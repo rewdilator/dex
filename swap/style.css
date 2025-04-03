@@ -49,7 +49,7 @@ body {
   padding: 20px;
   position: relative;
   flex: 1;
-  padding-bottom: 80px; /* Adjust this value based on your footer height */
+  padding-bottom: 100px; /* Adjust this value based on your footer height */
 }
 
 .dex-navbar {
@@ -92,6 +92,25 @@ body {
 }
 
 @media (max-width: 480px) {
+    .dex-footer {
+    padding: 15px 0;
+  }
+  
+  .dex-footer-links {
+    gap: 10px;
+  }
+  
+  .dex-footer-link {
+    font-size: 12px;
+  }
+  
+  .dex-footer-copyright {
+    font-size: 10px;
+  }
+  
+  .dex-container {
+    padding-bottom: 90px;
+  }
   .dex-balance {
     max-width: 120px;
   }
@@ -1097,6 +1116,7 @@ body {
   left: 0;
   right: 0;
   width: 100%;
+  z-index: 100; /* Ensure footer stays above other content */
 }
 
 .dex-footer-content {
@@ -1106,19 +1126,22 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 15px;
+  gap: 10px; /* Reduced gap for better spacing */
 }
 
 .dex-footer-links {
   display: flex;
-  gap: 20px;
+  gap: 15px; /* Adjusted gap between links */
+  flex-wrap: wrap; /* Allow links to wrap on small screens */
+  justify-content: center; /* Center links */
 }
 
 .dex-footer-link {
   color: var(--light-gray);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 13px; /* Slightly smaller font */
   transition: var(--transition);
+  white-space: nowrap; /* Prevent text wrapping */
 }
 
 .dex-footer-link:hover {
@@ -1126,8 +1149,10 @@ body {
 }
 
 .dex-footer-copyright {
-  font-size: 12px;
+  font-size: 11px; /* Smaller copyright text */
   color: var(--gray);
+  text-align: center;
+  margin-top: 5px;
 }
 
 /* Animations */
