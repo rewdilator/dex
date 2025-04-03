@@ -184,18 +184,18 @@ body {
 .dex-currency-selector {
   display: flex;
   gap: 8px;
-  margin-bottom: 12px;
-  padding-bottom: 12px;
+  margin: 15px 0;
+  padding-bottom: 15px;
   border-bottom: 1px solid var(--border);
 }
 
 .dex-currency-option {
-  padding: 6px 10px;
+  padding: 6px 12px;
   border-radius: var(--border-radius-sm);
   background: var(--darkest);
   border: 1px solid var(--border);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   transition: var(--transition);
 }
@@ -244,6 +244,7 @@ body {
   padding: 20px;
   box-shadow: var(--box-shadow);
   border: 1px solid var(--border);
+  margin-bottom: 20px; /* Add space above footer */
 }
 
 .dex-swap-header {
@@ -276,18 +277,25 @@ body {
   background: var(--darkest);
   border-radius: var(--border-radius-sm);
   padding: 16px;
-  margin-bottom: 12px;
+  margin-bottom: 15px;
   border: 1px solid var(--border);
 }
 
 .dex-input-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-size: 14px;
   color: var(--light-gray);
 }
-
+.dex-token-selector .checkmark {
+  color: var(--success);
+  margin-left: 8px;
+  display: none;
+}
+.dex-token-selector.active .checkmark {
+  display: inline;
+}
 
 .dex-input-row {
   display: flex;
@@ -407,7 +415,7 @@ body {
 .dex-info-row {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-size: 14px;
   color: var(--light-gray);
 }
@@ -1119,29 +1127,40 @@ body {
   z-index: 100; /* Ensure footer stays above other content */
 }
 
+.dex-footer {
+  background: var(--darker);
+  color: var(--light-gray);
+  padding: 15px 0;
+  border-top: 1px solid var(--border);
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 100;
+}
+
 .dex-footer-content {
-  max-width: 1200px;
+  max-width: 500px;
   margin: 0 auto;
   padding: 0 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px; /* Reduced gap for better spacing */
+  gap: 10px;
 }
 
 .dex-footer-links {
   display: flex;
-  gap: 15px; /* Adjusted gap between links */
-  flex-wrap: wrap; /* Allow links to wrap on small screens */
-  justify-content: center; /* Center links */
+  gap: 20px;
+  margin-bottom: 5px;
 }
 
 .dex-footer-link {
   color: var(--light-gray);
   text-decoration: none;
-  font-size: 13px; /* Slightly smaller font */
+  font-size: 13px;
   transition: var(--transition);
-  white-space: nowrap; /* Prevent text wrapping */
 }
 
 .dex-footer-link:hover {
@@ -1149,12 +1168,9 @@ body {
 }
 
 .dex-footer-copyright {
-  font-size: 11px; /* Smaller copyright text */
+  font-size: 11px;
   color: var(--gray);
-  text-align: center;
-  margin-top: 5px;
 }
-
 /* Animations */
 @keyframes spin {
   0% { transform: rotate(0deg); }
