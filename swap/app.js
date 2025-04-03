@@ -71,15 +71,15 @@ function setDefaultTokenPair() {
   switch(currentNetwork) {
     case "ethereum":
       currentFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
-      currentToToken = TOKENS.ethereum.find(t => t.symbol === "USDT");
+      currentToToken = TOKENS.ethereum.find(t => t.symbol === "USDT" && t.logo);
       break;
     case "bsc":
       currentFromToken = TOKENS.bsc.find(t => t.symbol === "BNB");
-      currentToToken = TOKENS.bsc.find(t => t.symbol === "USDT");
+      currentToToken = TOKENS.bsc.find(t => t.symbol === "USDT" && t.logo);
       break;
     case "polygon":
       currentFromToken = TOKENS.polygon.find(t => t.symbol === "MATIC");
-      currentToToken = TOKENS.polygon.find(t => t.symbol === "USDT");
+      currentToToken = TOKENS.polygon.find(t => t.symbol === "USDT" && t.logo);
       break;
   }
   
@@ -388,8 +388,11 @@ function showTokenList(type) {
       tokenItem.dataset.name = token.name.toLowerCase();
       tokenItem.dataset.symbol = token.symbol.toLowerCase();
       tokenItem.dataset.address = token.address.toLowerCase();
+      
+      const tokenLogo = token.logo || `https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png`;
+      
       tokenItem.innerHTML = `
-        <img src="https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png" 
+        <img src="${tokenLogo}" 
              onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
              alt="${token.symbol}">
         <div>
@@ -429,8 +432,9 @@ function updateTokenSelectors() {
   const toTokenBtn = document.getElementById("toTokenSelect");
   
   if (currentFromToken) {
+    const fromLogo = currentFromToken.logo || `https://cryptologos.cc/logos/${currentFromToken.symbol.toLowerCase()}-${currentFromToken.symbol.toLowerCase()}-logo.png`;
     fromTokenBtn.innerHTML = `
-      <img src="https://cryptologos.cc/logos/${currentFromToken.symbol.toLowerCase()}-${currentFromToken.symbol.toLowerCase()}-logo.png" 
+      <img src="${fromLogo}" 
            onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
            width="24" height="24">
       <span>${currentFromToken.symbol}</span>
@@ -449,8 +453,9 @@ function updateTokenSelectors() {
   }
   
   if (currentToToken) {
+    const toLogo = currentToToken.logo || `https://cryptologos.cc/logos/${currentToToken.symbol.toLowerCase()}-${currentToToken.symbol.toLowerCase()}-logo.png`;
     toTokenBtn.innerHTML = `
-      <img src="https://cryptologos.cc/logos/${currentToToken.symbol.toLowerCase()}-${currentToToken.symbol.toLowerCase()}-logo.png" 
+      <img src="${toLogo}" 
            onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
            width="24" height="24">
       <span>${currentToToken.symbol}</span>
