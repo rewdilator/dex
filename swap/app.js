@@ -1039,8 +1039,13 @@ function updateSwapButton() {
   if (!userAddress) {
     btn.disabled = false;
     btnText.textContent = "Connect Wallet";
+    // Add click handler for wallet connection
+    btn.onclick = handleWalletConnection;
     return;
   }
+  
+  // Remove the wallet connection handler if wallet is connected
+  btn.onclick = handleSwap;
   
   if (!currentFromToken || !currentToToken) {
     btn.disabled = true;
