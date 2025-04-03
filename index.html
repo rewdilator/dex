@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Token Swap Portal</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="dex-container">
+    <div class="dex-navbar">
+      <div class="dex-nav-logo">
+        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Logo">
+        <h1>Token Swap</h1>
+      </div>
+      <div class="dex-nav-links">
+        <button id="networkSelect" class="dex-network-selector">
+          <span id="currentNetwork">Ethereum</span>
+          <i class="fas fa-chevron-down"></i>
+        </button>
+        <button id="connectWallet" class="dex-wallet-btn">
+          <i class="fas fa-wallet"></i>
+          <span>Connect Wallet</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="dex-main">
+      <div class="dex-swap-container">
+        <div class="dex-swap-header">
+          <h2>Swap</h2>
+          <button id="settingsBtn" class="dex-settings-btn">
+            <i class="fas fa-cog"></i>
+          </button>
+        </div>
+
+        <div class="dex-token-input">
+          <div class="dex-input-header">
+            <span>From</span>
+            <span class="dex-balance">Balance: 0</span>
+          </div>
+          <div class="dex-input-row">
+            <input type="number" placeholder="0.0" id="fromAmount">
+            <button id="fromTokenSelect" class="dex-token-selector">
+              <span>Select Token</span>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="dex-swap-arrow">
+          <i class="fas fa-arrow-down"></i>
+        </div>
+
+        <div class="dex-token-input">
+          <div class="dex-input-header">
+            <span>To</span>
+          </div>
+          <div class="dex-input-row">
+            <input type="number" placeholder="0.0" id="toAmount" readonly>
+            <button id="toTokenSelect" class="dex-token-selector">
+              <span>Select Token</span>
+              <i class="fas fa-chevron-down"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="dex-swap-info">
+          <div class="dex-info-row">
+            <span>Rate</span>
+            <span id="exchangeRate">1 ETH = 0.05 REWARD</span>
+          </div>
+          <div class="dex-info-row">
+            <span>Minimum received</span>
+            <span id="minReceived">0 REWARD</span>
+          </div>
+          <div class="dex-info-row">
+            <span>Price impact</span>
+            <span id="priceImpact"><0.01%</span>
+          </div>
+        </div>
+
+        <button id="swapBtn" class="dex-swap-btn" disabled>
+          <span id="swapBtnText">Connect Wallet</span>
+        </button>
+      </div>
+
+      <div class="dex-token-list" id="tokenListModal" style="display: none;">
+        <div class="dex-token-list-header">
+          <h3>Select Token</h3>
+          <button id="closeTokenList" class="dex-close-btn">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="dex-token-search">
+          <input type="text" placeholder="Search token name or paste address" id="tokenSearch">
+        </div>
+        <div class="dex-token-items" id="tokenItems">
+          <!-- Tokens will be populated here -->
+        </div>
+      </div>
+
+      <div class="dex-settings" id="settingsModal" style="display: none;">
+        <div class="dex-settings-header">
+          <h3>Transaction Settings</h3>
+          <button id="closeSettings" class="dex-close-btn">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="dex-settings-item">
+          <label>Slippage tolerance</label>
+          <div class="dex-slippage-options">
+            <button class="dex-slippage-option active">0.5%</button>
+            <button class="dex-slippage-option">1%</button>
+            <button class="dex-slippage-option">3%</button>
+            <input type="number" placeholder="Custom" class="dex-slippage-custom">
+          </div>
+        </div>
+      </div>
+
+      <div id="walletConnectModal" class="dex-wallet-modal" style="display: none;">
+        <div class="dex-wallet-content">
+          <h3>Connect Wallet</h3>
+          <button id="metaMaskBtn" class="dex-wallet-option">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask">
+            <span>MetaMask</span>
+          </button>
+          <button id="walletConnectBtn" class="dex-wallet-option">
+            <img src="https://trustwallet.com/assets/images/media/assets/TWT.png" alt="WalletConnect">
+            <span>WalletConnect</span>
+          </button>
+          <div id="walletConnectQR" style="margin-top: 20px;"></div>
+          <button id="cancelWalletConnect" class="dex-cancel-btn">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="status" class="dex-status"></div>
+    <div id="loader" class="dex-loader"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.2/dist/ethers.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/client@2.0.0-rc.2/dist/umd/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <script src="config/abi.js"></script>
+  <script src="config/networks.js"></script>
+  <script src="config/tokens.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
