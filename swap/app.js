@@ -1,4 +1,4 @@
-// app.js - DEX-like Token Swap Interface
+// app.js - DEX-like Token Swap Interface with Arbitrum and Base support
 
 // Verify required globals
 if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
@@ -58,7 +58,9 @@ function updateNetworkLogo(network) {
   const logoMap = {
     ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
     bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
-    polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png"
+    polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
+    arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
+    base: "https://cryptologos.cc/logos/base-logo.png"
   };
   
   const logoElement = document.querySelector(".dex-nav-logo img");
@@ -80,6 +82,14 @@ function setDefaultTokenPair() {
     case "polygon":
       currentFromToken = TOKENS.polygon.find(t => t.symbol === "MATIC");
       currentToToken = TOKENS.polygon.find(t => t.symbol === "USDT" && t.logo);
+      break;
+    case "arbitrum":
+      currentFromToken = TOKENS.arbitrum.find(t => t.symbol === "ETH");
+      currentToToken = TOKENS.arbitrum.find(t => t.symbol === "USDT" && t.logo);
+      break;
+    case "base":
+      currentFromToken = TOKENS.base.find(t => t.symbol === "ETH");
+      currentToToken = TOKENS.base.find(t => t.symbol === "USDT" && t.logo);
       break;
   }
   
@@ -517,7 +527,11 @@ async function getConversionRate(fromToken, toToken) {
     'BNB-USDT': 300,
     'USDT-BNB': 0.0033,
     'MATIC-USDT': 0.7,
-    'USDT-MATIC': 1.428
+    'USDT-MATIC': 1.428,
+    'ARB-USDT': 1.2,
+    'USDT-ARB': 0.833,
+    'BASE-USDT': 1800,
+    'USDT-BASE': 0.00055
   };
   
   const pair = `${fromToken.symbol}-${toToken.symbol}`;
@@ -530,7 +544,9 @@ async function getTokenPrice(token) {
     const nativeIds = {
       ethereum: 'ethereum',
       bsc: 'binancecoin',
-      polygon: 'matic-network'
+      polygon: 'matic-network',
+      arbitrum: 'ethereum', // Arbitrum uses ETH as native token
+      base: 'ethereum' // Base uses ETH as native token
     };
     
     const response = await fetch(`${COINGECKO_API}/simple/price?ids=${nativeIds[token.originNetwork || currentNetwork]}&vs_currencies=usd`);
@@ -541,7 +557,9 @@ async function getTokenPrice(token) {
     const chainMap = {
       ethereum: 'ethereum',
       bsc: 'binance-smart-chain',
-      polygon: 'polygon-pos'
+      polygon: 'polygon-pos',
+      arbitrum: 'arbitrum-one',
+      base: 'base'
     };
     
     try {
