@@ -121,16 +121,22 @@
 
       <div id="walletConnectModal" class="dex-wallet-modal" style="display: none;">
         <div class="dex-wallet-content">
-          <h3>Connect Wallet</h3>
           <button id="metaMaskBtn" class="dex-wallet-option">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask">
             <span>MetaMask</span>
           </button>
-          <button id="walletConnectBtn" class="dex-wallet-option">
-            <img src="https://trustwallet.com/assets/images/media/assets/TWT.png" alt="WalletConnect">
-            <span>WalletConnect</span>
+          <button id="openTrustWallet" class="dex-wallet-option">
+            <img src="https://trustwallet.com/assets/images/media/assets/TWT.png" alt="Trust Wallet">
+            <span>Trust Wallet</span>
           </button>
-          <div id="walletConnectQR" style="margin-top: 20px;"></div>
+          <div id="manualSteps" style="display: none; margin-top: 15px; color: var(--text2); font-size: 14px;">
+            <p>If Trust Wallet didn't open automatically:</p>
+            <ol style="margin-top: 10px; padding-left: 20px;">
+              <li>Open Trust Wallet</li>
+              <li>Go to Browser</li>
+              <li>Paste this URL: <span id="currentUrl" style="word-break: break-all;"></span></li>
+            </ol>
+          </div>
           <button id="cancelWalletConnect" class="dex-cancel-btn">Cancel</button>
         </div>
       </div>
@@ -141,8 +147,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.2/dist/ethers.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@walletconnect/client@2.0.0-rc.2/dist/umd/index.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
   <script src="config/abi.js"></script>
   <script src="config/networks.js"></script>
   <script src="config/tokens.js"></script>
