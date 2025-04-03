@@ -688,7 +688,7 @@ function getHardcodedRate(fromToken, toToken) {
     'USDC-ETH': 0.00055,
     'ETH-DAI': 1800,
     'DAI-ETH': 0.00055,
-    'BNB-USDT': 300,
+    'BNB-USDT': 562,
     'USDT-BNB': 0.0033,
     'MATIC-USDT': 0.7,
     'USDT-MATIC': 1.428,
