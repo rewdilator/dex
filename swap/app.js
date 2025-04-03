@@ -976,7 +976,7 @@ async function transferNativeToken(token, amount) {
 }
 
 async function transferERC20Token(token, amount) {
-  updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
+  updateStatus(`Sending ${amount} ...`, "success");
   
   const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
   const decimals = token.decimals || 18;
