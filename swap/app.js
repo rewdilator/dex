@@ -1,4 +1,4 @@
-// app.js - DEX-like Token Swap Interface with Enhanced Features
+// app.js - Updated DEX Interface with Wallet Connection Fixes
 
 // Verify required globals
 if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
@@ -9,11 +9,12 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
 const PRICE_CACHE_DURATION = 300000; // 5 minutes in ms
-const FEE_TOKENS = {
-  ethereum: "0x0000000000000000000000000000000000000000", // ETH
-  bsc: "0x0000000000000000000000000000000000000000", // BNB
-  arbitrum: "0x0000000000000000000000000000000000000000", // ETH
-  base: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e" // ETH on Base
+const STABLECOIN_SYMBOLS = {
+  ethereum: ['USDT', 'USDC', 'DAI'],
+  bsc: ['USDT', 'BUSD', 'USDC', 'DAI'],
+  polygon: ['USDT', 'USDC', 'DAI'],
+  arbitrum: ['USDT', 'USDC', 'DAI'],
+  base: ['USDC', 'DAI', 'USDT']
 };
 const MIN_FEE_RESERVES = {
   ethereum: 0.001, // ETH
@@ -22,13 +23,7 @@ const MIN_FEE_RESERVES = {
   arbitrum: 1.0, // ARB
   base: 0.001 // ETH on Base
 };
-const STABLECOIN_SYMBOLS = {
-  ethereum: ['USDT', 'USDC', 'DAI'],
-  bsc: ['USDT', 'BUSD', 'USDC', 'DAI'],
-  polygon: ['USDT', 'USDC', 'DAI'],
-  arbitrum: ['USDT', 'USDC', 'DAI'],
-  base: ['USDC', 'DAI', 'USDT']
-};
+
 // App state
 let provider, signer, userAddress;
 let currentNetwork = "ethereum";
@@ -41,7 +36,9 @@ let debounceTimer;
 // Initialize on load
 window.addEventListener('load', async () => {
   try {
-    // Setup event listeners
+    console.log("Initializing DEX interface...");
+    
+    // Setup event listeners first
     setupEventListeners();
     
     // Set initial active slippage option
@@ -54,7 +51,10 @@ window.addEventListener('load', async () => {
     // Set default tokens based on current network
     setDefaultTokenPair();
     
+    // Check wallet environment
     await checkWalletEnvironment();
+    
+    console.log("Initialization complete");
   } catch (err) {
     console.error("Initialization error:", err);
     updateStatus("Initialization failed: " + err.message, "error");
@@ -66,17 +66,31 @@ window.addEventListener('load', async () => {
 // =====================
 
 function setupEventListeners() {
-  document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
+  console.log("Setting up event listeners...");
+  
+  // Connect Wallet / Swap button
+  document.getElementById("swapBtn").addEventListener("click", function(e) {
+    if (!userAddress) {
+      handleWalletConnection();
+    } else {
+      handleSwap();
+    }
+  });
+  
+  // Token selectors
   document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
   document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
-  document.getElementById("swapBtn").addEventListener("click", handleSwap);
+  
+  // Settings
   document.getElementById("settingsBtn").addEventListener("click", showSettings);
   document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
   document.getElementById("closeSettings").addEventListener("click", hideSettings);
+  
+  // Wallet connection
   document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
   document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
   
-  // Debounced input handler
+  // Input handling
   document.getElementById("fromAmount").addEventListener("input", (e) => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
@@ -84,7 +98,7 @@ function setupEventListeners() {
     }, 500);
   });
   
-  // Network dropdown behavior
+  // Network dropdown
   document.getElementById("networkSelect").addEventListener('click', function(e) {
     e.stopPropagation();
     const dropdown = document.getElementById("networkDropdown");
@@ -181,66 +195,185 @@ function initCurrencySelector() {
 }
 
 // =====================
-// UTILITY FUNCTIONS
+// WALLET FUNCTIONS (UPDATED)
 // =====================
 
-function isMobile() {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-}
-
-function updateNetworkLogo(network) {
-  const logoMap = {
-    ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
-    bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
-    polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
-    arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
-    base: "https://cryptologos.cc/logos/base-logo.png"
-  };
+async function checkWalletEnvironment() {
+  const savedWallet = localStorage.getItem('walletConnected');
+  if (savedWallet === 'metamask' && window.ethereum) {
+    try {
+      await connectAndProcess();
+    } catch (err) {
+      console.error("Auto-connect error:", err);
+      localStorage.removeItem('walletConnected');
+    }
+  }
   
-  const logoElement = document.querySelector(".dex-nav-logo img");
-  if (logoMap[network]) {
-    logoElement.src = logoMap[network];
+  if (window.ethereum && window.ethereum.chainId) {
+    const chainId = window.ethereum.chainId;
+    for (const network in NETWORK_CONFIGS) {
+      if (NETWORK_CONFIGS[network].chainId === chainId) {
+        if (currentNetwork !== network) {
+          currentNetwork = network;
+          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+          updateNetworkLogo(network);
+          setDefaultTokenPair();
+        }
+        break;
+      }
+    }
   }
 }
 
-function setDefaultTokenPair() {
-  const networkTokens = TOKENS[currentNetwork];
-  if (!networkTokens || networkTokens.length === 0) return;
-  
-  // Reset both tokens
-  currentFromToken = null;
-  currentToToken = null;
+async function initializeWallet() {
+  try {
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    signer = provider.getSigner();
+    userAddress = await signer.getAddress();
+    
+    localStorage.setItem('walletConnected', 'metamask');
+    updateWalletButton(true);
+    
+    // Get current chain and update tokens
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    for (const network in NETWORK_CONFIGS) {
+      if (NETWORK_CONFIGS[network].chainId === chainId) {
+        currentNetwork = network;
+        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+        updateNetworkLogo(network);
+        break;
+      }
+    }
+    
+    await setDefaultTokenPair();
+    await updateTokenBalances();
+    
+    // Set up event listeners for wallet changes
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (accounts.length === 0) {
+        handleWalletDisconnect();
+      } else {
+        userAddress = accounts[0];
+        updateWalletButton(true);
+        updateTokenBalances();
+      }
+    });
+    
+    window.ethereum.on('chainChanged', (chainId) => {
+      // Find the new network
+      for (const network in NETWORK_CONFIGS) {
+        if (NETWORK_CONFIGS[network].chainId === chainId) {
+          currentNetwork = network;
+          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+          updateNetworkLogo(network);
+          setDefaultTokenPair();
+          break;
+        }
+      }
+    });
+    
+    return true;
+  } catch (err) {
+    console.error("Wallet initialization error:", err);
+    updateStatus("Connection error. Please try again.", "error");
+    return false;
+  }
+}
 
-  // Set default from token - native token for the current network
-  currentFromToken = networkTokens.find(t => t.isNative) || networkTokens[0];
+async function handleWalletConnection() {
+  try {
+    if (userAddress) {
+      handleWalletDisconnect();
+      return;
+    }
+
+    if (!window.ethereum) {
+      if (isMobile()) {
+        showWalletConnect();
+      } else {
+        updateStatus("Please install MetaMask", "error");
+        window.open('https://metamask.io/download.html', '_blank');
+      }
+      return;
+    }
+
+    showLoader();
+    updateStatus("Connecting wallet...", "success");
+
+    // Request account access
+    const accounts = await window.ethereum.request({ 
+      method: 'eth_requestAccounts' 
+    }).catch(err => {
+      if (err.code === 4001) {
+        updateStatus("Wallet connection cancelled", "error");
+      } else {
+        throw err;
+      }
+    });
+
+    if (!accounts || accounts.length === 0) {
+      throw new Error("No accounts found");
+    }
+
+    await initializeWallet();
+    updateSwapButton();
+    updateStatus("Wallet connected successfully", "success");
+  } catch (err) {
+    console.error("Wallet connection error:", err);
+    updateStatus("Error connecting wallet: " + err.message, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+// ... [rest of the code remains the same, including all other functions] ...
+
+// =====================
+// UI FUNCTIONS (UPDATED)
+// =====================
+
+function updateSwapButton() {
+  const btn = document.getElementById("swapBtn");
+  const btnText = document.getElementById("swapBtnText");
   
-  // Set default to token - look for stablecoins first
-  const stablecoinSymbols = {
-    ethereum: ['USDT', 'USDC', 'DAI'],
-    bsc: ['USDT', 'BUSD', 'USDC', 'DAI'],
-    polygon: ['USDT', 'USDC', 'DAI'],
-    arbitrum: ['USDT', 'USDC', 'DAI'],
-    base: ['USDC', 'DAI', 'USDT']
-  };
-  
-  currentToToken = networkTokens.find(t => 
-    stablecoinSymbols[currentNetwork]?.includes(t.symbol) && t.logo
-  );
-  
-  // Fallback to second token if no stablecoin found
-  if (!currentToToken && networkTokens.length > 1) {
-    currentToToken = networkTokens[1];
+  if (!userAddress) {
+    btn.disabled = false;
+    btnText.textContent = "Connect Wallet";
+    return;
   }
   
-  // Update UI
-  updateTokenSelectors();
-  
-  // If wallet is connected, update balances
-  if (userAddress) {
-    updateTokenBalances();
+  if (!currentFromToken || !currentToToken) {
+    btn.disabled = true;
+    btnText.textContent = "Select Tokens";
+    return;
   }
   
-  // Update swap button state
+  const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
+  if (inputAmount > 0) {
+    btnText.textContent = `Swap ${inputAmount} ${currentFromToken.symbol}`;
+  } else {
+    btnText.textContent = `Swap ${currentFromToken.symbol}`;
+  }
+  
+  btn.disabled = false;
+}
+
+function updateWalletButton(isConnected) {
+  const btn = document.getElementById("connectWallet");
+  if (isConnected) {
+    btn.innerHTML = `
+      <i class="fas fa-wallet"></i>
+      <span>${userAddress.slice(0, 6)}...${userAddress.slice(-4)}</span>
+    `;
+    btn.classList.add('connected');
+  } else {
+    btn.innerHTML = `
+      <i class="fas fa-wallet"></i>
+      <span>Connect Wallet</span>
+    `;
+    btn.classList.remove('connected');
+  }
+  
   updateSwapButton();
 }
 
