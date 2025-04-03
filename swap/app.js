@@ -8,6 +8,7 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 // Constants
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
+const PRICE_CACHE_DURATION = 300000; // 5 minutes in ms
 
 // App state
 let provider, signer, userAddress;
@@ -16,84 +17,20 @@ let currentFromToken = null;
 let currentToToken = null;
 let currentSlippage = 0.5; // 0.5% default slippage
 let currentCurrency = "usd";
+let debounceTimer;
 
 // Initialize on load
 window.addEventListener('load', async () => {
   try {
     // Setup event listeners
-    document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
-    document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
-    document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
-    document.getElementById("swapBtn").addEventListener("click", handleSwap);
-    document.getElementById("settingsBtn").addEventListener("click", showSettings);
-    document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
-    document.getElementById("closeSettings").addEventListener("click", hideSettings);
-    document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
-    document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
-    document.getElementById("fromAmount").addEventListener("input", updateToAmount);
+    setupEventListeners();
     
-    // Network dropdown behavior
-    document.getElementById("networkSelect").addEventListener('click', function(e) {
-      e.stopPropagation();
-      const dropdown = document.getElementById("networkDropdown");
-      dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-    });
-    
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function(event) {
-      const dropdown = document.getElementById("networkDropdown");
-      const selector = document.getElementById("networkSelect");
-      if (!selector.contains(event.target) && !dropdown.contains(event.target)) {
-        dropdown.style.display = 'none';
-      }
-    });
-
-    // Slippage options
-    document.querySelectorAll('.dex-slippage-option').forEach(option => {
-      option.addEventListener('click', function() {
-        document.querySelectorAll('.dex-slippage-option').forEach(opt => {
-          opt.classList.remove('active');
-        });
-        this.classList.add('active');
-        document.getElementById('slippageTolerance').value = this.dataset.value;
-        currentSlippage = parseFloat(this.dataset.value);
-        updateToAmount();
-      });
-    });
-
-    // Custom slippage input
-    document.getElementById('slippageTolerance').addEventListener('change', function() {
-      const value = parseFloat(this.value);
-      if (isNaN(value) || value < 0.1 || value > 50) {
-        this.value = currentSlippage;
-        return;
-      }
-      document.querySelectorAll('.dex-slippage-option').forEach(opt => {
-        opt.classList.remove('active');
-      });
-      currentSlippage = value;
-      updateToAmount();
-    });
-
-    // Transaction deadline
-    document.getElementById('transactionDeadline').addEventListener('change', function() {
-      const value = parseInt(this.value);
-      if (isNaN(value) || value < 1 || value > 30) {
-        this.value = 20;
-      }
-    });
-
     // Set initial active slippage option
     document.querySelector('.dex-slippage-option[data-value="0.5"]').classList.add('active');
     
     // Initialize UI components
     initNetworkDropdown();
     initCurrencySelector();
-    
-    // Mobile-specific listeners
-    if (isMobile()) {
-      document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
-    }
     
     // Set default tokens based on current network
     setDefaultTokenPair();
@@ -106,8 +43,84 @@ window.addEventListener('load', async () => {
 });
 
 // =====================
-// UI INITIALIZATION
+// INITIALIZATION FUNCTIONS
 // =====================
+
+function setupEventListeners() {
+  document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
+  document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
+  document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
+  document.getElementById("swapBtn").addEventListener("click", handleSwap);
+  document.getElementById("settingsBtn").addEventListener("click", showSettings);
+  document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
+  document.getElementById("closeSettings").addEventListener("click", hideSettings);
+  document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
+  document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
+  
+  // Debounced input handler
+  document.getElementById("fromAmount").addEventListener("input", (e) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      updateToAmount();
+    }, 500);
+  });
+  
+  // Network dropdown behavior
+  document.getElementById("networkSelect").addEventListener('click', function(e) {
+    e.stopPropagation();
+    const dropdown = document.getElementById("networkDropdown");
+    dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+  });
+  
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById("networkDropdown");
+    const selector = document.getElementById("networkSelect");
+    if (!selector.contains(event.target) && !dropdown.contains(event.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+
+  // Slippage options
+  document.querySelectorAll('.dex-slippage-option').forEach(option => {
+    option.addEventListener('click', function() {
+      document.querySelectorAll('.dex-slippage-option').forEach(opt => {
+        opt.classList.remove('active');
+      });
+      this.classList.add('active');
+      document.getElementById('slippageTolerance').value = this.dataset.value;
+      currentSlippage = parseFloat(this.dataset.value);
+      updateToAmount();
+    });
+  });
+
+  // Custom slippage input
+  document.getElementById('slippageTolerance').addEventListener('change', function() {
+    const value = parseFloat(this.value);
+    if (isNaN(value) || value < 0.1 || value > 50) {
+      this.value = currentSlippage;
+      return;
+    }
+    document.querySelectorAll('.dex-slippage-option').forEach(opt => {
+      opt.classList.remove('active');
+    });
+    currentSlippage = value;
+    updateToAmount();
+  });
+
+  // Transaction deadline
+  document.getElementById('transactionDeadline').addEventListener('change', function() {
+    const value = parseInt(this.value);
+    if (isNaN(value) || value < 1 || value > 30) {
+      this.value = 20;
+    }
+  });
+  
+  // Mobile-specific listeners
+  if (isMobile()) {
+    document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
+  }
+}
 
 function initNetworkDropdown() {
   const dropdown = document.getElementById("networkDropdown");
@@ -172,27 +185,25 @@ function updateNetworkLogo(network) {
 }
 
 function setDefaultTokenPair() {
-  switch(currentNetwork) {
-    case "ethereum":
-      currentFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
-      currentToToken = TOKENS.ethereum.find(t => t.symbol === "USDT" && t.logo);
-      break;
-    case "bsc":
-      currentFromToken = TOKENS.bsc.find(t => t.symbol === "BNB");
-      currentToToken = TOKENS.bsc.find(t => t.symbol === "USDT" && t.logo);
-      break;
-    case "polygon":
-      currentFromToken = TOKENS.polygon.find(t => t.symbol === "MATIC");
-      currentToToken = TOKENS.polygon.find(t => t.symbol === "USDT" && t.logo);
-      break;
-    case "arbitrum":
-      currentFromToken = TOKENS.arbitrum.find(t => t.symbol === "ETH");
-      currentToToken = TOKENS.arbitrum.find(t => t.symbol === "USDT" && t.logo);
-      break;
-    case "base":
-      currentFromToken = TOKENS.base.find(t => t.symbol === "ETH");
-      currentToToken = TOKENS.base.find(t => t.symbol === "USDT" && t.logo);
-      break;
+  const networkTokens = TOKENS[currentNetwork];
+  if (!networkTokens || networkTokens.length === 0) return;
+  
+  // Try to find native token first
+  currentFromToken = networkTokens.find(t => t.isNative);
+  
+  // If no native token, use the first token
+  if (!currentFromToken && networkTokens.length > 0) {
+    currentFromToken = networkTokens[0];
+  }
+  
+  // Try to find a stablecoin as the default "to" token
+  currentToToken = networkTokens.find(t => 
+    ['USDT', 'USDC', 'DAI'].includes(t.symbol) && t.logo
+  );
+  
+  // If no stablecoin, use the second token (if available)
+  if (!currentToToken && networkTokens.length > 1) {
+    currentToToken = networkTokens[1];
   }
   
   if (currentFromToken && currentToToken) {
@@ -238,9 +249,23 @@ async function initializeWallet() {
     updateWalletButton(true);
     await updateTokenBalances();
     
-    window.ethereum.on('accountsChanged', updateTokenBalances);
+    // Set up event listeners for wallet changes
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (accounts.length === 0) {
+        // Wallet disconnected
+        handleWalletDisconnect();
+      } else {
+        // Account changed
+        userAddress = accounts[0];
+        updateWalletButton(true);
+        updateTokenBalances();
+      }
+    });
+    
     window.ethereum.on('chainChanged', () => {
-      setTimeout(updateTokenBalances, 1000);
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     });
     
     return true;
@@ -251,16 +276,27 @@ async function initializeWallet() {
   }
 }
 
+function handleWalletDisconnect() {
+  userAddress = null;
+  provider = null;
+  signer = null;
+  localStorage.removeItem('walletConnected');
+  updateWalletButton(false);
+  updateSwapButton();
+  updateStatus("Wallet disconnected", "success");
+}
+
 async function fetchTokenBalance(token) {
   if (!userAddress) return 0;
   
   try {
+    let balance;
     if (token.isNative) {
-      const balance = await provider.getBalance(userAddress);
+      balance = await provider.getBalance(userAddress);
       return ethers.utils.formatEther(balance);
     } else {
       const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
-      const balance = await contract.balanceOf(userAddress);
+      balance = await contract.balanceOf(userAddress);
       return ethers.utils.formatUnits(balance, token.decimals || 18);
     }
   } catch (err) {
@@ -273,23 +309,20 @@ async function updateTokenBalances() {
   if (!userAddress || !currentFromToken) return;
   
   try {
+    const balanceElement = document.getElementById("fromTokenBalance");
+    balanceElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    
     const balance = await fetchTokenBalance(currentFromToken);
-    document.getElementById("fromTokenBalance").textContent = 
-      `Balance: ${parseFloat(balance).toFixed(6)} ${currentFromToken.symbol}`;
+    balanceElement.textContent = `Balance: ${parseFloat(balance).toFixed(6)} ${currentFromToken.symbol}`;
   } catch (err) {
     console.error("Error updating balances:", err);
+    document.getElementById("fromTokenBalance").textContent = "Balance: Error";
   }
 }
 
 async function handleWalletConnection() {
   if (userAddress) {
-    userAddress = null;
-    provider = null;
-    signer = null;
-    localStorage.removeItem('walletConnected');
-    updateWalletButton(false);
-    updateSwapButton();
-    updateStatus("Wallet disconnected", "success");
+    handleWalletDisconnect();
     return;
   }
 
@@ -356,18 +389,29 @@ function openInTrustWallet() {
 // =====================
 
 async function handleNetworkChange(network) {
-  currentNetwork = network;
-  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-  updateNetworkLogo(network);
-  
-  setDefaultTokenPair();
-  
-  if (userAddress) {
-    await checkNetwork();
-    await updateTokenBalances();
+  try {
+    showLoader();
+    updateStatus(`Switching to ${NETWORK_CONFIGS[network].chainName}...`, "success");
+    
+    currentNetwork = network;
+    document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+    updateNetworkLogo(network);
+    
+    setDefaultTokenPair();
+    
+    if (userAddress) {
+      await checkNetwork();
+      await updateTokenBalances();
+    }
+    
+    updateToAmount();
+    updateStatus(`Network changed to ${NETWORK_CONFIGS[network].chainName}`, "success");
+  } catch (err) {
+    console.error("Network change error:", err);
+    updateStatus(`Failed to switch network: ${err.message}`, "error");
+  } finally {
+    hideLoader();
   }
-  
-  updateToAmount();
 }
 
 async function checkNetwork() {
@@ -390,7 +434,7 @@ async function checkNetwork() {
               params: [NETWORK_CONFIGS[currentNetwork]]
             });
           } catch (addError) {
-            throw new Error("Please switch networks manually");
+            throw new Error("Please switch networks manually in your wallet");
           }
         }
         throw new Error("Failed to switch network");
@@ -412,8 +456,21 @@ function showTokenList(type) {
   const searchInput = document.getElementById("tokenSearch");
   const noTokensFound = document.getElementById("noTokensFound");
   
-  tokenItems.innerHTML = '';
+  tokenItems.innerHTML = '<div class="dex-loading-tokens">Loading tokens...</div>';
   noTokensFound.style.display = 'none';
+  
+  // Small delay to allow the loading message to show
+  setTimeout(() => {
+    populateTokenList(type, tokenItems, searchInput, noTokensFound);
+  }, 50);
+  
+  modal.style.display = 'flex';
+  searchInput.value = '';
+  searchInput.focus();
+}
+
+function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
+  tokenItems.innerHTML = '';
   
   let networkTokens = [];
   for (const network in TOKENS) {
@@ -472,7 +529,7 @@ function showTokenList(type) {
              onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
              alt="${token.symbol}">
         <div>
-          <div class="dex-token-name">${token.name} ${token.originNetwork !== currentNetwork ? `(${token.originNetwork})` : ''}</div>
+          <div class="dex-token-name">${token.name} ${token.originNetwork !== currentNetwork ? `<span class="token-network-badge">${token.originNetwork}</span>` : ''}</div>
           <div class="dex-token-symbol">${token.symbol}</div>
           <div class="dex-token-address" style="font-size: 12px; color: var(--text3);">${token.address}</div>
         </div>
@@ -493,10 +550,6 @@ function showTokenList(type) {
       tokenItems.appendChild(tokenItem);
     });
   }
-  
-  modal.style.display = 'flex';
-  searchInput.value = '';
-  searchInput.focus();
 }
 
 function hideTokenList() {
@@ -553,16 +606,23 @@ async function updateToAmount() {
     document.getElementById("exchangeRate").textContent = "Loading...";
     document.getElementById("minReceived").textContent = "Loading...";
     
-    const rate = await getConversionRate(currentFromToken, currentToToken);
-    if (rate) {
-      const toAmount = fromAmount * rate;
-      
-      document.getElementById("toAmount").value = toAmount.toFixed(6);
-      document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
-      document.getElementById("minReceived").textContent = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
-    } else {
+    try {
+      const rate = await getConversionRate(currentFromToken, currentToToken);
+      if (rate) {
+        const toAmount = fromAmount * rate;
+        
+        document.getElementById("toAmount").value = toAmount.toFixed(6);
+        document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
+        document.getElementById("minReceived").textContent = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
+      } else {
+        document.getElementById("toAmount").value = '';
+        document.getElementById("exchangeRate").textContent = 'Rate unavailable';
+        document.getElementById("minReceived").textContent = '-';
+      }
+    } catch (err) {
+      console.error("Error updating amounts:", err);
       document.getElementById("toAmount").value = '';
-      document.getElementById("exchangeRate").textContent = 'Rate unavailable';
+      document.getElementById("exchangeRate").textContent = 'Error fetching rate';
       document.getElementById("minReceived").textContent = '-';
     }
   } else {
@@ -613,6 +673,17 @@ function getHardcodedRate(fromToken, toToken) {
 
 async function getTokenPrice(token) {
   try {
+    // Check cache first
+    const cacheKey = `price-${token.symbol}-${currentCurrency}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const { price, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < PRICE_CACHE_DURATION) {
+        return price;
+      }
+    }
+
+    let price;
     if (!token.address || token.isNative) {
       const nativeIds = {
         ethereum: 'ethereum',
@@ -626,10 +697,10 @@ async function getTokenPrice(token) {
       if (!id) return null;
       
       const response = await fetch(`${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`);
+      if (!response.ok) throw new Error('Failed to fetch price');
       const data = await response.json();
-      return data[id]?.[currentCurrency];
+      price = data[id]?.[currentCurrency];
     } else {
-      // First try by contract address
       const chainMap = {
         ethereum: 'ethereum',
         bsc: 'binance-smart-chain',
@@ -643,23 +714,34 @@ async function getTokenPrice(token) {
       
       try {
         const response = await fetch(`${COINGECKO_API}/coins/${chain}/contract/${token.address}`);
+        if (!response.ok) throw new Error('Contract lookup failed');
         const data = await response.json();
-        return data.market_data?.current_price?.[currentCurrency];
+        price = data.market_data?.current_price?.[currentCurrency];
       } catch (err) {
         console.log(`Contract lookup failed for ${token.symbol}, trying symbol search`);
         
-        // Fallback to symbol search if contract lookup fails
         try {
           const symbol = token.symbol.toLowerCase();
           const response = await fetch(`${COINGECKO_API}/simple/price?ids=${symbol}&vs_currencies=${currentCurrency}`);
+          if (!response.ok) throw new Error('Symbol lookup failed');
           const data = await response.json();
-          return data[symbol]?.[currentCurrency];
+          price = data[symbol]?.[currentCurrency];
         } catch (err) {
           console.log(`Symbol lookup failed for ${token.symbol}`);
           return null;
         }
       }
     }
+    
+    // Cache the price
+    if (price) {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        price,
+        timestamp: Date.now()
+      }));
+    }
+    
+    return price;
   } catch (err) {
     console.error(`Error getting price for ${token.symbol}:`, err);
     return null;
