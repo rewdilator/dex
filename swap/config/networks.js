@@ -25,11 +25,12 @@ var NETWORK_CONFIGS = {
     scanUrl: "https://polygonscan.com/tx/"
   },
   solana: {
-    chainId: "0x1", // Mainnet beta
+    chainId: "0x65", // Custom chain ID for Solana in hex
     chainName: "Solana Mainnet",
     nativeCurrency: { name: "SOL", symbol: "SOL", decimals: 9 },
     rpcUrls: ["https://api.mainnet-beta.solana.com"],
     blockExplorerUrls: ["https://explorer.solana.com"],
-    scanUrl: "https://explorer.solana.com/tx/"
+    scanUrl: "https://explorer.solana.com/tx/",
+    isSolana: true // Flag to identify Solana network
   }
 };
