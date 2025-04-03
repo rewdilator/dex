@@ -1,0 +1,538 @@
+:root {
+  --primary: #2F80ED;
+  --primary-dark: #1F68C1;
+  --bg1: #0E0E10;
+  --bg2: #1E1E20;
+  --bg3: #2E2E30;
+  --text1: #FFFFFF;
+  --text2: #C3C5CB;
+  --text3: #6C7284;
+  --border: #3E3E40;
+  --success: #27AE60;
+  --error: #EB5757;
+  --warning: #F2994A;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--bg1);
+  color: var(--text1);
+  line-height: 1.6;
+}
+
+.dex-container {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.dex-navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dex-nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dex-nav-logo img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.dex-nav-logo h1 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.dex-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dex-network-selector {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: var(--text1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dex-wallet-btn {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: var(--text1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dex-wallet-btn:hover {
+  background: var(--bg2);
+}
+
+.dex-swap-container {
+  background: var(--bg2);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.dex-swap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.dex-swap-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.dex-settings-btn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.dex-token-input {
+  background: var(--bg3);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.dex-input-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.dex-balance {
+  cursor: pointer;
+}
+
+.dex-input-row {
+  display: flex;
+  align-items: center;
+}
+
+.dex-input-row input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text1);
+  font-size: 24px;
+  font-weight: 500;
+  outline: none;
+}
+
+.dex-input-row input::placeholder {
+  color: var(--text3);
+}
+
+.dex-token-selector {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: var(--text1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  min-width: 140px;
+  justify-content: space-between;
+}
+
+.dex-token-selector img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.dex-token-selector span {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dex-token-selector i {
+  margin-left: auto;
+}
+
+.dex-swap-arrow {
+  display: flex;
+  justify-content: center;
+  margin: -10px 0;
+  position: relative;
+  z-index: 1;
+}
+
+.dex-swap-arrow i {
+  background: var(--bg2);
+  border: 4px solid var(--bg1);
+  border-radius: 50%;
+  padding: 8px;
+  color: var(--text1);
+}
+
+.dex-swap-info {
+  background: var(--bg3);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 20px 0;
+}
+
+.dex-info-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.dex-info-row:last-child {
+  margin-bottom: 0;
+}
+
+.dex-swap-btn {
+  width: 100%;
+  padding: 16px;
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dex-swap-btn:hover:not(:disabled) {
+  background: var(--primary-dark);
+}
+
+.dex-swap-btn:disabled {
+  background: var(--bg3);
+  cursor: not-allowed;
+}
+
+/* Modal styles */
+.dex-token-list, .dex-settings, .dex-wallet-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.dex-token-list > div, .dex-settings > div, .dex-wallet-content {
+  background: var(--bg2);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 420px;
+  max-height: 80vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dex-token-list-header, .dex-settings-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dex-token-list-header h3, .dex-settings-header h3 {
+  font-size: 18px;
+}
+
+.dex-close-btn {
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.dex-token-search {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dex-token-search input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text1);
+  outline: none;
+}
+
+.dex-token-items {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.dex-token-item[style="display: none;"] {
+  display: none !important;
+}
+.dex-token-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+
+.dex-token-item:hover {
+  background: var(--bg3);
+}
+
+.dex-token-item img {
+  width: 24px;
+  height: 24px;
+  margin-right: 12px;
+  border-radius: 50%;
+}
+
+.dex-token-item div {
+  flex: 1;
+}
+
+.dex-token-name {
+  font-weight: 500;
+}
+
+.dex-token-symbol {
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.dex-settings-item {
+  padding: 16px;
+}
+
+.dex-settings-item label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: var(--text2);
+}
+
+.dex-slippage-options {
+  display: flex;
+  gap: 8px;
+}
+
+.dex-slippage-option {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text1);
+  cursor: pointer;
+  text-align: center;
+}
+
+.dex-slippage-option.active {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.dex-slippage-custom {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text1);
+  text-align: center;
+  outline: none;
+}
+
+.dex-wallet-content {
+  padding: 20px;
+  text-align: center;
+}
+
+.dex-wallet-option {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.dex-wallet-option img {
+  width: 24px;
+  height: 24px;
+}
+
+.dex-cancel-btn {
+  margin-top: 15px;
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+}
+
+.dex-status {
+  padding: 12px;
+  border-radius: 8px;
+  margin: 15px 0;
+  display: none;
+}
+
+.dex-status.success {
+  background: rgba(39, 174, 96, 0.1);
+  color: var(--success);
+  border: 1px solid rgba(39, 174, 96, 0.3);
+}
+
+.dex-status.error {
+  background: rgba(235, 87, 87, 0.1);
+  color: var(--error);
+  border: 1px solid rgba(235, 87, 87, 0.3);
+}
+
+.dex-loader {
+  border: 4px solid rgba(47, 128, 237, 0.1);
+  border-top: 4px solid var(--primary);
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 20px auto;
+  display: none;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 480px) {
+  .dex-container {
+    padding: 15px;
+  }
+  
+  .dex-swap-container {
+    padding: 15px;
+  }
+  /* Add to your existing styles */
+#manualSteps {
+  font-size: 14px;
+  color: var(--text2);
+}
+
+#manualSteps p {
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+#manualSteps ol {
+  margin-top: 8px;
+}
+
+#manualSteps li {
+  margin-bottom: 5px;
+}
+
+/* Make sure Trust Wallet button is properly displayed when shown */
+#openTrustWallet {
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+  .dex-token-input {
+    padding: 12px;
+  }
+}
+/* Add to existing styles */
+.dex-wallet-content {
+  padding: 20px;
+  text-align: center;
+}
+
+.dex-wallet-option {
+  width: 100%;
+  padding: 12px;
+  margin: 8px 0;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.dex-wallet-option img {
+  width: 24px;
+  height: 24px;
+}
+
+.dex-cancel-btn {
+  margin-top: 15px;
+  background: none;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .dex-wallet-content {
+    padding: 15px;
+  }
+  
+  .dex-wallet-option {
+    padding: 15px;
+  }
+}
