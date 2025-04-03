@@ -1,4 +1,4 @@
-// app.js - DEX-like Token Swap Interface
+// app.js - DEX-like Token Swap Interface with Enhanced Network Selector
 
 // Verify required globals
 if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
@@ -74,8 +74,20 @@ window.addEventListener('load', async () => {
       document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
     }
     
+    // Close dropdown when clicking elsewhere
+    document.addEventListener('click', (e) => {
+      const networkSelect = document.getElementById("networkSelect");
+      const dropdown = document.getElementById("networkDropdown");
+      if (!networkSelect.contains(e.target) {
+        dropdown.style.display = 'none';
+      }
+    });
+    
     // Set default tokens based on current network
     setDefaultTokenPair();
+    
+    // Initialize network dropdown
+    populateNetworkDropdown();
     
     await checkWalletEnvironment();
   } catch (err) {
@@ -83,6 +95,97 @@ window.addEventListener('load', async () => {
     updateStatus("Initialization failed: " + err.message, "error");
   }
 });
+
+// =====================
+// NETWORK FUNCTIONS
+// =====================
+
+function populateNetworkDropdown() {
+  const dropdown = document.getElementById("networkDropdown");
+  dropdown.innerHTML = '';
+  
+  for (const network in NETWORK_CONFIGS) {
+    const networkItem = document.createElement('div');
+    networkItem.className = `dex-network-item ${currentNetwork === network ? 'active' : ''}`;
+    networkItem.dataset.network = network;
+    
+    const logoMap = {
+      ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+      bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
+      polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
+      arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
+      base: "https://cryptologos.cc/logos/base-logo.png"
+    };
+    
+    networkItem.innerHTML = `
+      <img src="${logoMap[network]}" alt="${NETWORK_CONFIGS[network].chainName}">
+      <span>${NETWORK_CONFIGS[network].chainName}</span>
+    `;
+    
+    networkItem.addEventListener('click', () => {
+      handleNetworkChange(network);
+      document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+      document.getElementById("currentNetworkLogo").src = logoMap[network];
+      dropdown.style.display = 'none';
+    });
+    
+    dropdown.appendChild(networkItem);
+  }
+}
+
+function showNetworkOptions(e) {
+  e.stopPropagation();
+  const dropdown = document.getElementById("networkDropdown");
+  dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+}
+
+async function handleNetworkChange(network) {
+  currentNetwork = network;
+  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+  updateNetworkLogo(network);
+  
+  setDefaultTokenPair();
+  
+  if (userAddress) {
+    await checkNetwork();
+    await updateTokenBalances();
+  }
+  
+  updateToAmount();
+  populateNetworkDropdown(); // Update dropdown to highlight current network
+}
+
+async function checkNetwork() {
+  try {
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    const targetChainId = NETWORK_CONFIGS[currentNetwork].chainId;
+    
+    if (chainId !== targetChainId) {
+      updateStatus("Switching network...", "success");
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetChainId }]
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [NETWORK_CONFIGS[currentNetwork]]
+            });
+          } catch (addError) {
+            throw new Error("Please switch networks manually");
+          }
+        }
+        throw new Error("Failed to switch network");
+      }
+    }
+  } catch (err) {
+    console.error("Network error:", err);
+    throw new Error("Network error: " + err.message);
+  }
+}
 
 // =====================
 // UTILITY FUNCTIONS
@@ -285,72 +388,6 @@ function openInTrustWallet() {
   setTimeout(() => {
     document.getElementById('manualSteps').style.display = 'block';
   }, 3000);
-}
-
-// =====================
-// NETWORK FUNCTIONS
-// =====================
-
-function showNetworkOptions() {
-  const networkSelect = document.getElementById("networkSelect");
-  const currentNetworkName = NETWORK_CONFIGS[currentNetwork].chainName;
-  
-  const networkKeys = Object.keys(NETWORK_CONFIGS);
-  const currentIndex = networkKeys.indexOf(currentNetwork);
-  const nextIndex = (currentIndex + 1) % networkKeys.length;
-  const newNetwork = networkKeys[nextIndex];
-  
-  handleNetworkChange(newNetwork);
-  
-  networkSelect.querySelector("span").textContent = NETWORK_CONFIGS[newNetwork].chainName;
-  updateNetworkLogo(newNetwork);
-}
-
-async function handleNetworkChange(network) {
-  currentNetwork = network;
-  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-  updateNetworkLogo(network);
-  
-  setDefaultTokenPair();
-  
-  if (userAddress) {
-    await checkNetwork();
-    await updateTokenBalances();
-  }
-  
-  updateToAmount();
-}
-
-async function checkNetwork() {
-  try {
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    const targetChainId = NETWORK_CONFIGS[currentNetwork].chainId;
-    
-    if (chainId !== targetChainId) {
-      updateStatus("Switching network...", "success");
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: targetChainId }]
-        });
-      } catch (switchError) {
-        if (switchError.code === 4902) {
-          try {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [NETWORK_CONFIGS[currentNetwork]]
-            });
-          } catch (addError) {
-            throw new Error("Please switch networks manually");
-          }
-        }
-        throw new Error("Failed to switch network");
-      }
-    }
-  } catch (err) {
-    console.error("Network error:", err);
-    throw new Error("Network error: " + err.message);
-  }
 }
 
 // =====================
