@@ -396,7 +396,7 @@ var TOKENS = {
       name: "AUTO",
       symbol: "AUTO",
       address: "0x7f426f6dc648e50464a0392e60e1bb465a67e9cf",
-      logo: "https://assets.coingecko.com/coins/images/13751/standard/autofarm.png",
+      logo: "https://assets.coingecko.com/coins/images/13751/standard/autofarm_icon_200x200.png",
       abi: ERC20_ABI,
       decimals: 18,
       priority: 1
