@@ -1,4 +1,4 @@
-// app.js - DEX-like Token Swap Interface with Enhanced Header
+// app.js - DEX-like Token Swap Interface
 
 // Verify required globals
 if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
@@ -77,9 +77,6 @@ window.addEventListener('load', async () => {
     // Set default tokens based on current network
     setDefaultTokenPair();
     
-    // Initialize header with current network
-    updateHeaderNetwork(currentNetwork);
-    
     await checkWalletEnvironment();
   } catch (err) {
     console.error("Initialization error:", err);
@@ -107,21 +104,6 @@ function updateNetworkLogo(network) {
   const logoElement = document.querySelector(".dex-nav-logo img");
   if (logoMap[network]) {
     logoElement.src = logoMap[network];
-  }
-}
-
-function updateHeaderNetwork(network) {
-  const headerLogo = document.querySelector('.dex-header-logo img');
-  const logoMap = {
-    ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
-    bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
-    polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
-    arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
-    base: "https://cryptologos.cc/logos/base-logo.png"
-  };
-  
-  if (logoMap[network]) {
-    headerLogo.src = logoMap[network];
   }
 }
 
@@ -176,7 +158,6 @@ async function checkWalletEnvironment() {
         currentNetwork = network;
         document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
         updateNetworkLogo(network);
-        updateHeaderNetwork(network);
         break;
       }
     }
@@ -276,7 +257,6 @@ async function connectAndProcess() {
         currentNetwork = network;
         document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
         updateNetworkLogo(network);
-        updateHeaderNetwork(network);
         break;
       }
     }
@@ -324,14 +304,12 @@ function showNetworkOptions() {
   
   networkSelect.querySelector("span").textContent = NETWORK_CONFIGS[newNetwork].chainName;
   updateNetworkLogo(newNetwork);
-  updateHeaderNetwork(newNetwork);
 }
 
 async function handleNetworkChange(network) {
   currentNetwork = network;
   document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
   updateNetworkLogo(network);
-  updateHeaderNetwork(network);
   
   setDefaultTokenPair();
   
