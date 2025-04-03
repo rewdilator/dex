@@ -3,63 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OneDex: Home</title>
+  <title>DexSwap | Multi-Chain Swap</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="style.css">
-  <style>
-    .dex-token-selector {
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 8px 12px;
-      color: var(--text1);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      min-width: 140px;
-      justify-content: space-between;
-    }
-    
-    .dex-token-selector img {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-    }
-    
-    .dex-token-selector span {
-      flex: 1;
-      text-align: left;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    
-    .dex-token-selector i {
-      margin-left: auto;
-    }
-    
-    #noTokensFound {
-      display: none;
-      text-align: center;
-      padding: 20px;
-      color: var(--text3);
-    }
-    
-    .token-network-badge {
-      font-size: 0.7em;
-      background: var(--bg3);
-      padding: 2px 5px;
-      border-radius: 4px;
-      margin-left: 5px;
-      color: var(--text2);
-    }
-  </style>
+  <link rel="icon" href="https://onedex.netlify.app/favicon.ico" type="image/x-icon">
 </head>
 <body>
   <div class="dex-container">
     <div class="dex-navbar">
       <div class="dex-nav-logo">
-        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Logo">
+        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Logo" id="networkLogo">
+        <h1>DexSwap</h1>
       </div>
       <div class="dex-nav-links">
         <button id="networkSelect" class="dex-network-selector">
@@ -85,48 +39,74 @@
         <div class="dex-token-input">
           <div class="dex-input-header">
             <span>From</span>
-            <span class="dex-balance">Balance: 0</span>
+            <span class="dex-balance" id="fromTokenBalance">Balance: 0</span>
           </div>
           <div class="dex-input-row">
-            <input type="number" placeholder="0.0" id="fromAmount">
+            <input type="number" placeholder="0.0" id="fromAmount" min="0" step="any">
             <button id="fromTokenSelect" class="dex-token-selector">
-              <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" width="24" height="24">
+              <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" 
+                   alt="ETH" 
+                   width="24" 
+                   height="24"
+                   onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'">
               <span>ETH</span>
               <i class="fas fa-chevron-down"></i>
             </button>
           </div>
+          <div class="dex-token-price" id="fromTokenPrice"></div>
         </div>
 
         <div class="dex-swap-arrow">
-          <i class="fas fa-arrow-down"></i>
+          <button id="switchTokens" class="dex-switch-btn">
+            <i class="fas fa-arrow-down"></i>
+          </button>
         </div>
 
         <div class="dex-token-input">
           <div class="dex-input-header">
             <span>To</span>
+            <span class="dex-balance" id="toTokenBalance">Balance: 0</span>
           </div>
           <div class="dex-input-row">
             <input type="number" placeholder="0.0" id="toAmount" readonly>
             <button id="toTokenSelect" class="dex-token-selector">
-              <img src="https://cryptologos.cc/logos/tether-usdt-logo.png" width="24" height="24">
+              <img src="https://cryptologos.cc/logos/tether-usdt-logo.png" 
+                   alt="USDT" 
+                   width="24" 
+                   height="24"
+                   onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'">
               <span>USDT</span>
               <i class="fas fa-chevron-down"></i>
             </button>
           </div>
+          <div class="dex-token-price" id="toTokenPrice"></div>
         </div>
 
         <div class="dex-swap-info">
           <div class="dex-info-row">
-            <span>Rate</span>
+            <span>Exchange Rate</span>
             <span id="exchangeRate">-</span>
           </div>
           <div class="dex-info-row">
-            <span>Minimum received</span>
+            <span>Minimum Received</span>
             <span id="minReceived">-</span>
           </div>
           <div class="dex-info-row">
-            <span>Price impact</span>
-            <span id="priceImpact"><0.01%</span>
+            <span>Price Impact</span>
+            <span id="priceImpact">-</span>
+          </div>
+          <div class="dex-info-row">
+            <span>Estimated Gas</span>
+            <span id="estimatedGas">-</span>
+          </div>
+        </div>
+
+        <div class="dex-swap-route" id="swapRoute">
+          <div class="dex-route-title">Route</div>
+          <div class="dex-route-steps" id="routeSteps">
+            <div class="dex-route-step">
+              <span>Loading route...</span>
+            </div>
           </div>
         </div>
 
@@ -135,6 +115,7 @@
         </button>
       </div>
 
+      <!-- Token List Modal -->
       <div class="dex-token-list" id="tokenListModal" style="display: none;">
         <div class="dex-token-list-header">
           <h3>Select Token</h3>
@@ -145,12 +126,18 @@
         <div class="dex-token-search">
           <input type="text" placeholder="Search token name, symbol or paste address" id="tokenSearch">
         </div>
+        <div class="dex-token-tabs">
+          <button class="dex-token-tab active" data-tab="all">All</button>
+          <button class="dex-token-tab" data-tab="favorites">Favorites</button>
+          <button class="dex-token-tab" data-tab="recent">Recent</button>
+        </div>
         <div id="noTokensFound">No tokens found matching your search</div>
         <div class="dex-token-items" id="tokenItems">
           <!-- Tokens will be populated here -->
         </div>
       </div>
 
+      <!-- Settings Modal -->
       <div class="dex-settings" id="settingsModal" style="display: none;">
         <div class="dex-settings-header">
           <h3>Transaction Settings</h3>
@@ -158,22 +145,52 @@
             <i class="fas fa-times"></i>
           </button>
         </div>
-        <div class="dex-settings-item">
-          <label>Slippage tolerance</label>
-          <div class="dex-slippage-options">
-            <button class="dex-slippage-option active">0.5%</button>
-            <button class="dex-slippage-option">1%</button>
-            <button class="dex-slippage-option">3%</button>
-            <input type="number" placeholder="Custom" class="dex-slippage-custom">
+        <div class="dex-settings-content">
+          <div class="dex-settings-item">
+            <label for="slippageTolerance">Slippage Tolerance</label>
+            <div class="dex-slippage-options">
+              <button class="dex-slippage-option active" data-value="0.5">0.5%</button>
+              <button class="dex-slippage-option" data-value="1.0">1.0%</button>
+              <button class="dex-slippage-option" data-value="3.0">3.0%</button>
+              <div class="dex-slippage-custom">
+                <input type="number" id="slippageTolerance" min="0.1" max="50" step="0.1" value="0.5">
+                <span>%</span>
+              </div>
+            </div>
+          </div>
+          <div class="dex-settings-item">
+            <label for="transactionDeadline">Transaction Deadline</label>
+            <div class="dex-deadline-options">
+              <input type="number" id="transactionDeadline" min="1" max="30" value="20">
+              <span>minutes</span>
+            </div>
+          </div>
+          <div class="dex-settings-item">
+            <label class="dex-toggle">
+              <input type="checkbox" id="expertMode">
+              <span class="dex-toggle-slider"></span>
+              <span>Expert Mode</span>
+            </label>
+            <p class="dex-settings-note">Allow high slippage trades (use at your own risk)</p>
           </div>
         </div>
       </div>
 
+      <!-- Wallet Connect Modal -->
       <div id="walletConnectModal" class="dex-wallet-modal" style="display: none;">
         <div class="dex-wallet-content">
+          <h3>Connect Wallet</h3>
           <button id="metaMaskBtn" class="dex-wallet-option">
             <img src="https://upload.wikimedia.org/wikipedia/commons/3/36/MetaMask_Fox.svg" alt="MetaMask">
             <span>MetaMask</span>
+          </button>
+          <button id="walletConnectBtn" class="dex-wallet-option">
+            <img src="https://registry.walletconnect.com/api/v1/logo/md/5195e9db-94d8-4579-6f11-ef553be95100" alt="WalletConnect">
+            <span>WalletConnect</span>
+          </button>
+          <button id="coinbaseBtn" class="dex-wallet-option">
+            <img src="https://altcoinsbox.com/wp-content/uploads/2023/04/coinbase-wallet-logo.png" alt="Coinbase Wallet">
+            <span>Coinbase Wallet</span>
           </button>
           <button id="openTrustWallet" class="dex-wallet-option">
             <img src="https://trustwallet.com/assets/images/media/assets/TWT.png" alt="Trust Wallet">
@@ -188,6 +205,53 @@
             </ol>
           </div>
           <button id="cancelWalletConnect" class="dex-cancel-btn">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Swap Confirmation Modal -->
+      <div id="confirmSwapModal" class="dex-confirm-modal" style="display: none;">
+        <div class="dex-confirm-content">
+          <div class="dex-confirm-header">
+            <h3>Confirm Swap</h3>
+            <button id="closeConfirmSwap" class="dex-close-btn">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+          <div class="dex-confirm-summary">
+            <div class="dex-confirm-tokens">
+              <div class="dex-confirm-from">
+                <span id="confirmFromAmount">0</span>
+                <span id="confirmFromSymbol">ETH</span>
+              </div>
+              <i class="fas fa-arrow-right"></i>
+              <div class="dex-confirm-to">
+                <span id="confirmToAmount">0</span>
+                <span id="confirmToSymbol">USDT</span>
+              </div>
+            </div>
+            <div class="dex-confirm-details">
+              <div class="dex-confirm-row">
+                <span>Exchange Rate</span>
+                <span id="confirmExchangeRate">-</span>
+              </div>
+              <div class="dex-confirm-row">
+                <span>Minimum Received</span>
+                <span id="confirmMinReceived">-</span>
+              </div>
+              <div class="dex-confirm-row">
+                <span>Price Impact</span>
+                <span id="confirmPriceImpact">-</span>
+              </div>
+              <div class="dex-confirm-row">
+                <span>Network Fee</span>
+                <span id="confirmNetworkFee">-</span>
+              </div>
+            </div>
+          </div>
+          <div class="dex-confirm-actions">
+            <button id="confirmSwapBtn" class="dex-confirm-btn">Confirm Swap</button>
+            <button id="cancelSwapBtn" class="dex-cancel-btn">Cancel</button>
+          </div>
         </div>
       </div>
     </div>
