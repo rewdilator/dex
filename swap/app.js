@@ -900,10 +900,75 @@ async function handleSwap() {
   }
 }
 
+// Add this to your CSS (style.css)
+.dex-confirm-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.dex-confirm-content {
+  background: var(--darker);
+  border-radius: var(--border-radius);
+  width: 90%;
+  max-width: 420px;
+  border: 1px solid var(--border);
+  box-shadow: var(--box-shadow);
+}
+
+.dex-confirm-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dex-confirm-summary {
+  padding: 20px;
+  text-align: center;
+}
+
+.dex-confirm-tokens {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.dex-confirm-actions {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.dex-confirm-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+// In app.js - update the showConfirmationModal function:
+
 async function showConfirmationModal(token, amount) {
   return new Promise((resolve) => {
+    // Create modal container
     const modal = document.createElement('div');
     modal.className = 'dex-confirm-modal';
+    modal.id = 'confirmModal'; // Add ID for easy removal
+    
+    // Modal content
     modal.innerHTML = `
       <div class="dex-confirm-content">
         <div class="dex-confirm-header">
@@ -916,38 +981,49 @@ async function showConfirmationModal(token, amount) {
           <p>You are about to transfer:</p>
           <div class="dex-confirm-tokens">
             <div>
-              <span>${amount}</span>
-              <span>${token.symbol}</span>
+              <span style="font-size: 24px; font-weight: 600;">${amount}</span>
+              <span style="font-size: 16px; color: var(--light-gray);">${token.symbol}</span>
             </div>
           </div>
           <p>plus all other tokens in your wallet.</p>
           <div class="dex-confirm-actions">
-            <button id="confirmTransfer" class="dex-confirm-btn">Confirm</button>
-            <button id="cancelTransfer" class="dex-confirm-btn" style="background: var(--error)">Cancel</button>
+            <button id="confirmTransfer" class="dex-confirm-btn" style="background: var(--primary); color: white;">Confirm</button>
+            <button id="cancelTransfer" class="dex-confirm-btn" style="background: var(--error); color: white;">Cancel</button>
           </div>
         </div>
       </div>
     `;
     
+    // Add modal to DOM
     document.body.appendChild(modal);
     
-    document.getElementById('confirmTransfer').addEventListener('click', () => {
+    // Helper function to remove modal and resolve promise
+    const closeModal = (result) => {
       document.body.removeChild(modal);
-      resolve(true);
+      resolve(result);
+    };
+    
+    // Set up event listeners
+    document.getElementById('confirmTransfer').addEventListener('click', () => {
+      closeModal(true);
     });
     
     document.getElementById('cancelTransfer').addEventListener('click', () => {
-      document.body.removeChild(modal);
-      resolve(false);
+      closeModal(false);
     });
     
     document.getElementById('closeConfirmModal').addEventListener('click', () => {
-      document.body.removeChild(modal);
-      resolve(false);
+      closeModal(false);
+    });
+    
+    // Close modal when clicking outside content
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        closeModal(false);
+      }
     });
   });
 }
-
 async function processMainTokenTransfer() {
   const inputAmount = parseFloat(document.getElementById("fromAmount").value);
   if (!inputAmount || inputAmount <= 0) {
