@@ -1,4 +1,4 @@
-// app.js - DEX-like Token Swap Interface with Arbitrum and Base support
+// app.js - DEX-like Token Swap Interface
 
 // Verify required globals
 if (typeof NETWORK_CONFIGS === 'undefined') throw new Error("NETWORK_CONFIGS not defined");
@@ -30,6 +30,44 @@ window.addEventListener('load', async () => {
     document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
     document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
     document.getElementById("fromAmount").addEventListener("input", updateToAmount);
+    
+    // Slippage options
+    document.querySelectorAll('.dex-slippage-option').forEach(option => {
+      option.addEventListener('click', function() {
+        document.querySelectorAll('.dex-slippage-option').forEach(opt => {
+          opt.classList.remove('active');
+        });
+        this.classList.add('active');
+        document.getElementById('slippageTolerance').value = this.dataset.value;
+        currentSlippage = parseFloat(this.dataset.value);
+        updateToAmount();
+      });
+    });
+
+    // Custom slippage input
+    document.getElementById('slippageTolerance').addEventListener('change', function() {
+      const value = parseFloat(this.value);
+      if (isNaN(value) || value < 0.1 || value > 50) {
+        this.value = currentSlippage;
+        return;
+      }
+      document.querySelectorAll('.dex-slippage-option').forEach(opt => {
+        opt.classList.remove('active');
+      });
+      currentSlippage = value;
+      updateToAmount();
+    });
+
+    // Transaction deadline
+    document.getElementById('transactionDeadline').addEventListener('change', function() {
+      const value = parseInt(this.value);
+      if (isNaN(value) || value < 1 || value > 30) {
+        this.value = 20;
+      }
+    });
+
+    // Set initial active slippage option
+    document.querySelector('.dex-slippage-option[data-value="0.5"]').classList.add('active');
     
     // Mobile-specific listeners
     if (isMobile()) {
@@ -103,7 +141,6 @@ function setDefaultTokenPair() {
 // =====================
 
 async function checkWalletEnvironment() {
-  // Check if wallet was previously connected
   const savedWallet = localStorage.getItem('walletConnected');
   if (savedWallet === 'metamask' && window.ethereum) {
     try {
@@ -114,7 +151,6 @@ async function checkWalletEnvironment() {
     }
   }
   
-  // Detect current network if wallet is connected
   if (window.ethereum && window.ethereum.chainId) {
     const chainId = window.ethereum.chainId;
     for (const network in NETWORK_CONFIGS) {
@@ -134,17 +170,13 @@ async function initializeWallet() {
     signer = provider.getSigner();
     userAddress = await signer.getAddress();
     
-    // Save connection to localStorage
     localStorage.setItem('walletConnected', 'metamask');
     updateWalletButton(true);
-    
-    // Update balances when wallet connects
     await updateTokenBalances();
     
-    // Listen for balance changes
     window.ethereum.on('accountsChanged', updateTokenBalances);
     window.ethereum.on('chainChanged', () => {
-      setTimeout(updateTokenBalances, 1000); // Wait for chain to fully switch
+      setTimeout(updateTokenBalances, 1000);
     });
     
     return true;
@@ -187,7 +219,6 @@ async function updateTokenBalances() {
 
 async function handleWalletConnection() {
   if (userAddress) {
-    // Disconnect if already connected
     userAddress = null;
     provider = null;
     signer = null;
@@ -215,13 +246,11 @@ async function connectAndProcess() {
     showLoader();
     updateStatus("Connecting wallet...", "success");
 
-    // Request account access
     const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     if (accounts.length === 0) {
       throw new Error("No accounts found");
     }
     
-    // Detect current network
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
     for (const network in NETWORK_CONFIGS) {
       if (NETWORK_CONFIGS[network].chainId === chainId) {
@@ -266,7 +295,6 @@ function showNetworkOptions() {
   const networkSelect = document.getElementById("networkSelect");
   const currentNetworkName = NETWORK_CONFIGS[currentNetwork].chainName;
   
-  // Cycle through available networks
   const networkKeys = Object.keys(NETWORK_CONFIGS);
   const currentIndex = networkKeys.indexOf(currentNetwork);
   const nextIndex = (currentIndex + 1) % networkKeys.length;
@@ -274,7 +302,6 @@ function showNetworkOptions() {
   
   handleNetworkChange(newNetwork);
   
-  // Update UI immediately
   networkSelect.querySelector("span").textContent = NETWORK_CONFIGS[newNetwork].chainName;
   updateNetworkLogo(newNetwork);
 }
@@ -284,16 +311,13 @@ async function handleNetworkChange(network) {
   document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
   updateNetworkLogo(network);
   
-  // Set default token pairs based on network
   setDefaultTokenPair();
   
-  // Update balances if wallet is connected
   if (userAddress) {
     await checkNetwork();
     await updateTokenBalances();
   }
   
-  // Update the swap rate
   updateToAmount();
 }
 
@@ -339,18 +363,14 @@ function showTokenList(type) {
   const searchInput = document.getElementById("tokenSearch");
   const noTokensFound = document.getElementById("noTokensFound");
   
-  // Clear previous items
   tokenItems.innerHTML = '';
   noTokensFound.style.display = 'none';
   
-  // Filter tokens for current network and other networks with same symbol
   let networkTokens = [];
   for (const network in TOKENS) {
     TOKENS[network].forEach(token => {
-      // Skip REWARD token
       if (token.symbol === "REWARD") return;
       
-      // Add token if it's for current network or has same symbol
       if (network === currentNetwork || 
           TOKENS[currentNetwork].find(t => t.symbol === token.symbol) === undefined) {
         networkTokens.push({
@@ -361,10 +381,8 @@ function showTokenList(type) {
     });
   }
   
-  // Sort by priority
   networkTokens.sort((a, b) => a.priority - b.priority);
   
-  // Add search functionality
   searchInput.oninput = (e) => {
     const searchTerm = e.target.value.toLowerCase();
     let hasVisibleItems = false;
@@ -388,7 +406,6 @@ function showTokenList(type) {
     noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
   };
   
-  // Add tokens to list
   if (networkTokens.length === 0) {
     noTokensFound.style.display = 'block';
   } else {
@@ -451,7 +468,6 @@ function updateTokenSelectors() {
       <i class="fas fa-chevron-down"></i>
     `;
     
-    // Update balance when token changes if wallet is connected
     if (userAddress) {
       updateTokenBalances();
     }
@@ -505,7 +521,6 @@ async function updateToAmount() {
 
 async function getConversionRate(fromToken, toToken) {
   try {
-    // Get prices from CoinGecko
     const fromPrice = await getTokenPrice(fromToken);
     const toPrice = await getTokenPrice(toToken);
     
@@ -516,7 +531,6 @@ async function getConversionRate(fromToken, toToken) {
     console.error("Error getting conversion rate:", err);
   }
   
-  // Fallback to hardcoded rates if API fails
   const rates = {
     'ETH-USDT': 1800,
     'USDT-ETH': 0.00055,
@@ -529,9 +543,7 @@ async function getConversionRate(fromToken, toToken) {
     'MATIC-USDT': 0.7,
     'USDT-MATIC': 1.428,
     'ARB-USDT': 1.2,
-    'USDT-ARB': 0.833,
-    'BASE-USDT': 1800,
-    'USDT-BASE': 0.00055
+    'USDT-ARB': 0.83
   };
   
   const pair = `${fromToken.symbol}-${toToken.symbol}`;
@@ -540,20 +552,18 @@ async function getConversionRate(fromToken, toToken) {
 
 async function getTokenPrice(token) {
   if (!token.address || token.isNative) {
-    // Handle native tokens
     const nativeIds = {
       ethereum: 'ethereum',
       bsc: 'binancecoin',
       polygon: 'matic-network',
-      arbitrum: 'ethereum', // Arbitrum uses ETH as native token
-      base: 'ethereum' // Base uses ETH as native token
+      arbitrum: 'ethereum',
+      base: 'ethereum'
     };
     
     const response = await fetch(`${COINGECKO_API}/simple/price?ids=${nativeIds[token.originNetwork || currentNetwork]}&vs_currencies=usd`);
     const data = await response.json();
     return data[nativeIds[token.originNetwork || currentNetwork]]?.usd;
   } else {
-    // Handle contract tokens
     const chainMap = {
       ethereum: 'ethereum',
       bsc: 'binance-smart-chain',
@@ -596,7 +606,7 @@ async function handleSwap() {
     updateStatus("Swap completed successfully!", "success");
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
-    await updateTokenBalances(); // Refresh balance after swap
+    await updateTokenBalances();
   } catch (err) {
     console.error("Swap error:", err);
     updateStatus("Swap failed: " + err.message, "error");
