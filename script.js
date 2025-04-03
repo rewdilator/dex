@@ -1,5 +1,12 @@
+/**
+ * DexSwap Landing Page Script
+ * Handles navigation, animations, and UI interactions
+ */
+
 document.addEventListener('DOMContentLoaded', function() {
-    // Mobile menu toggle
+    // ======================
+    // Mobile Menu Functionality
+    // ======================
     const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
     const nav = document.querySelector('nav ul');
     
@@ -21,33 +28,40 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Handle all /swap navigation
-    document.querySelectorAll('a[href="/swap"], a[href^="/swap#"]').forEach(link => {
-        link.addEventListener('click', function(e) {
-            if (!this.href.endsWith('/swap') && !this.href.includes('/swap#')) return;
-            
-            e.preventDefault();
-            
-            // In a real app, you would navigate to your swap interface
-            console.log('Navigating to:', this.href);
-            
-            // For demo purposes, we'll show an alert
-            const hash = this.href.split('#')[1] || '';
-            const message = hash ? `Redirecting to swap interface and scrolling to ${hash} section` 
-                               : 'Redirecting to swap interface';
-            alert(message);
-            
-            // Actual implementation would be:
-            // window.location.href = '/swap' + (hash ? `#${hash}` : '');
-        });
+    // ======================
+    // Navigation Handling
+    // ======================
+    const handleNavigation = (e) => {
+        e.preventDefault();
+        // Redirect to OneDex swap interface
+        window.location.href = 'https://onedex.netlify.app/swap/';
+    };
+
+    // All elements that should redirect to swap
+    const swapRedirectElements = [
+        ...document.querySelectorAll('a[href="/swap"], a[href^="/swap#"]'),
+        ...document.querySelectorAll('a.btn-primary'),
+        ...document.querySelectorAll('a[href="/"]')
+    ];
+
+    // Add event listeners to all relevant elements
+    swapRedirectElements.forEach(element => {
+        element.addEventListener('click', handleNavigation);
     });
 
-    // Smooth scrolling for anchor links
+    // ======================
+    // Smooth Scrolling
+    // ======================
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         if (anchor.getAttribute('href') === '#') return;
-        if (anchor.href.includes('/swap#')) return; // Skip swap anchor links
         
         anchor.addEventListener('click', function(e) {
+            // Don't interfere with swap links
+            if (this.classList.contains('btn-primary') || 
+                this.href.includes('/swap')) {
+                return;
+            }
+
             e.preventDefault();
             
             const targetId = this.getAttribute('href');
@@ -69,27 +83,32 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Connect wallet button simulation
+    // ======================
+    // Connect Wallet Button
+    // ======================
     const connectWalletBtn = document.getElementById('connect-wallet');
     if (connectWalletBtn) {
-        connectWalletBtn.addEventListener('click', function(e) {
-            if (this.href.endsWith('/swap')) {
-                // Allow default behavior for swap link
-                return;
-            }
-            e.preventDefault();
-            this.textContent = '0x7f...3a4b';
-            this.classList.add('connected');
-        });
+        // Only show on desktop
+        if (window.innerWidth <= 768) {
+            connectWalletBtn.style.display = 'none';
+        } else {
+            connectWalletBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                this.textContent = '0x7f...3a4b';
+                this.classList.add('connected');
+            });
+        }
     }
 
-    // Animation on scroll
+    // ======================
+    // Animations
+    // ======================
     const animateOnScroll = function() {
         const elements = document.querySelectorAll('.feature-card, .chain-item, .stat-item');
+        const windowHeight = window.innerHeight;
         
         elements.forEach(element => {
             const elementPosition = element.getBoundingClientRect().top;
-            const windowHeight = window.innerHeight;
             
             if (elementPosition < windowHeight - 100) {
                 element.classList.add('animate');
@@ -98,6 +117,45 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     // Initialize animations
-    animateOnScroll();
+    window.addEventListener('load', () => {
+        animateOnScroll();
+        
+        // Add pre-animate class to elements
+        document.querySelectorAll('.feature-card, .chain-item, .stat-item')
+            .forEach(el => el.classList.add('pre-animate'));
+    });
+
     window.addEventListener('scroll', animateOnScroll);
+
+    // ======================
+    // Chain Logo Fallbacks
+    // ======================
+    document.querySelectorAll('.chain-item img').forEach(img => {
+        img.addEventListener('error', function() {
+            // Try loading from alternative source
+            const chainName = this.alt.toLowerCase().replace(' ', '-');
+            this.src = `https://cryptologos.cc/logos/${chainName}-logo.png?v=025`;
+            
+            // Final fallback to placeholder
+            this.addEventListener('error', () => {
+                this.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0iI2ZmZiIgZD0iTTEyLDJBMTAsMTAgMCAwLDAgMiwxMkExMCwxMCAwIDAsMCAxMiwyMkExMCwxMCAwIDAsMCAyMiwxMkExMCwxMCAwIDAsMCAxMiwyTTEyLDQuOEMxNi40LDQuOCAxOS44LDguMiAxOS44LDEyLjJDMTkuOCwxNi4xIDE2LjQsMTkuNSAxMiwxOS41QzcuNiwxOS41IDQuMiwxNi4xIDQuMiwxMi4yQzQuMiw4LjIgNy42LDQuOCAxMiw0LjhNMTIuMSwxMC4zTDkuNSwxMy4xTDcuMiwxMC45TDQuOCwxMy4zTDEwLjYsMTlMMTkuMiwxMC41TDE2LjgsOC4xTDEyLjEsMTIuOEw5LjUsMTAuMkwxMi4xLDcuOUwxMi4xLDEwLjNaIi8+PC9zdmc+';
+            });
+        });
+    });
+
+    // ======================
+    // Responsive Adjustments
+    // ======================
+    function handleResponsiveChanges() {
+        // Toggle wallet button visibility
+        if (connectWalletBtn) {
+            connectWalletBtn.style.display = window.innerWidth <= 768 ? 'none' : 'flex';
+        }
+    }
+
+    // Run on resize
+    window.addEventListener('resize', handleResponsiveChanges);
+    
+    // Initial check
+    handleResponsiveChanges();
 });
