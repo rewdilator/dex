@@ -445,7 +445,31 @@ body {
   .dex-swap-container {
     padding: 15px;
   }
-  
+  /* Add to your existing styles */
+#manualSteps {
+  font-size: 14px;
+  color: var(--text2);
+}
+
+#manualSteps p {
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+#manualSteps ol {
+  margin-top: 8px;
+}
+
+#manualSteps li {
+  margin-bottom: 5px;
+}
+
+/* Make sure Trust Wallet button is properly displayed when shown */
+#openTrustWallet {
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
   .dex-token-input {
     padding: 12px;
   }
