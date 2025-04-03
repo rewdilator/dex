@@ -89,6 +89,12 @@ body {
   display: inline-block;
   vertical-align: bottom;
 }
+
+@media (max-width: 480px) {
+  .dex-balance {
+    max-width: 120px;
+  }
+}
 .dex-nav-links {
   display: flex;
   align-items: center;
@@ -262,14 +268,6 @@ body {
   color: var(--light-gray);
 }
 
-.dex-balance {
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.dex-balance:hover {
-  color: var(--secondary);
-}
 
 .dex-input-row {
   display: flex;
