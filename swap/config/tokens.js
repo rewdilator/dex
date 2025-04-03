@@ -129,7 +129,7 @@ var TOKENS = {
       name: "Binance USD",
       symbol: "BUSD",
       address: "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",
-      logo: "https://assets.coingecko.com/coins/images/9576/standard/BUSD.png",
+      logo: "https://assets.coingecko.com/coins/images/31273/standard/new_binance-peg-busd.png",
       abi: ERC20_ABI,
       decimals: 18,
       priority: 3
