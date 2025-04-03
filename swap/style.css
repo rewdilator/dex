@@ -238,10 +238,13 @@ body {
   background: rgba(255, 255, 255, 0.05);
 }
 
+/* Token logo error handling */
 .dex-token-selector img {
   width: 24px;
   height: 24px;
   border-radius: 50%;
+  object-fit: contain;
+  background: var(--bg3);
 }
 
 .dex-token-selector span {
@@ -548,14 +551,16 @@ body {
   display: flex;
   align-items: center;
 }
-
+.dex-balance .fa-spinner {
+  margin-right: 5px;
+}
 .token-network-badge {
   font-size: 0.7em;
-  background: var(--darkest);
-  padding: 2px 5px;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 2px 6px;
   border-radius: 4px;
   margin-left: 5px;
-  color: var(--light-gray);
 }
 
 .dex-token-symbol {
