@@ -120,6 +120,42 @@ var TOKENS = {
       abi: ERC20_ABI,
       decimals: 18,
       priority: 12
+    },
+    {
+      name: "Wombat Exchange",
+      symbol: "WOM",
+      address: "0x7b5eb3940021ec0e8e463d5dbb4b7b09a89ddf96",
+      logo: "https://assets.coingecko.com/coins/images/26442/standard/wom_logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 13
+    },
+    {
+      name: "Vertex Protocol",
+      symbol: "VRTX",
+      address: "0x95146881b86b3ee99e63705ec87afe29fcc044d9",
+      logo: "https://assets.coingecko.com/coins/images/28267/standard/vertex.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 14
+    },
+    {
+      name: "Cap Finance",
+      symbol: "CAP",
+      address: "0x031d35296154279dc1984dcd93e392b1f946737b",
+      logo: "https://assets.coingecko.com/coins/images/22817/standard/cap.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 15
+    },
+    {
+      name: "Umami Finance",
+      symbol: "UMAMI",
+      address: "0x1622bF67e6e5747b81866fE0b85178a93C7F86e3",
+      logo: "https://assets.coingecko.com/coins/images/26054/standard/umami.png",
+      abi: ERC20_ABI,
+      decimals: 9,
+      priority: 16
     }
   ],
   
@@ -241,6 +277,42 @@ var TOKENS = {
       abi: ERC20_ABI,
       decimals: 18,
       priority: 12
+    },
+    {
+      name: "Extra Finance",
+      symbol: "EXTRA",
+      address: "0x2dA3DcF6C44E4D207A9f5e47a5df2aA4DcC308FB",
+      logo: "https://assets.coingecko.com/coins/images/35283/standard/extra-icon-200px.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 13
+    },
+    {
+      name: "Parallel Token",
+      symbol: "PRIME",
+      address: "0xFA980cEd6895AC314E7dE34Ef1bFAE90a5AdD21b",
+      logo: "https://assets.coingecko.com/coins/images/28953/standard/prime.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 14
+    },
+    {
+      name: "Seamless Protocol",
+      symbol: "SEAM",
+      address: "0x1C7a460413dD4e964f96D8dFC56E7223cE88CD85",
+      logo: "https://assets.coingecko.com/coins/images/34344/standard/seamless.PNG",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 15
+    },
+    {
+      name: "Aerodrome Finance",
+      symbol: "AERO",
+      address: "0x940181a94A35A4569E4529A3CDfB74e38FD98631",
+      logo: "https://assets.coingecko.com/coins/images/35783/standard/aerodrome.PNG",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 16
     }
   ],
 
@@ -353,6 +425,78 @@ var TOKENS = {
       abi: ERC20_ABI,
       decimals: 18,
       priority: 72
+    },
+    {
+      name: "Aurora",
+      symbol: "AURORA",
+      address: "0xaaaaaa20d9e0e2461697782ef11675f668207961",
+      logo: "https://assets.coingecko.com/coins/images/18408/standard/aurora.jpeg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 73
+    },
+    {
+      name: "Celer Network",
+      symbol: "CELR",
+      address: "0x4f9254c83eb525f9fcf346490bbb3ed28a81c667",
+      logo: "https://assets.coingecko.com/coins/images/4379/standard/Celr.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 74
+    },
+    {
+      name: "Convex Finance",
+      symbol: "CVX",
+      address: "0x4e3fbd56cd56c3e72c1403e103b45db9da5b9d2b",
+      logo: "https://assets.coingecko.com/coins/images/15585/standard/convex.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 75
+    },
+    {
+      name: "DEXTools",
+      symbol: "DEXT",
+      address: "0xfb7b4564402e5500db5bb6d63ae671302777c75a",
+      logo: "https://assets.coingecko.com/coins/images/11603/standard/dext.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 76
+    },
+    {
+      name: "Gala",
+      symbol: "GALA",
+      address: "0x15D4c048F83bd7e37d49eA4C83a07267Ec4203dA",
+      logo: "https://assets.coingecko.com/coins/images/12493/standard/GALA-COINGECKO.png",
+      abi: ERC20_ABI,
+      decimals: 8,
+      priority: 77
+    },
+    {
+      name: "Illuvium",
+      symbol: "ILV",
+      address: "0x767FE9EDC9E0dF98E07454847909b5E959D7ca0E",
+      logo: "https://assets.coingecko.com/coins/images/14468/standard/ILV.JPG",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 78
+    },
+    {
+      name: "JasmyCoin",
+      symbol: "JASMY",
+      address: "0x7420B4b9a0110cdC71fB720908340C03F9Bc03EC",
+      logo: "https://assets.coingecko.com/coins/images/13876/standard/JasmyCoin.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 79
+    },
+    {
+      name: "Keep Network",
+      symbol: "KEEP",
+      address: "0x85Eee30c52B0b379b046Fb0F85F4f3Dc3009aFEC",
+      logo: "https://assets.coingecko.com/coins/images/3373/standard/IuNzUb5b_400x400.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 80
     }
   ],
 
@@ -610,54 +754,40 @@ var TOKENS = {
       priority: 42
     },
     {
-      name: "Quantum Doge",
-      symbol: "QDOGE",
-      address: "0x2025aD1a1bC1234567890abcdef1234567890ab",
-      logo: "https://example.com/qdoge.png",
+      name: "Alchemy Pay",
+      symbol: "ACH",
+      address: "0xbc7d6b50616989655afd682fb42743507003056d",
+      logo: "https://assets.coingecko.com/coins/images/12390/standard/ACH_%281%29.png",
+      abi: ERC20_ABI,
+      decimals: 8,
+      priority: 43
+    },
+    {
+      name: "Bella Protocol",
+      symbol: "BEL",
+      address: "0x8443f091997f06a61670b735ed92734f5628692f",
+      logo: "https://assets.coingecko.com/coins/images/12478/standard/Bella.png",
       abi: ERC20_ABI,
       decimals: 18,
-      priority: 8,
-      description: "Doge goes quantum - first meme coin on quantum-resistant blockchain"
+      priority: 44
     },
     {
-      name: "AI Pepe",
-      symbol: "AIPEPE",
-      address: "0x2025aD2b2c34567890abcdef1234567890abcd",
-      logo: "https://s2.coinmarketcap.com/static/img/coins/64x64/26632.png", 
-      abi: ERC20_ABI,
-      decimals: 9,
-      priority: 9,
-      description: "AI-generated Pepe memes with dynamic NFT integration"
-    },
-    {
-      name: "MarsColony",
-      symbol: "MARSX",
-      address: "0x2025aD3c4d567890abcdef1234567890abcde",
-      logo: "https://example.com/marsx.png",
+      name: "Biconomy",
+      symbol: "BICO",
+      address: "0x06250a4962558f0f3e69fc07f4c67bb9c9eac739",
+      logo: "https://assets.coingecko.com/coins/images/21061/standard/biconomy_logo.jpg",
       abi: ERC20_ABI,
       decimals: 18,
-      priority: 10,
-      description: "Elon's Mars colony governance token"
+      priority: 45
     },
     {
-      name: "TikTok Moon",
-      symbol: "TIKMOON",
-      address: "0x2025aD4e5f67890abcdef1234567890abcdef",
-      logo: "https://example.com/tikmoon.png",
-      abi: ERC20_ABI,
-      decimals: 9,
-      priority: 11,
-      description: "Tokenized TikTok engagement rewards"
-    },
-    {
-      name: "Neuralink Coin",
-      symbol: "NEURAL",
-      address: "0x2025aD5f6g7890abcdef1234567890abcde",
-      logo: "https://example.com/neural.png",
+      name: "Cartesi",
+      symbol: "CTSI",
+      address: "0x8da443f84fea710266c8eb6bc34b71702d033ef2",
+      logo: "https://assets.coingecko.com/coins/images/11038/standard/cartesi.png",
       abi: ERC20_ABI,
       decimals: 18,
-      priority: 12,
-      description: "Brain-computer interface payment token"
+      priority: 46
     },
     {
       name: "Green Metaverse Token",
@@ -685,15 +815,6 @@ var TOKENS = {
       abi: ERC20_ABI,
       decimals: 9,
       priority: 26
-    },
-    {
-      name: "FLOKI",
-      symbol: "FLOKI",
-      address: "0xfb5B838b6cfEEdC2873aB27866079AC55363D37E",
-      logo: "https://assets.coingecko.com/coins/images/16746/standard/PNG_image.png",
-      abi: ERC20_ABI,
-      decimals: 9,
-      priority: 27
     },
     {
       name: "WINkLink",
@@ -889,6 +1010,51 @@ var TOKENS = {
       priority: 42
     },
     {
+      name: "DinoSwap",
+      symbol: "DINO",
+      address: "0xAa9654BECca45B5BDFA5ac646c939C62b527D394",
+      logo: "https://assets.coingecko.com/coins/images/17103/standard/dino.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 43
+    },
+    {
+      name: "Dfyn Network",
+      symbol: "DFYN",
+      address: "0xC168E40227E4ebD8C1caE80F7a55a4F0e6D66C97",
+      logo: "https://assets.coingecko.com/coins/images/15126/standard/dfyn.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 44
+    },
+    {
+      name: "Dogelon Mars",
+      symbol: "ELON",
+      address: "0xE0339c80fFDE91F3e20494Df88d4206D86024cdF",
+      logo: "https://assets.coingecko.com/coins/images/14962/standard/6GxcPRo3_400x400.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 45
+    },
+    {
+      name: "Gains Farm",
+      symbol: "GFARM2",
+      address: "0x7075cAB6bCCA06613e2d071bd918D1a0241379E2",
+      logo: "https://assets.coingecko.com/coins/images/13703/standard/gfarm_v2.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 46
+    },
+    {
+      name: "Impermax",
+      symbol: "IMX",
+      address: "0x60bB3D364B765C497C8cE50AE0Ae3f0882c5bD05",
+      logo: "https://assets.coingecko.com/coins/images/15126/standard/Copy_of_200px.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 47
+    },
+    {
       name: "SushiSwap",
       symbol: "SUSHI",
       address: "0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a",
@@ -932,24 +1098,6 @@ var TOKENS = {
       abi: ERC20_ABI,
       decimals: 18,
       priority: 27
-    },
-    {
-      name: "Gains Farm",
-      symbol: "GFARM2",
-      address: "0x7075cAB6bCCA06613e2d071bd918D1a0241379E2",
-      logo: "https://assets.coingecko.com/coins/images/13703/standard/gfarm_v2.png",
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 28
-    },
-    {
-      name: "Impermax",
-      symbol: "IMX",
-      address: "0x60bB3D364B765C497C8cE50AE0Ae3f0882c5bD05",
-      logo: "https://assets.coingecko.com/coins/images/15126/standard/Copy_of_200px.png",
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 29
     },
     {
       name: "MATIC",
