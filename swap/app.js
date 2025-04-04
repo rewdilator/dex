@@ -355,10 +355,15 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Get tokens from the current network
+    // Add debug logging
+    console.log('Loading tokens for network:', currentNetwork);
+    console.log('Available networks:', Object.keys(TOKENS));
+    
     const allTokens = TOKENS[currentNetwork] || [];
+    console.log('Tokens found:', allTokens.length);
     
     if (allTokens.length === 0) {
+      console.warn('No tokens available for network:', currentNetwork);
       showNoTokensFound(noTokensFound, "No tokens available for this network");
       return;
     }
@@ -377,7 +382,7 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
     // Setup search functionality with the full list
     setupSearchFunctionality(searchInput, tokenItems, noTokensFound, normalizedTokens);
     
-  } catch (err) {
+ } catch (err) {
     console.error("Error loading tokens:", err);
     showTokenError(tokenItems, "Failed to load tokens. Please try again.");
   }
