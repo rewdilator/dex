@@ -54,7 +54,7 @@ body {
 .dex-status {
   /* Positioning */
   position: fixed;
-  top: 50px;
+  top: 70px; /* Positioned below typical header */
   left: 50%;
   transform: translateX(-50%);
   
@@ -75,7 +75,7 @@ body {
   /* Animation */
   animation: slideIn var(--status-animation-duration) ease-out;
   
-  /* Stacking */
+  /* Stacking - below swap container */
   z-index: var(--status-z-index);
 }
 
@@ -90,20 +90,25 @@ body {
   }
 }
 
-/* Status Variants */
-.dex-status.error {
+.dex-status.error,
+.dex-status.success {
   background-color: var(--darkest);
-  border: 1px solid var(--error);
+  border: 1px solid;
+  padding-right: 32px; /* Make space for close button */
+  position: relative; /* For absolute positioning of close button */
+}
+
+.dex-status.error {
+  border-color: var(--error);
   color: var(--error);
 }
 
 .dex-status.success {
-  background-color: var(--darkest);
-  border: 1px solid var(--success);
+  border-color: var(--success);
   color: var(--success);
 }
 
-/* Close Button */
+/* Improved Close Button */
 .dex-status-close {
   /* Positioning */
   position: absolute;
@@ -115,9 +120,10 @@ body {
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px; /* Slightly larger */
   opacity: 0.7;
   padding: 4px;
+  line-height: 1;
   
   /* Interaction */
   transition: var(--transition);
@@ -127,69 +133,24 @@ body {
 .dex-status-close:focus {
   opacity: 1;
   outline: none;
+  transform: scale(1.1);
 }
 
-/* Accessibility improvements */
-.dex-status[aria-hidden="true"] {
-  display: none;
-}
-
-.dex-error-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  font-size: 16px;
-}
-
-.dex-error-details {
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.dex-error-details strong {
-  color: var(--text1);
-  font-weight: 600;
-}
-/* Mobile adjustments */
-@media (max-width: 768px) {
-  .dex-status {
-    width: calc(100% - 30px);
-    padding: 12px;
-    top: 15px;
-  }
-  
-  .dex-error-header {
-    font-size: 15px;
-  }
-  
-  .dex-error-details {
-    font-size: 13px;
-  }
-}
-
+/* Responsive adjustments */
 @media (max-width: 480px) {
   .dex-status {
-    width: 95%;
+    top: 60px;
+    width: calc(100% - 20px);
     padding: 12px;
-    bottom: 70px;
   }
   
-  .dex-error-header {
-    font-size: 15px;
-  }
-  
-  .dex-error-details {
-    font-size: 13px;
+  .dex-status-close {
+    font-size: 14px;
+    top: 6px;
+    right: 6px;
   }
 }
-.dex-balance-warning {
-  font-size: 0.8em;
-  color: var(--error);
-  margin-left: 5px;
-  font-style: italic;
-}
+
 .token-network-badge {
   display: inline-flex;
   align-items: center;
