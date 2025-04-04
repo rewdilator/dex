@@ -1,7 +1,7 @@
 const ERC20_ABI = []; // Define your ERC20 ABI here
 
 const TOKENS = {
-  "bsc": [
+  "base": [
     {
       "name": "DEFI ssi", 
       "abi": "ERC20_ABI", 
