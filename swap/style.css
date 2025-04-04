@@ -104,7 +104,20 @@ body {
 .token-network-badge[data-type="preferred"] {
   background: rgba(39, 174, 96, 0.15);
   color: var(--success);
-  border-color: rgba(39, 174, 96, 0.3);
+}
+
+/* Address display */
+.dex-token-address {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 2px;
+  word-break: break-all;
+  cursor: pointer;
+}
+
+.dex-token-address:hover {
+  color: var(--secondary);
 }
 .token-network-badge::before {
   content: '';
@@ -638,11 +651,13 @@ body {
 
 .dex-token-search {
   position: relative;
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
 }
 
 .dex-token-search i {
   position: absolute;
-  left: 12px;
+  left: 28px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--text3);
@@ -650,7 +665,7 @@ body {
 
 .dex-token-search input {
   width: 100%;
-  padding: 12px 12px 12px 40px;
+  padding: 10px 16px 10px 40px;
   border-radius: var(--border-radius-sm);
   border: 1px solid var(--border);
   background: var(--darkest);
@@ -662,6 +677,40 @@ body {
 
 .dex-token-search input:focus {
   border-color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+/* Highlight matching text */
+.highlight {
+  background-color: rgba(255, 255, 0, 0.3);
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
+/* Chain-specific badges */
+.token-network-badge[data-chain="ethereum"] {
+  background: rgba(98, 126, 234, 0.15);
+  color: #627EEA;
+}
+
+.token-network-badge[data-chain="bsc"] {
+  background: rgba(240, 185, 11, 0.15);
+  color: #F0B90B;
+}
+
+.token-network-badge[data-chain="polygon"] {
+  background: rgba(130, 71, 229, 0.15);
+  color: #8247E5;
+}
+
+.token-network-badge[data-chain="arbitrum"] {
+  background: rgba(41, 160, 240, 0.15);
+  color: #29A0F0;
+}
+
+.token-network-badge[data-chain="base"] {
+  background: rgba(0, 82, 255, 0.15);
+  color: #0052FF;
 }
 
 /* Enhanced Token Items */
