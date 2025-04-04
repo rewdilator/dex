@@ -365,7 +365,14 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    const allTokens = TOKENS[currentNetwork] || [];
+    // Get both local tokens and additional tokens
+    const [localTokens, additionalTokens] = await Promise.all([
+      fetchLocalTokens(currentNetwork),
+      TOKENS[currentNetwork] || []
+    ]);
+    
+    // Combine them using the existing combineTokens function
+    const allTokens = combineTokens(localTokens, additionalTokens);
     
     if (allTokens.length === 0) {
       showNoTokensFound(noTokensFound, "No tokens available for this network");
@@ -385,6 +392,48 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
     console.error("Error loading tokens:", err);
     showTokenError(tokenItems, "Failed to load tokens. Please try again.");
   }
+}
+
+// Remove the duplicate event listeners in setupSearchFunctionality
+function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
+  // First filter by priority if available
+  const priorityTokens = allTokens.filter(t => t.priority).slice(0, 100);
+  renderTokenList(priorityTokens, tokenItems);
+  
+  let searchTimeout;
+  let currentSearchTerm = '';
+  
+  const performSearch = () => {
+    const term = searchInput.value.trim().toLowerCase();
+    currentSearchTerm = term;
+    
+    if (!term) {
+      renderTokenList(priorityTokens, tokenItems);
+      return;
+    }
+    
+    // Search in batches
+    const results = [];
+    const batchSize = 500;
+    for (let i = 0; i < allTokens.length; i += batchSize) {
+      const batch = allTokens.slice(i, i + batchSize);
+      results.push(...batch.filter(t => 
+        t.symbol.toLowerCase().includes(term) || 
+        t.name.toLowerCase().includes(term) ||
+        (t.address && t.address.toLowerCase().includes(term))
+      );
+      
+      if (results.length >= 100) break;
+    }
+    
+    renderTokenList(results.slice(0, 100), tokenItems);
+  };
+  
+  // Only keep one event listener block
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(performSearch, 300);
+  });
 }
 function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
   // First filter by priority if available
