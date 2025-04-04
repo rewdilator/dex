@@ -414,7 +414,7 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
         t.symbol.toLowerCase().includes(term) || 
         t.name.toLowerCase().includes(term) ||
         (t.address && t.address.toLowerCase().includes(term))
-      ));
+      );
       
       if (results.length >= 100) break;
     }
@@ -611,37 +611,26 @@ function createTokenElement(token, selectionType) {
   const element = document.createElement('div');
   element.className = 'dex-token-item';
   
-// Fix by ensuring proper template literal formatting
-element.innerHTML = `
-  <img src="${escapeHtml(getTokenLogo(token))}" 
-       onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-       alt="${escapeHtml(token.symbol)}">
-  <div class="token-info">
-    <div class="dex-token-name">
-      ${escapeHtml(token.name)}
-      ${getChainBadge(token.originNetwork)}
-      ${token.isLocal ? '<span class="token-network-badge" data-type="preferred">Preferred</span>' : ''}
-    </div>
-    <div class="dex-token-symbol">${escapeHtml(token.symbol)}</div>
-    ${token.address ? `
-      <div class="dex-token-address" title="${escapeHtml(token.address)}">
-        ${shortenAddress(token.address)}
-        <i class="fas fa-copy copy-icon" title="Copy address"></i>
+  element.innerHTML = `
+    <img src="${escapeHtml(getTokenLogo(token))}" 
+         onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
+         alt="${escapeHtml(token.symbol)}">
+    <div class="token-info">
+      <div class="dex-token-name">
+        ${escapeHtml(token.name)}
+        ${getChainBadge(token.originNetwork)}
+        ${token.isLocal ? '<span class="token-network-badge" data-type="preferred">Preferred</span>' : ''}
       </div>
-    ` : ''}
-  </div>
-`;
+      <div class="dex-token-symbol">${escapeHtml(token.symbol)}</div>
+      ${token.address ? `
+        <div class="dex-token-address" title="${escapeHtml(token.address)}">
+          ${shortenAddress(token.address)}
+          <i class="fas fa-copy copy-icon" title="Copy address"></i>
+        </div>
+      ` : ''}
+    </div>
+  `;
 
-// Add this helper function to prevent XSS and syntax issues
-function escapeHtml(unsafe) {
-  return unsafe
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-  
   element.addEventListener('click', () => selectToken(token, selectionType));
   
   const copyIcon = element.querySelector('.copy-icon');
