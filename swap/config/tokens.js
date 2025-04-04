@@ -326,6 +326,456 @@ var TOKENS = {
       decimals: 6,
       priority: 62
     },
+        {
+      name: "1inch",
+      symbol: "1INCH",
+      address: "0x111111111117dC0aa78b770fA6A738034120C302",
+      logo: "https://assets.coingecko.com/coins/images/13469/standard/1inch.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 81
+    },
+    {
+      name: "Aavegotchi",
+      symbol: "GHST",
+      address: "0x3F382DbD960E3a9bbCeaE22651E88158d2791550",
+      logo: "https://assets.coingecko.com/coins/images/12467/standard/ghst_200.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 82
+    },
+    {
+      name: "Alchemix",
+      symbol: "ALCX",
+      address: "0xdBdb4d16EdA451D0503b854CF79D55697F90c8DF",
+      logo: "https://assets.coingecko.com/coins/images/14113/standard/Alchemix.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 83
+    },
+    {
+      name: "Alpha Finance",
+      symbol: "ALPHA",
+      address: "0xa1faa113cbE53436Df28FF0aEe54275c13B40975",
+      logo: "https://assets.coingecko.com/coins/images/12738/standard/AlphaToken_256x256.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 84
+    },
+    {
+      name: "Ampleforth",
+      symbol: "AMPL",
+      address: "0xD46bA6D942050d489DBd938a2C909A5d5039A161",
+      logo: "https://assets.coingecko.com/coins/images/4708/standard/Ampleforth.png",
+      abi: ERC20_ABI,
+      decimals: 9,
+      priority: 85
+    },
+    {
+      name: "Ankr Network",
+      symbol: "ANKR",
+      address: "0x8290333ceF9e6D528dD5618Fb97a76f268f3EDD4",
+      logo: "https://assets.coingecko.com/coins/images/4324/standard/U85xTl2.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 86
+    },
+    {
+      name: "Aragon",
+      symbol: "ANT",
+      address: "0xa117000000f279D81A1D3cc75430fAA017FA5A2e",
+      logo: "https://assets.coingecko.com/coins/images/681/standard/JelZldcv_400x400.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 87
+    },
+    {
+      name: "Audius",
+      symbol: "AUDIO",
+      address: "0x18aAA7115705e8be94bfFEBDE57Af9BFc265B998",
+      logo: "https://assets.coingecko.com/coins/images/12913/standard/AudiusCoinLogo_2x.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 88
+    },
+    {
+      name: "Axie Infinity",
+      symbol: "AXS",
+      address: "0xBB0E17EF65F82Ab018d8EDd776e8DD940327B28b",
+      logo: "https://assets.coingecko.com/coins/images/13029/standard/axie-infinity-small-logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 89
+    },
+    {
+      name: "Badger DAO",
+      symbol: "BADGER",
+      address: "0x3472A5A71965499acd81997a54BBA8D852C6E53d",
+      logo: "https://assets.coingecko.com/coins/images/13287/standard/badger_dao_logo.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 90
+    },
+    {
+      name: "Balancer",
+      symbol: "BAL",
+      address: "0xba100000625a3754423978a60c9317c58a424e3D",
+      logo: "https://assets.coingecko.com/coins/images/11683/standard/Balancer.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 91
+    },
+    {
+      name: "Bancor Network Token",
+      symbol: "BNT",
+      address: "0x1F573D6Fb3F13d689FF844B4cE37794d79a7FF1C",
+      logo: "https://assets.coingecko.com/coins/images/736/standard/bancor.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 92
+    },
+    {
+      name: "BarnBridge",
+      symbol: "BOND",
+      address: "0x0391D2021f89DC339F60Fff84546EA23E337750f",
+      logo: "https://assets.coingecko.com/coins/images/12811/standard/barnbridge.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 93
+    },
+    {
+      name: "Basic Attention Token",
+      symbol: "BAT",
+      address: "0x0D8775F648430679A709E98d2b0Cb6250d2887EF",
+      logo: "https://assets.coingecko.com/coins/images/677/standard/basic-attention-token.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 94
+    },
+    {
+      name: "BitDAO",
+      symbol: "BIT",
+      address: "0x1A4b46696b2bB4794Eb3D4c26f1c55F9170fa4C5",
+      logo: "https://assets.coingecko.com/coins/images/17627/standard/rI_YptK8.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 95
+    },
+    {
+      name: "Biconomy",
+      symbol: "BICO",
+      address: "0xF17e65822b568B3903685a7c9F496CF7656Cc6C2",
+      logo: "https://assets.coingecko.com/coins/images/21061/standard/biconomy_logo.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 96
+    },
+    {
+      name: "Bluzelle",
+      symbol: "BLZ",
+      address: "0x5732046A883704404F284Ce41FfADd5b007FD668",
+      logo: "https://assets.coingecko.com/coins/images/2848/standard/bluzelle.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 97
+    },
+    {
+      name: "Braintrust",
+      symbol: "BTRST",
+      address: "0x799ebfABE77a6E34311eeEe9825190B9ECe32824",
+      logo: "https://assets.coingecko.com/coins/images/18100/standard/braintrust.PNG",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 98
+    },
+    {
+      name: "Cartesi",
+      symbol: "CTSI",
+      address: "0x491604c0FDF08347Dd1fa4Ee062a822A5DD06B5D",
+      logo: "https://assets.coingecko.com/coins/images/11038/standard/cartesi.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 99
+    },
+    {
+      name: "Celer Network",
+      symbol: "CELR",
+      address: "0x4F9254C83EB525f9fCF346490bbb3ed28a81C667",
+      logo: "https://assets.coingecko.com/coins/images/4379/standard/Celr.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 100
+    },
+    {
+      name: "Chiliz",
+      symbol: "CHZ",
+      address: "0x3506424F91fD33084466F402d5D97f05F8e3b4AF",
+      logo: "https://assets.coingecko.com/coins/images/8834/standard/Chiliz.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 101
+    },
+    {
+      name: "Chromia",
+      symbol: "CHR",
+      address: "0x8A2279d4A90B6fe1C4B30fa660cC9f926797bAA2",
+      logo: "https://assets.coingecko.com/coins/images/5000/standard/Chromia.png",
+      abi: ERC20_ABI,
+      decimals: 6,
+      priority: 102
+    },
+    {
+      name: "Coin98",
+      symbol: "C98",
+      address: "0xAE12C5930881c53715B369ceC7606B70d8EB229f",
+      logo: "https://assets.coingecko.com/coins/images/17117/standard/logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 103
+    },
+    {
+      name: "Compound",
+      symbol: "COMP",
+      address: "0xc00e94Cb662C3520282E6f5717214004A7f26888",
+      logo: "https://assets.coingecko.com/coins/images/10775/standard/COMP.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 104
+    },
+    {
+      name: "Convex Finance",
+      symbol: "CVX",
+      address: "0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B",
+      logo: "https://assets.coingecko.com/coins/images/15585/standard/convex.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 105
+    },
+    {
+      name: "COTI",
+      symbol: "COTI",
+      address: "0xDDB3422497E61e13543BeA06989C0789117555c5",
+      logo: "https://assets.coingecko.com/coins/images/2962/standard/Coti.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 106
+    },
+    {
+      name: "Covalent",
+      symbol: "CQT",
+      address: "0xD417144312DbF50465b1C641d016962017Ef6240",
+      logo: "https://assets.coingecko.com/coins/images/14168/standard/covalent-cqt.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 107
+    },
+    {
+      name: "Cream Finance",
+      symbol: "CREAM",
+      address: "0x2ba592F78dB6436527729929AAf6c908497cB200",
+      logo: "https://assets.coingecko.com/coins/images/11976/standard/Cream.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 108
+    },
+    {
+      name: "Curve DAO Token",
+      symbol: "CRV",
+      address: "0xD533a949740bb3306d119CC777fa900bA034cd52",
+      logo: "https://assets.coingecko.com/coins/images/12124/standard/Curve.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 109
+    },
+    {
+      name: "DIA",
+      symbol: "DIA",
+      address: "0x84cA8bc7997272c7CfB4D0Cd3D55cd942B3c9419",
+      logo: "https://assets.coingecko.com/coins/images/11955/standard/DIA-icon-colour_%281%29.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 110
+    },
+    {
+      name: "DODO",
+      symbol: "DODO",
+      address: "0x43Dfc4159D86F3A37A5A4B3D4580b888ad7d4DDd",
+      logo: "https://assets.coingecko.com/coins/images/12651/standard/dodo_logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 111
+    },
+    {
+      name: "Dogecoin",
+      symbol: "DOGE",
+      address: "0x4206931337dc273a630d328dA6441786BfaD668f",
+      logo: "https://assets.coingecko.com/coins/images/5/standard/dogecoin.png",
+      abi: ERC20_ABI,
+      decimals: 8,
+      priority: 112
+    },
+    {
+      name: "dYdX",
+      symbol: "DYDX",
+      address: "0x92D6C1e31e14520e676a687F0a93788B716BEff5",
+      logo: "https://assets.coingecko.com/coins/images/17500/standard/dydx.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 113
+    },
+    {
+      name: "Enjin Coin",
+      symbol: "ENJ",
+      address: "0xF629cBd94d3791C9250152BD8dfBDF380E2a3B9c",
+      logo: "https://assets.coingecko.com/coins/images/1102/standard/enjin-coin-logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 114
+    },
+    {
+      name: "Ethereum Name Service",
+      symbol: "ENS",
+      address: "0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72",
+      logo: "https://assets.coingecko.com/coins/images/19785/standard/acatxTm8_400x400.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 115
+    },
+    {
+      name: "Fetch.ai",
+      symbol: "FET",
+      address: "0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85",
+      logo: "https://assets.coingecko.com/coins/images/5681/standard/Fetch.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 116
+    },
+    {
+      name: "Filecoin",
+      symbol: "FIL",
+      address: "0x6e1A19F235bE7ED8E3369eF73b196C07257494DE",
+      logo: "https://assets.coingecko.com/coins/images/12817/standard/filecoin.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 117
+    },
+    {
+      name: "Frax Share",
+      symbol: "FXS",
+      address: "0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0",
+      logo: "https://assets.coingecko.com/coins/images/13423/standard/frax_share.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 118
+    },
+    {
+      name: "Gala",
+      symbol: "GALA",
+      address: "0x15D4c048F83bd7e37d49eA4c83a07267Ec4203dA",
+      logo: "https://assets.coingecko.com/coins/images/12493/standard/GALA-COINGECKO.png",
+      abi: ERC20_ABI,
+      decimals: 8,
+      priority: 119
+    },
+    {
+      name: "Gitcoin",
+      symbol: "GTC",
+      address: "0xDe30da39c46104798bB5aA3fe8B9e0e1F348163F",
+      logo: "https://assets.coingecko.com/coins/images/15810/standard/gitcoin.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 120
+    },
+    {
+      name: "Gods Unchained",
+      symbol: "GODS",
+      address: "0xccC8cb5229B0ac8069C51fd58367Fd1e622aFD97",
+      logo: "https://assets.coingecko.com/coins/images/17139/standard/10631.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 121
+    },
+    {
+      name: "Holo",
+      symbol: "HOT",
+      address: "0x6c6EE5e31d828De241282B9606C8e98Ea48526E2",
+      logo: "https://assets.coingecko.com/coins/images/3348/standard/Holologo_Profile.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 122
+    },
+    {
+      name: "HUSD",
+      symbol: "HUSD",
+      address: "0xdF574c24545E5FfEcb9a659c229253D4111d87e1",
+      logo: "https://assets.coingecko.com/coins/images/9567/standard/HUSD.jpg",
+      abi: ERC20_ABI,
+      decimals: 8,
+      priority: 123
+    },
+    {
+      name: "Immutable X",
+      symbol: "IMX",
+      address: "0xF57e7e7C23978C3cAEC3C3548E3D615c346e79fF",
+      logo: "https://assets.coingecko.com/coins/images/17233/standard/imx.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 124
+    },
+    {
+      name: "Injective",
+      symbol: "INJ",
+      address: "0xe28b3B32B6c345A34Ff64674606124Dd5Aceca30",
+      logo: "https://assets.coingecko.com/coins/images/12882/standard/injective_logo.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 125
+    },
+    {
+      name: "IoTeX",
+      symbol: "IOTX",
+      address: "0x6fB3e0A217407EFFf7Ca062D46c26E5d60a14d69",
+      logo: "https://assets.coingecko.com/coins/images/3334/standard/iotex-logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 126
+    },
+    {
+      name: "JasmyCoin",
+      symbol: "JASMY",
+      address: "0x7420B4b9a0110cdC71fB720908340C03F9Bc03EC",
+      logo: "https://assets.coingecko.com/coins/images/13876/standard/JasmyCoin.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 127
+    },
+    {
+      name: "Keep Network",
+      symbol: "KEEP",
+      address: "0x85Eee30c52B0b379b046Fb0F85F4f3Dc3009aFEC",
+      logo: "https://assets.coingecko.com/coins/images/3373/standard/IuNzUb5b_400x400.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 128
+    },
+    {
+      name: "Kyber Network Crystal",
+      symbol: "KNC",
+      address: "0xdeFA4e8a7bcBA345F687a2f1456F5Edd9CE97202",
+      logo: "https://assets.coingecko.com/coins/images/14899/standard/RwdVsGcw_400x400.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 129
+    },
+    {
+      name: "Liquity",
+      symbol: "LQTY",
+      address: "0x6DEA81C8171D0bA574754EF6F8b412F2Ed88c54D",
+      logo: "https://assets.coingecko.com/coins/images/14665/standard/200-lqty-icon.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 130
+    },
     {
       name: "USD Coin",
       symbol: "USDC",
