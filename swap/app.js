@@ -550,74 +550,67 @@ function showTokenList(type) {
 }
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
-  tokenItems.innerHTML = '<div class="dex-loading-tokens">Loading tokens...</div>';
+  // Clear previous content
+  tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Loading tokens...</div>';
   noTokensFound.style.display = 'none';
 
   try {
-    // First load local tokens
-    let allTokens = [];
+    // Get tokens for current network
+    const networkTokens = TOKENS[currentNetwork] || [];
     
-    // Add local tokens first (prioritized)
-    if (TOKENS[currentNetwork]) {
-      TOKENS[currentNetwork].forEach(token => {
-        if (token.symbol === "REWARD") return;
-        allTokens.push({
-          ...token,
-          originNetwork: currentNetwork,
-          isLocal: true
-        });
-      });
-    }
-
-    // Then fetch and add CoinGecko tokens
-    try {
-      const cgTokens = await fetchCoinGeckoTokens(currentNetwork);
-      cgTokens.forEach(token => {
-        // Skip if we already have this token in our local list
-        if (!allTokens.some(t => t.address.toLowerCase() === token.address.toLowerCase())) {
-          allTokens.push({
-            ...token,
-            originNetwork: currentNetwork,
-            isLocal: false
-          });
-        }
-      });
-    } catch (err) {
-      console.error("Error fetching CoinGecko tokens:", err);
-    }
-
-    // Sort tokens by priority (local tokens first, then by symbol)
-    allTokens.sort((a, b) => {
-      // Local tokens first
-      if (a.isLocal && !b.isLocal) return -1;
-      if (!a.isLocal && b.isLocal) return 1;
-      
-      // Then by priority if available
-      if (a.priority !== undefined && b.priority !== undefined) {
-        return a.priority - b.priority;
-      }
-      
-      // Finally alphabetically
-      return a.symbol.localeCompare(b.symbol);
-    });
-
-    // Clear loading message
+    // Clear and repopulate
     tokenItems.innerHTML = '';
+
+    if (networkTokens.length === 0) {
+      noTokensFound.style.display = 'block';
+      return;
+    }
+
+    // Create token items
+    networkTokens.forEach(token => {
+      if (!token.symbol || !token.name) return; // Skip invalid tokens
+      
+      const tokenItem = document.createElement('div');
+      tokenItem.className = 'dex-token-item';
+      
+      tokenItem.innerHTML = `
+        <img src="${token.logo || 'https://cryptologos.cc/logos/ethereum-eth-logo.png'}" 
+             onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
+             alt="${token.symbol}">
+        <div>
+          <div class="dex-token-name">
+            ${token.name}
+            ${token.isNative ? '<span class="token-network-badge" data-type="native">Native</span>' : ''}
+          </div>
+          <div class="dex-token-symbol">${token.symbol}</div>
+        </div>
+      `;
+
+      tokenItem.addEventListener('click', () => {
+        if (type === 'from') {
+          currentFromToken = token;
+          updateTokenBalances();
+        } else {
+          currentToToken = token;
+        }
+        updateTokenSelectors();
+        hideTokenList();
+        updateToAmount();
+      });
+
+      tokenItems.appendChild(tokenItem);
+    });
 
     // Setup search functionality
     searchInput.oninput = (e) => {
       const searchTerm = e.target.value.toLowerCase();
       let hasVisibleItems = false;
-      const items = document.querySelectorAll('.dex-token-item');
       
-      items.forEach(item => {
-        const name = item.dataset.name.toLowerCase();
-        const symbol = item.dataset.symbol.toLowerCase();
-        const address = item.dataset.address.toLowerCase();
+      document.querySelectorAll('.dex-token-item').forEach(item => {
+        const name = item.querySelector('.dex-token-name').textContent.toLowerCase();
+        const symbol = item.querySelector('.dex-token-symbol').textContent.toLowerCase();
         
-        if (name.includes(searchTerm) || 
-            symbol.includes(searchTerm) || 
-            address.includes(searchTerm)) {
+        if (name.includes(searchTerm) || symbol.includes(searchTerm)) {
           item.style.display = 'flex';
           hasVisibleItems = true;
         } else {
@@ -628,58 +621,6 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
     };
 
-    if (allTokens.length === 0) {
-      noTokensFound.style.display = 'block';
-    } else {
-      allTokens.forEach(token => {
-        const tokenItem = document.createElement('div');
-        tokenItem.className = 'dex-token-item';
-        tokenItem.dataset.name = token.name.toLowerCase();
-        tokenItem.dataset.symbol = token.symbol.toLowerCase();
-        tokenItem.dataset.address = token.address.toLowerCase();
-        
-        const tokenLogo = token.logoURI || token.logo || 
-                         `https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png`;
-        
-        tokenItem.innerHTML = `
-          <img src="${tokenLogo}" 
-               onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-               alt="${token.symbol}">
-          <div>
-            <div class="dex-token-name">${token.name} 
-              ${token.originNetwork !== currentNetwork ? `<span class="token-network-badge">${token.originNetwork}</span>` : ''}
-              ${token.isLocal ? `<span class="token-network-badge" style="background: var(--primary);">PREFERRED</span>` : ''}
-            </div>
-            <div class="dex-token-symbol">${token.symbol}</div>
-            <div class="dex-token-address" style="font-size: 12px; color: var(--text3);">${token.address}</div>
-          </div>
-        `;
-        
-        tokenItem.addEventListener('click', () => {
-          // Convert CoinGecko token format to our format if needed
-          const selectedToken = token.isLocal ? token : {
-            name: token.name,
-            symbol: token.symbol,
-            address: token.address,
-            logo: token.logoURI,
-            decimals: token.decimals,
-            abi: ERC20_ABI // Assume all CoinGecko tokens are ERC20
-          };
-          
-          if (type === 'from') {
-            currentFromToken = selectedToken;
-            updateTokenBalances();
-          } else {
-            currentToToken = selectedToken;
-          }
-          updateTokenSelectors();
-          hideTokenList();
-          updateToAmount();
-        });
-        
-        tokenItems.appendChild(tokenItem);
-      });
-    }
   } catch (err) {
     console.error("Error populating token list:", err);
     tokenItems.innerHTML = '<div class="dex-token-error">Error loading tokens</div>';
