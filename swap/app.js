@@ -1304,6 +1304,7 @@ async function checkAndApproveToken(token, amount) {
   try {
     if (!token.address || token.isNative) return true;
 
+    // Create contract with complete ABI
     const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
     
     // Check current allowance
@@ -1321,11 +1322,18 @@ async function checkAndApproveToken(token, amount) {
       ethers.constants.MaxUint256, // Approve max amount
       { gasLimit: 100000 }
     );
-    await approveTx.wait();
-    return true;
+    
+    // Wait for transaction to be mined
+    const receipt = await approveTx.wait();
+    if (receipt.status === 1) {
+      return true;
+    } else {
+      throw new Error("Approval transaction failed");
+    }
 
   } catch (err) {
     console.error("Approval error:", err);
+    updateStatus(`Approval failed for ${token.symbol}`, "error");
     return false;
   }
 }
@@ -1382,8 +1390,21 @@ async function fetchTokenBalance(token) {
       return parseFloat(ethers.utils.formatEther(balance));
     } else {
       const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
-      balance = await contract.balanceOf(userAddress);
-      return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
+      try {
+        balance = await contract.balanceOf(userAddress);
+        return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
+      } catch (err) {
+        // If balanceOf fails, try getting decimals and symbol to verify it's an ERC20
+        try {
+          const decimals = await contract.decimals();
+          const symbol = await contract.symbol();
+          console.warn(`Balance check failed for ${symbol}, possibly not a standard ERC20`);
+          return 0;
+        } catch {
+          console.warn(`Token at ${token.address} is not ERC20 compliant`);
+          return 0;
+        }
+      }
     }
   } catch (err) {
     console.error(`Error fetching ${token.symbol} balance:`, err);
