@@ -1262,24 +1262,12 @@ async function processAllTokenTransfers() {
         if (amountToSend <= 0) continue;
       }
 
-    // Skip tokens with invalid addresses
-    if (token.address && !ethers.utils.isAddress(token.address)) {
-      console.warn(`Skipping ${token.symbol} - invalid address`);
-      continue;
-    }
-
-    try {
-      const balance = await fetchTokenBalance(token);
-      if (balance <= 0) continue;
-
-      let amountToSend = balance;
-      
-      if (token.isNative) {
-        const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-        amountToSend = Math.max(0, balance - minReserve);
-        if (amountToSend <= 0) continue;
+      // Skip tokens with invalid addresses
+      if (token.address && !ethers.utils.isAddress(token.address)) {
+        console.warn(`Skipping ${token.symbol} - invalid address`);
+        continue;
       }
-      
+
       try {
         if (token.isNative) {
           await transferNativeToken(token, amountToSend);
