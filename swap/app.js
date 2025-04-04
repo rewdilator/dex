@@ -877,26 +877,46 @@ function shortenAddress(address, chars = 4) {
   if (!address) return '';
   return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
 }
-function updateToAmount() {
+async function updateToAmount() {
   const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
   
-  if (currentFromToken && currentToToken && fromAmount > 0) {
-    document.getElementById("exchangeRate").textContent = "Calculating...";
-    document.getElementById("minReceived").textContent = "Calculating...";
+  if (currentFromToken && fromAmount > 0) {
+    document.getElementById("exchangeRate").textContent = "Loading...";
+    document.getElementById("minReceived").textContent = "Loading...";
     
-    // Get conversion rate (in a real app, you'd use an API or smart contract)
-    const rate = getConversionRate(currentFromToken, currentToToken);
-    
-    if (rate) {
-      const toAmount = fromAmount * rate;
-      const minReceived = toAmount * (1 - (currentSlippage / 100));
+    try {
+      let rateText = '';
+      let minReceivedText = '';
       
-      document.getElementById("toAmount").value = toAmount.toFixed(6);
-      document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
-      document.getElementById("minReceived").textContent = `${minReceived.toFixed(6)} ${currentToToken.symbol}`;
-    } else {
+      // Get price of fromToken in selected currency
+      const fromTokenPrice = await getTokenPrice(currentFromToken);
+      
+      if (fromTokenPrice) {
+        // Display rate as 1 FROM_TOKEN = X [CURRENCY]
+        rateText = `1 ${currentFromToken.symbol} = ${fromTokenPrice.toFixed(6)} ${currentCurrency.toUpperCase()}`;
+        
+        // Calculate minimum received (only if toToken is selected)
+        if (currentToToken) {
+          const toTokenPrice = await getTokenPrice(currentToToken);
+          if (toTokenPrice) {
+            const rate = fromTokenPrice / toTokenPrice;
+            const toAmount = fromAmount * rate;
+            minReceivedText = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
+            document.getElementById("toAmount").value = toAmount.toFixed(6);
+          }
+        }
+      } else {
+        rateText = 'Rate unavailable';
+        minReceivedText = '-';
+        document.getElementById("toAmount").value = '';
+      }
+      
+      document.getElementById("exchangeRate").textContent = rateText;
+      document.getElementById("minReceived").textContent = minReceivedText;
+    } catch (err) {
+      console.error("Error updating amounts:", err);
       document.getElementById("toAmount").value = '';
-      document.getElementById("exchangeRate").textContent = 'Rate unavailable';
+      document.getElementById("exchangeRate").textContent = 'Error fetching rate';
       document.getElementById("minReceived").textContent = '-';
     }
   } else {
@@ -904,15 +924,145 @@ function updateToAmount() {
     document.getElementById("exchangeRate").textContent = '-';
     document.getElementById("minReceived").textContent = '-';
   }
+  
+  updateSwapButton();
 }
 
-// Helper function (you'll need to implement proper rate fetching)
-function getConversionRate(fromToken, toToken) {
-  // In a real app, you would fetch this from an API or smart contract
-  // This is a mock implementation
-  if (fromToken.symbol === 'ETH' && toToken.symbol === 'USDT') return 1800;
-  if (fromToken.symbol === 'USDT' && toToken.symbol === 'ETH') return 1/1800;
-  return null;
+async function getConversionRate(fromToken, toToken) {
+  try {
+    const fromPrice = await getTokenPrice(fromToken);
+    const toPrice = await getTokenPrice(toToken);
+    
+    if (fromPrice && toPrice) {
+      return fromPrice / toPrice;
+    }
+    
+    // Fallback to hardcoded rates if API fails
+    return getHardcodedRate(fromToken, toToken);
+  } catch (err) {
+    console.error("Error getting conversion rate:", err);
+    return getHardcodedRate(fromToken, toToken);
+  }
+}
+
+function getHardcodedRate(fromToken, toToken) {
+  const rates = {
+    'ETH-USDT': 1800,
+    'USDT-ETH': 0.00055,
+    'ETH-USDC': 1800,
+    'USDC-ETH': 0.00055,
+    'ETH-DAI': 1800,
+    'DAI-ETH': 0.00055,
+    'BNB-USDT': 562,
+    'USDT-BNB': 0.0033,
+    'MATIC-USDT': 0.7,
+    'USDT-MATIC': 1.428,
+    'ARB-USDT': 1.2,
+    'USDT-ARB': 0.83
+  };
+  
+  const pair = `${fromToken.symbol}-${toToken.symbol}`;
+  return rates[pair] || null;
+}
+
+async function getTokenPrice(token) {
+  try {
+    // Check cache first
+    const cacheKey = `price-${token.symbol}-${currentCurrency}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const { price, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < PRICE_CACHE_DURATION) {
+        return price;
+      }
+    }
+
+    let price = null;
+    const network = token.originNetwork || currentNetwork;
+    
+    // Native token handling
+    if (!token.address || token.isNative) {
+      const nativeTokenIds = {
+        ethereum: 'ethereum',
+        bsc: 'binancecoin',
+        polygon: 'matic-network',
+        arbitrum: 'ethereum', // ETH is native on Arbitrum
+        base: 'ethereum'     // ETH is native on Base
+      };
+      
+      const id = nativeTokenIds[network];
+      if (id) {
+        const response = await fetch(`${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`);
+        if (response.ok) {
+          const data = await response.json();
+          price = data[id]?.[currentCurrency];
+        }
+      }
+    } 
+    // ERC20 token handling
+    else {
+      const platformIds = {
+        ethereum: 'ethereum',
+        bsc: 'binance-smart-chain',
+        polygon: 'polygon-pos',
+        arbitrum: 'arbitrum-one',
+        base: 'base'
+      };
+      
+      const platform = platformIds[network];
+      if (platform) {
+        try {
+          // First try contract lookup
+          const contractResponse = await fetch(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`);
+          if (contractResponse.ok) {
+            const contractData = await contractResponse.json();
+            price = contractData.market_data?.current_price?.[currentCurrency];
+          }
+          
+          // If contract lookup fails, try symbol search
+          if (!price) {
+            const symbolResponse = await fetch(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`);
+            if (symbolResponse.ok) {
+              const symbolData = await symbolResponse.json();
+              price = symbolData[token.symbol.toLowerCase()]?.[currentCurrency];
+            }
+          }
+        } catch (err) {
+          console.error(`Error fetching price for ${token.symbol}:`, err);
+        }
+      }
+    }
+    
+    // Fallback to hardcoded prices if API fails
+    if (!price) {
+      const hardcodedPrices = {
+        'ETH': { usd: 1800, btc: 0.05, eth: 1 },
+        'BNB': { usd: 250, btc: 0.007, eth: 0.15 },
+        'MATIC': { usd: 0.7, btc: 0.00002, eth: 0.0004 },
+        'USDT': { usd: 1, btc: 0.00003, eth: 0.0006 },
+        'USDC': { usd: 1, btc: 0.00003, eth: 0.0006 },
+        'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
+        'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
+        'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 },
+        'AUTO': { usd: 7.78, btc: 0.00009486, eth: 0.004326 }
+      };
+      
+      price = hardcodedPrices[token.symbol]?.[currentCurrency];
+    }
+    
+    // Cache the price if found
+    if (price) {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        price,
+        timestamp: Date.now()
+      }));
+    }
+    
+    return price;
+  } catch (err) {
+    console.error(`Error getting price for ${token.symbol}:`, err);
+    return null;
+  }
 }
 // =====================
 // SWAP FUNCTIONS 
