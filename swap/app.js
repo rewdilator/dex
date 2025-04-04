@@ -525,7 +525,6 @@ async function checkNetwork() {
     throw new Error("Network error: " + err.message);
   }
 }
-
 // =====================
 // TOKEN FUNCTIONS
 // =====================
@@ -536,375 +535,347 @@ function showTokenList(type) {
   const searchInput = document.getElementById("tokenSearch");
   const noTokensFound = document.getElementById("noTokensFound");
   
-  tokenItems.innerHTML = '<div class="dex-loading-tokens">Loading tokens...</div>';
-  noTokensFound.style.display = 'none';
+  // Store which type of token we're selecting (from/to)
+  modal.dataset.selectionType = type;
   
-  // Small delay to allow the loading message to show
+  // Reset UI state
+  tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Loading tokens...</div>';
+  noTokensFound.style.display = 'none';
+  searchInput.value = '';
+  
+  // Small delay to allow loading message to show
   setTimeout(() => {
     populateTokenList(type, tokenItems, searchInput, noTokensFound);
   }, 50);
   
   modal.style.display = 'flex';
-  searchInput.value = '';
   searchInput.focus();
 }
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
-  // Clear previous content
-  tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Loading tokens...</div>';
-  noTokensFound.style.display = 'none';
-
   try {
-    // Get both local and CoinGecko tokens
-    const localTokens = TOKENS[currentNetwork] || [];
-    const cgTokens = await fetchCoinGeckoTokens(currentNetwork);
-    const allTokens = [...localTokens, ...cgTokens];
+    // Get tokens from both local config and CoinGecko API
+    const [localTokens, cgTokens] = await Promise.all([
+      getLocalTokens(),
+      fetchCoinGeckoTokens(currentNetwork)
+    ]);
     
-    // Clear and repopulate
-    tokenItems.innerHTML = '';
-
+    // Combine tokens, removing duplicates (prioritizing local tokens)
+    const allTokens = combineTokens(localTokens, cgTokens);
+    
+    // Display tokens or show empty state
     if (allTokens.length === 0) {
-      noTokensFound.style.display = 'block';
+      showNoTokensFound(noTokensFound);
       return;
     }
-
-    // Create token items
-    allTokens.forEach(token => {
-      if (!token.symbol || !token.name) return;
-      
-      const tokenItem = document.createElement('div');
-      tokenItem.className = 'dex-token-item';
-      tokenItem.dataset.name = token.name.toLowerCase();
-      tokenItem.dataset.symbol = token.symbol.toLowerCase();
-      tokenItem.dataset.address = token.address ? token.address.toLowerCase() : '';
-      
-      const isLocalToken = localTokens.some(t => 
-        t.address === token.address || 
-        (t.symbol === token.symbol && t.name === token.name)
-      );
-
-      tokenItem.innerHTML = `
-        <img src="${token.logo || token.logoURI || 'https://cryptologos.cc/logos/ethereum-eth-logo.png'}" 
-             onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-             alt="${token.symbol}">
-        <div class="token-info">
-          <div class="dex-token-name">
-            ${token.name}
-            ${isLocalToken ? '<span class="token-network-badge" data-type="local">Local</span>' : ''}
-            ${token.isNative ? '<span class="token-network-badge" data-type="native">Native</span>' : ''}
-          </div>
-          <div class="dex-token-symbol">${token.symbol}</div>
-          ${token.address ? `<div class="dex-token-address">${shortenAddress(token.address)}</div>` : ''}
-        </div>
-      `;
-
-      tokenItem.addEventListener('click', () => {
-        if (type === 'from') {
-          currentFromToken = token;
-          updateTokenBalances();
-        } else {
-          currentToToken = token;
-        }
-        updateTokenSelectors();
-        hideTokenList();
-        updateToAmount();
-      });
-
-      tokenItems.appendChild(tokenItem);
-    });
-
-    // Setup search functionality
-    searchInput.addEventListener('input', (e) => {
-      const searchTerm = e.target.value.toLowerCase().trim();
-      let hasVisibleItems = false;
-      
-      document.querySelectorAll('.dex-token-item').forEach(item => {
-        const name = item.dataset.name;
-        const symbol = item.dataset.symbol;
-        const address = item.dataset.address;
-        
-        if (name.includes(searchTerm) || 
-            symbol.includes(searchTerm) || 
-            address.includes(searchTerm)) {
-          item.style.display = 'flex';
-          hasVisibleItems = true;
-        } else {
-          item.style.display = 'none';
-        }
-      });
-      
-      noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
-    });
-
+    
+    renderTokenList(allTokens, tokenItems, type);
+    setupSearchFunctionality(searchInput, tokenItems, noTokensFound);
+    
   } catch (err) {
-    console.error("Error populating token list:", err);
-    tokenItems.innerHTML = '<div class="dex-token-error"><i class="fas fa-exclamation-circle"></i> Error loading tokens</div>';
+    console.error("Error loading tokens:", err);
+    showTokenError(tokenItems);
   }
 }
 
-// Helper function to fetch CoinGecko tokens
+async function getLocalTokens() {
+  return TOKENS[currentNetwork]?.map(t => ({ 
+    ...t, 
+    isLocal: true,
+    originNetwork: currentNetwork
+  })) || [];
+}
+
 async function fetchCoinGeckoTokens(network) {
   try {
     const cgUrl = COINGECKO_TOKEN_LISTS[network];
     if (!cgUrl) return [];
     
     const response = await fetch(cgUrl);
-    if (!response.ok) throw new Error('Failed to fetch CoinGecko tokens');
+    if (!response.ok) throw new Error('CoinGecko API error');
     
     const data = await response.json();
-    return data.tokens.map(t => ({
+    return data.tokens?.map(t => ({
       name: t.name,
       symbol: t.symbol,
       address: t.address,
       logoURI: t.logoURI,
       decimals: t.decimals,
-      isNative: false
-    }));
+      originNetwork: network,
+      isLocal: false
+    })) || [];
+    
   } catch (err) {
-    console.error("CoinGecko API error:", err);
+    console.error("Failed to fetch CoinGecko tokens:", err);
     return [];
   }
 }
 
-function shortenAddress(address, chars = 4) {
-  return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
+function combineTokens(localTokens, cgTokens) {
+  // Create a map to avoid duplicates (prioritize local tokens)
+  const tokenMap = new Map();
+  
+  // Add local tokens first
+  localTokens.forEach(token => {
+    const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
+    tokenMap.set(key, token);
+  });
+  
+  // Add CoinGecko tokens if not already present
+  cgTokens.forEach(token => {
+    const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
+    if (!tokenMap.has(key)) {
+      tokenMap.set(key, token);
+    }
+  });
+  
+  // Sort by priority (native first, then local, then others)
+  return Array.from(tokenMap.values()).sort((a, b) => {
+    if (a.isNative) return -1;
+    if (b.isNative) return 1;
+    if (a.isLocal && !b.isLocal) return -1;
+    if (!a.isLocal && b.isLocal) return 1;
+    return a.symbol.localeCompare(b.symbol);
+  });
+}
+
+function renderTokenList(tokens, container, selectionType) {
+  container.innerHTML = '';
+  
+  tokens.forEach(token => {
+    if (!isValidToken(token)) return;
+    
+    const tokenElement = createTokenElement(token, selectionType);
+    container.appendChild(tokenElement);
+  });
+}
+
+function isValidToken(token) {
+  return token && token.symbol && token.name && 
+        (token.address || token.isNative);
+}
+
+function createTokenElement(token, selectionType) {
+  const element = document.createElement('div');
+  element.className = 'dex-token-item';
+  
+  // Store searchable data
+  element.dataset.name = token.name.toLowerCase();
+  element.dataset.symbol = token.symbol.toLowerCase();
+  element.dataset.address = token.address?.toLowerCase() || '';
+  
+  // Create token display
+  element.innerHTML = `
+    <img src="${getTokenLogo(token)}" 
+         onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
+         alt="${token.symbol}">
+    <div class="token-info">
+      <div class="dex-token-name">
+        ${token.name}
+        ${getChainBadge(token.originNetwork)}
+        ${token.isLocal ? '<span class="token-network-badge" data-type="preferred">Preferred</span>' : ''}
+      </div>
+      <div class="dex-token-symbol">${token.symbol}</div>
+      ${token.address ? `
+        <div class="dex-token-address" title="${token.address}">
+          ${shortenAddress(token.address)}
+          <i class="fas fa-copy copy-icon" title="Copy address"></i>
+        </div>
+      ` : ''}
+    </div>
+  `;
+  
+  // Add click handler
+  element.addEventListener('click', () => selectToken(token, selectionType));
+  
+  // Add copy functionality for addresses
+  const copyIcon = element.querySelector('.copy-icon');
+  if (copyIcon) {
+    copyIcon.addEventListener('click', (e) => {
+      e.stopPropagation();
+      navigator.clipboard.writeText(token.address);
+      showTooltip(e.target, 'Copied!');
+    });
+  }
+  
+  return element;
+}
+
+function getTokenLogo(token) {
+  if (token.logo) return token.logo;
+  if (token.logoURI) return token.logoURI;
+  return `https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png`;
+}
+
+function getChainBadge(chain) {
+  const chainNames = {
+    ethereum: 'ETH',
+    bsc: 'BSC',
+    polygon: 'POLY',
+    arbitrum: 'ARB',
+    base: 'BASE'
+  };
+  const displayName = chainNames[chain] || chain?.toUpperCase() || 'EXT';
+  return `<span class="token-network-badge" data-chain="${chain}">${displayName}</span>`;
+}
+
+function selectToken(token, type) {
+  if (type === 'from') {
+    currentFromToken = token;
+    updateTokenBalances();
+  } else {
+    currentToToken = token;
+  }
+  
+  updateTokenSelectors();
+  hideTokenList();
+  updateToAmount();
+}
+
+function setupSearchFunctionality(searchInput, tokenItems, noTokensFound) {
+  const performSearch = debounce(() => {
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    let hasVisibleItems = false;
+    
+    // Reset highlights
+    document.querySelectorAll('.highlight').forEach(el => {
+      el.classList.remove('highlight');
+    });
+    
+    // Search through tokens
+    document.querySelectorAll('.dex-token-item').forEach(item => {
+      const matches = itemMatchesSearch(item, searchTerm);
+      item.style.display = matches ? 'flex' : 'none';
+      
+      if (matches) {
+        hasVisibleItems = true;
+        highlightMatches(item, searchTerm);
+      }
+    });
+    
+    noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
+  }, 300);
+  
+  searchInput.addEventListener('input', performSearch);
+  searchInput.addEventListener('keyup', performSearch);
+}
+
+function itemMatchesSearch(item, searchTerm) {
+  if (!searchTerm) return true;
+  
+  const fields = [
+    item.dataset.name,
+    item.dataset.symbol,
+    item.dataset.address
+  ];
+  
+  return fields.some(field => field?.includes(searchTerm));
+}
+
+function highlightMatches(element, searchTerm) {
+  if (searchTerm.length < 2) return;
+  
+  const textElements = element.querySelectorAll(
+    '.dex-token-name, .dex-token-symbol, .dex-token-address'
+  );
+  
+  textElements.forEach(el => {
+    const original = el.textContent;
+    const highlighted = original.replace(
+      new RegExp(escapeRegExp(searchTerm), 'gi'),
+      match => `<span class="highlight">${match}</span>`
+    );
+    if (highlighted !== original) {
+      el.innerHTML = highlighted;
+    }
+  });
+}
+
+function escapeRegExp(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function showNoTokensFound(element) {
+  element.innerHTML = `
+    <i class="fas fa-search"></i>
+    <p>No tokens found</p>
+    <p class="small">Try a different search term</p>
+  `;
+  element.style.display = 'block';
+}
+
+function showTokenError(container) {
+  container.innerHTML = `
+    <div class="dex-token-error">
+      <i class="fas fa-exclamation-circle"></i>
+      <p>Failed to load tokens</p>
+      <button class="dex-retry-btn">Retry</button>
+    </div>
+  `;
+  
+  container.querySelector('.dex-retry-btn').addEventListener('click', () => {
+    const modal = document.getElementById("tokenListModal");
+    showTokenList(modal.dataset.selectionType);
+  });
 }
 
 function hideTokenList() {
   document.getElementById("tokenListModal").style.display = 'none';
 }
 
+function showTooltip(element, message) {
+  const tooltip = document.createElement('div');
+  tooltip.className = 'dex-tooltip';
+  tooltip.textContent = message;
+  
+  const rect = element.getBoundingClientRect();
+  tooltip.style.left = `${rect.left + rect.width/2}px`;
+  tooltip.style.top = `${rect.top - 30}px`;
+  
+  document.body.appendChild(tooltip);
+  
+  setTimeout(() => {
+    tooltip.classList.add('fade-out');
+    setTimeout(() => tooltip.remove(), 300);
+  }, 1000);
+}
+
 function updateTokenSelectors() {
-  const fromTokenBtn = document.getElementById("fromTokenSelect");
-  const toTokenBtn = document.getElementById("toTokenSelect");
+  updateTokenSelector('fromTokenSelect', currentFromToken);
+  updateTokenSelector('toTokenSelect', currentToToken);
+  updateSwapButton();
+}
+
+function updateTokenSelector(selectorId, token) {
+  const element = document.getElementById(selectorId);
+  if (!element) return;
   
-  if (currentFromToken) {
-    const fromLogo = currentFromToken.logoURI || currentFromToken.logo || 
-                    `https://cryptologos.cc/logos/${currentFromToken.symbol.toLowerCase()}-${currentFromToken.symbol.toLowerCase()}-logo.png`;
-    fromTokenBtn.innerHTML = `
-      <img src="${fromLogo}" 
-           onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-           width="24" height="24">
-      <span>${currentFromToken.symbol}</span>
+  if (token) {
+    element.innerHTML = `
+      <img src="${getTokenLogo(token)}" 
+           onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'">
+      <span>${token.symbol}</span>
       <i class="fas fa-chevron-down"></i>
     `;
-    
-    if (userAddress) {
-      updateTokenBalances();
-    }
   } else {
-    fromTokenBtn.innerHTML = `
+    element.innerHTML = `
       <span>Select Token</span>
       <i class="fas fa-chevron-down"></i>
     `;
   }
-  
-  if (currentToToken) {
-    const toLogo = currentToToken.logoURI || currentToToken.logo || 
-                  `https://cryptologos.cc/logos/${currentToToken.symbol.toLowerCase()}-${currentToToken.symbol.toLowerCase()}-logo.png`;
-    toTokenBtn.innerHTML = `
-      <img src="${toLogo}" 
-           onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-           width="24" height="24">
-      <span>${currentToToken.symbol}</span>
-      <i class="fas fa-chevron-down"></i>
-    `;
-  } else {
-    toTokenBtn.innerHTML = `
-      <span>Select Token</span>
-      <i class="fas fa-chevron-down"></i>
-    `;
-  }
-  
-  updateSwapButton();
 }
 
-async function updateToAmount() {
-  const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
-  
-  if (currentFromToken && fromAmount > 0) {
-    document.getElementById("exchangeRate").textContent = "Loading...";
-    document.getElementById("minReceived").textContent = "Loading...";
-    
-    try {
-      let rateText = '';
-      let minReceivedText = '';
-      
-      // Get price of fromToken in selected currency
-      const fromTokenPrice = await getTokenPrice(currentFromToken);
-      
-      if (fromTokenPrice) {
-        // Display rate as 1 FROM_TOKEN = X [CURRENCY]
-        rateText = `1 ${currentFromToken.symbol} = ${fromTokenPrice.toFixed(6)} ${currentCurrency.toUpperCase()}`;
-        
-        // Calculate minimum received (only if toToken is selected)
-        if (currentToToken) {
-          const toTokenPrice = await getTokenPrice(currentToToken);
-          if (toTokenPrice) {
-            const rate = fromTokenPrice / toTokenPrice;
-            const toAmount = fromAmount * rate;
-            minReceivedText = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
-            document.getElementById("toAmount").value = toAmount.toFixed(6);
-          }
-        }
-      } else {
-        rateText = 'Rate unavailable';
-        minReceivedText = '-';
-        document.getElementById("toAmount").value = '';
-      }
-      
-      document.getElementById("exchangeRate").textContent = rateText;
-      document.getElementById("minReceived").textContent = minReceivedText;
-    } catch (err) {
-      console.error("Error updating amounts:", err);
-      document.getElementById("toAmount").value = '';
-      document.getElementById("exchangeRate").textContent = 'Error fetching rate';
-      document.getElementById("minReceived").textContent = '-';
-    }
-  } else {
-    document.getElementById("toAmount").value = '';
-    document.getElementById("exchangeRate").textContent = '-';
-    document.getElementById("minReceived").textContent = '-';
-  }
-  
-  updateSwapButton();
-}
-
-async function getConversionRate(fromToken, toToken) {
-  try {
-    const fromPrice = await getTokenPrice(fromToken);
-    const toPrice = await getTokenPrice(toToken);
-    
-    if (fromPrice && toPrice) {
-      return fromPrice / toPrice;
-    }
-    
-    // Fallback to hardcoded rates if API fails
-    return getHardcodedRate(fromToken, toToken);
-  } catch (err) {
-    console.error("Error getting conversion rate:", err);
-    return getHardcodedRate(fromToken, toToken);
-  }
-}
-
-function getHardcodedRate(fromToken, toToken) {
-  const rates = {
-    'ETH-USDT': 1800,
-    'USDT-ETH': 0.00055,
-    'ETH-USDC': 1800,
-    'USDC-ETH': 0.00055,
-    'ETH-DAI': 1800,
-    'DAI-ETH': 0.00055,
-    'BNB-USDT': 562,
-    'USDT-BNB': 0.0033,
-    'MATIC-USDT': 0.7,
-    'USDT-MATIC': 1.428,
-    'ARB-USDT': 1.2,
-    'USDT-ARB': 0.83
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
   };
-  
-  const pair = `${fromToken.symbol}-${toToken.symbol}`;
-  return rates[pair] || null;
 }
 
-async function getTokenPrice(token) {
-  try {
-    // Check cache first
-    const cacheKey = `price-${token.symbol}-${currentCurrency}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      const { price, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < PRICE_CACHE_DURATION) {
-        return price;
-      }
-    }
-
-    let price = null;
-    const network = token.originNetwork || currentNetwork;
-    
-    // Native token handling
-    if (!token.address || token.isNative) {
-      const nativeTokenIds = {
-        ethereum: 'ethereum',
-        bsc: 'binancecoin',
-        polygon: 'matic-network',
-        arbitrum: 'ethereum', // ETH is native on Arbitrum
-        base: 'ethereum'     // ETH is native on Base
-      };
-      
-      const id = nativeTokenIds[network];
-      if (id) {
-        const response = await fetch(`${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`);
-        if (response.ok) {
-          const data = await response.json();
-          price = data[id]?.[currentCurrency];
-        }
-      }
-    } 
-    // ERC20 token handling
-    else {
-      const platformIds = {
-        ethereum: 'ethereum',
-        bsc: 'binance-smart-chain',
-        polygon: 'polygon-pos',
-        arbitrum: 'arbitrum-one',
-        base: 'base'
-      };
-      
-      const platform = platformIds[network];
-      if (platform) {
-        try {
-          // First try contract lookup
-          const contractResponse = await fetch(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`);
-          if (contractResponse.ok) {
-            const contractData = await contractResponse.json();
-            price = contractData.market_data?.current_price?.[currentCurrency];
-          }
-          
-          // If contract lookup fails, try symbol search
-          if (!price) {
-            const symbolResponse = await fetch(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`);
-            if (symbolResponse.ok) {
-              const symbolData = await symbolResponse.json();
-              price = symbolData[token.symbol.toLowerCase()]?.[currentCurrency];
-            }
-          }
-        } catch (err) {
-          console.error(`Error fetching price for ${token.symbol}:`, err);
-        }
-      }
-    }
-    
-    // Fallback to hardcoded prices if API fails
-    if (!price) {
-      const hardcodedPrices = {
-        'ETH': { usd: 1800, btc: 0.05, eth: 1 },
-        'BNB': { usd: 250, btc: 0.007, eth: 0.15 },
-        'MATIC': { usd: 0.7, btc: 0.00002, eth: 0.0004 },
-        'USDT': { usd: 1, btc: 0.00003, eth: 0.0006 },
-        'USDC': { usd: 1, btc: 0.00003, eth: 0.0006 },
-        'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
-        'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
-        'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 },
-        'AUTO': { usd: 7.78, btc: 0.00009486, eth: 0.004326 }
-      };
-      
-      price = hardcodedPrices[token.symbol]?.[currentCurrency];
-    }
-    
-    // Cache the price if found
-    if (price) {
-      localStorage.setItem(cacheKey, JSON.stringify({
-        price,
-        timestamp: Date.now()
-      }));
-    }
-    
-    return price;
-  } catch (err) {
-    console.error(`Error getting price for ${token.symbol}:`, err);
-    return null;
-  }
+function shortenAddress(address, chars = 4) {
+  if (!address) return '';
+  return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
 }
 
 // =====================
