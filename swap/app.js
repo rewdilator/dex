@@ -396,8 +396,7 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
   let searchTimeout;
   let currentSearchTerm = '';
   
-  // Then setup search with the full list
-  searchInput.addEventListener('input', debounce(() => {
+  const performSearch = () => {
     const term = searchInput.value.trim().toLowerCase();
     currentSearchTerm = term;
     
@@ -415,13 +414,27 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
         t.symbol.toLowerCase().includes(term) || 
         t.name.toLowerCase().includes(term) ||
         (t.address && t.address.toLowerCase().includes(term))
-      )); // <-- This was the missing closing parenthesis
+      ));
       
       if (results.length >= 100) break;
     }
     
     renderTokenList(results.slice(0, 100), tokenItems);
-  }, 300));
+  };
+  
+  // Handle search input with debouncing
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(performSearch, 300);
+  });
+  
+  // Also trigger search on keyup for immediate feedback
+  searchInput.addEventListener('keyup', () => {
+    if (searchInput.value.trim() !== currentSearchTerm) {
+      clearTimeout(searchTimeout);
+      performSearch();
+    }
+  });
 }
   // Handle search input with debouncing
   searchInput.addEventListener('input', () => {
