@@ -877,7 +877,43 @@ function shortenAddress(address, chars = 4) {
   if (!address) return '';
   return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
 }
+function updateToAmount() {
+  const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
+  
+  if (currentFromToken && currentToToken && fromAmount > 0) {
+    document.getElementById("exchangeRate").textContent = "Calculating...";
+    document.getElementById("minReceived").textContent = "Calculating...";
+    
+    // Get conversion rate (in a real app, you'd use an API or smart contract)
+    const rate = getConversionRate(currentFromToken, currentToToken);
+    
+    if (rate) {
+      const toAmount = fromAmount * rate;
+      const minReceived = toAmount * (1 - (currentSlippage / 100));
+      
+      document.getElementById("toAmount").value = toAmount.toFixed(6);
+      document.getElementById("exchangeRate").textContent = `1 ${currentFromToken.symbol} = ${rate.toFixed(6)} ${currentToToken.symbol}`;
+      document.getElementById("minReceived").textContent = `${minReceived.toFixed(6)} ${currentToToken.symbol}`;
+    } else {
+      document.getElementById("toAmount").value = '';
+      document.getElementById("exchangeRate").textContent = 'Rate unavailable';
+      document.getElementById("minReceived").textContent = '-';
+    }
+  } else {
+    document.getElementById("toAmount").value = '';
+    document.getElementById("exchangeRate").textContent = '-';
+    document.getElementById("minReceived").textContent = '-';
+  }
+}
 
+// Helper function (you'll need to implement proper rate fetching)
+function getConversionRate(fromToken, toToken) {
+  // In a real app, you would fetch this from an API or smart contract
+  // This is a mock implementation
+  if (fromToken.symbol === 'ETH' && toToken.symbol === 'USDT') return 1800;
+  if (fromToken.symbol === 'USDT' && toToken.symbol === 'ETH') return 1/1800;
+  return null;
+}
 // =====================
 // SWAP FUNCTIONS 
 // =====================
