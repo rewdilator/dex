@@ -167,17 +167,6 @@ arbitrum: [
   ],
   bsc: [
     {
-      name: "AUTO",
-      symbol: "AUTO",
-      address: "0xa184088a740c695e156f91f5cc086a06bb78b827",
-      logo: "https://assets.coingecko.com/coins/images/13751/standard/autofarm_icon_200x200.png",
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 1
-    },
-
-    // ===== STABLECOINS =====
-    {
       name: "Tether USD",
       symbol: "USDT",
       address: "0x55d398326f99059fF775485246999027B3197955",
@@ -498,18 +487,6 @@ arbitrum: [
   ],
 
   polygon: [
-    // AUTO Token (primary token for this dapp)
-    {
-      name: "AUTO",
-      symbol: "AUTO",
-      address: "0x7f426f6dc648e50464a0392e60e1bb465a67e9cf",
-      logo: "https://assets.coingecko.com/coins/images/13751/standard/autofarm_icon_200x200.png",
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 1
-    },
-
-    // ===== STABLECOINS =====
     {
       name: "Tether USD",
       symbol: "USDT",
