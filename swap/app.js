@@ -861,7 +861,7 @@ async function getTokenPrice(token) {
 }
 
 // =====================
-// SWAP FUNCTIONS (100% WORKING)
+// SWAP FUNCTIONS 
 // =====================
 
 let isSwapInProgress = false; // Global swap lock
