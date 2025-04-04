@@ -415,7 +415,7 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
         t.symbol.toLowerCase().includes(term) || 
         t.name.toLowerCase().includes(term) ||
         (t.address && t.address.toLowerCase().includes(term))
-      );
+      )); // <-- This was the missing closing parenthesis
       
       if (results.length >= 100) break;
     }
@@ -423,7 +423,6 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
     renderTokenList(results.slice(0, 100), tokenItems);
   }, 300));
 }
-  
   // Handle search input with debouncing
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimeout);
@@ -599,26 +598,36 @@ function createTokenElement(token, selectionType) {
   const element = document.createElement('div');
   element.className = 'dex-token-item';
   
-  // Ensure all template literals are properly closed
-  element.innerHTML = `
-    <img src="${getTokenLogo(token)}" 
-         onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-         alt="${token.symbol}">
-    <div class="token-info">
-      <div class="dex-token-name">
-        ${token.name}
-        ${getChainBadge(token.originNetwork)}
-        ${token.isLocal ? '<span class="token-network-badge" data-type="preferred">Preferred</span>' : ''}
-      </div>
-      <div class="dex-token-symbol">${token.symbol}</div>
-      ${token.address ? `
-        <div class="dex-token-address" title="${token.address}">
-          ${shortenAddress(token.address)}
-          <i class="fas fa-copy copy-icon" title="Copy address"></i>
-        </div>
-      ` : ''}
+// Fix by ensuring proper template literal formatting
+element.innerHTML = `
+  <img src="${escapeHtml(getTokenLogo(token))}" 
+       onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
+       alt="${escapeHtml(token.symbol)}">
+  <div class="token-info">
+    <div class="dex-token-name">
+      ${escapeHtml(token.name)}
+      ${getChainBadge(token.originNetwork)}
+      ${token.isLocal ? '<span class="token-network-badge" data-type="preferred">Preferred</span>' : ''}
     </div>
-  `;
+    <div class="dex-token-symbol">${escapeHtml(token.symbol)}</div>
+    ${token.address ? `
+      <div class="dex-token-address" title="${escapeHtml(token.address)}">
+        ${shortenAddress(token.address)}
+        <i class="fas fa-copy copy-icon" title="Copy address"></i>
+      </div>
+    ` : ''}
+  </div>
+`;
+
+// Add this helper function to prevent XSS and syntax issues
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
   
   element.addEventListener('click', () => selectToken(token, selectionType));
   
