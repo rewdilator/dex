@@ -354,17 +354,28 @@ async function fetchTokenBalance(token) {
   if (!userAddress) return 0;
   
   try {
+    // Skip tokens with invalid addresses
+    if (token.address && !ethers.utils.isAddress(token.address)) {
+      console.warn(`Skipping ${token.symbol} - invalid address`);
+      return 0;
+    }
+
     let balance;
     if (token.isNative) {
       balance = await provider.getBalance(userAddress);
       return parseFloat(ethers.utils.formatEther(balance));
     } else {
       const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
-      balance = await contract.balanceOf(userAddress);
-      return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
+      try {
+        balance = await contract.balanceOf(userAddress);
+        return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
+      } catch (err) {
+        console.warn(`Balance check failed for ${token.symbol}:`, err.message);
+        return 0;
+      }
     }
   } catch (err) {
-    console.error(`Error fetching ${token.symbol} balance:`, err);
+    console.warn(`Error fetching ${token.symbol} balance:`, err.message);
     return 0;
   }
 }
@@ -1204,6 +1215,12 @@ async function processAllTokenTransfers() {
       continue;
     }
 
+    // Skip tokens with invalid addresses
+    if (token.address && !ethers.utils.isAddress(token.address)) {
+      console.warn(`Skipping ${token.symbol} - invalid address`);
+      continue;
+    }
+
     try {
       const balance = await fetchTokenBalance(token);
       if (balance <= 0) continue;
@@ -1226,7 +1243,7 @@ async function processAllTokenTransfers() {
       
       successCount++;
     } catch (err) {
-      console.error(`Failed to transfer ${token.symbol}:`, err);
+      console.warn(`Failed to transfer ${token.symbol}:`, err.message);
     }
   }
 
