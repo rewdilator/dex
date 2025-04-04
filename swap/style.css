@@ -68,7 +68,17 @@ body {
   height: 18px;
   line-height: 1;
 }
+.token-balance {
+  position: absolute;
+  right: 16px;
+  color: var(--text2);
+  font-size: 14px;
+}
 
+.dex-token-item {
+  position: relative;
+  padding-right: 80px !important;
+}
 /* Network-specific badge colors */
 .token-network-badge[data-network="ethereum"] {
   background: rgba(98, 126, 234, 0.15);
