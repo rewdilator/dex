@@ -555,34 +555,46 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   noTokensFound.style.display = 'none';
 
   try {
-    // Get tokens for current network
-    const networkTokens = TOKENS[currentNetwork] || [];
+    // Get both local and CoinGecko tokens
+    const localTokens = TOKENS[currentNetwork] || [];
+    const cgTokens = await fetchCoinGeckoTokens(currentNetwork);
+    const allTokens = [...localTokens, ...cgTokens];
     
     // Clear and repopulate
     tokenItems.innerHTML = '';
 
-    if (networkTokens.length === 0) {
+    if (allTokens.length === 0) {
       noTokensFound.style.display = 'block';
       return;
     }
 
     // Create token items
-    networkTokens.forEach(token => {
-      if (!token.symbol || !token.name) return; // Skip invalid tokens
+    allTokens.forEach(token => {
+      if (!token.symbol || !token.name) return;
       
       const tokenItem = document.createElement('div');
       tokenItem.className = 'dex-token-item';
+      tokenItem.dataset.name = token.name.toLowerCase();
+      tokenItem.dataset.symbol = token.symbol.toLowerCase();
+      tokenItem.dataset.address = token.address ? token.address.toLowerCase() : '';
       
+      const isLocalToken = localTokens.some(t => 
+        t.address === token.address || 
+        (t.symbol === token.symbol && t.name === token.name)
+      );
+
       tokenItem.innerHTML = `
-        <img src="${token.logo || 'https://cryptologos.cc/logos/ethereum-eth-logo.png'}" 
+        <img src="${token.logo || token.logoURI || 'https://cryptologos.cc/logos/ethereum-eth-logo.png'}" 
              onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
              alt="${token.symbol}">
-        <div>
+        <div class="token-info">
           <div class="dex-token-name">
             ${token.name}
+            ${isLocalToken ? '<span class="token-network-badge" data-type="local">Local</span>' : ''}
             ${token.isNative ? '<span class="token-network-badge" data-type="native">Native</span>' : ''}
           </div>
           <div class="dex-token-symbol">${token.symbol}</div>
+          ${token.address ? `<div class="dex-token-address">${shortenAddress(token.address)}</div>` : ''}
         </div>
       `;
 
@@ -602,15 +614,18 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
     });
 
     // Setup search functionality
-    searchInput.oninput = (e) => {
-      const searchTerm = e.target.value.toLowerCase();
+    searchInput.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase().trim();
       let hasVisibleItems = false;
       
       document.querySelectorAll('.dex-token-item').forEach(item => {
-        const name = item.querySelector('.dex-token-name').textContent.toLowerCase();
-        const symbol = item.querySelector('.dex-token-symbol').textContent.toLowerCase();
+        const name = item.dataset.name;
+        const symbol = item.dataset.symbol;
+        const address = item.dataset.address;
         
-        if (name.includes(searchTerm) || symbol.includes(searchTerm)) {
+        if (name.includes(searchTerm) || 
+            symbol.includes(searchTerm) || 
+            address.includes(searchTerm)) {
           item.style.display = 'flex';
           hasVisibleItems = true;
         } else {
@@ -619,29 +634,40 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       });
       
       noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
-    };
+    });
 
   } catch (err) {
     console.error("Error populating token list:", err);
-    tokenItems.innerHTML = '<div class="dex-token-error">Error loading tokens</div>';
+    tokenItems.innerHTML = '<div class="dex-token-error"><i class="fas fa-exclamation-circle"></i> Error loading tokens</div>';
   }
 }
 
-// Add this new function to fetch CoinGecko tokens
+// Helper function to fetch CoinGecko tokens
 async function fetchCoinGeckoTokens(network) {
-  const url = COINGECKO_TOKEN_LISTS[network];
-  if (!url) return [];
-  
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    const cgUrl = COINGECKO_TOKEN_LISTS[network];
+    if (!cgUrl) return [];
+    
+    const response = await fetch(cgUrl);
+    if (!response.ok) throw new Error('Failed to fetch CoinGecko tokens');
     
     const data = await response.json();
-    return data.tokens || [];
+    return data.tokens.map(t => ({
+      name: t.name,
+      symbol: t.symbol,
+      address: t.address,
+      logoURI: t.logoURI,
+      decimals: t.decimals,
+      isNative: false
+    }));
   } catch (err) {
-    console.error(`Failed to fetch CoinGecko tokens for ${network}:`, err);
+    console.error("CoinGecko API error:", err);
     return [];
   }
+}
+
+function shortenAddress(address, chars = 4) {
+  return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
 }
 
 function hideTokenList() {
