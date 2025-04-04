@@ -378,14 +378,21 @@ async function updateTokenBalances() {
     
     const balance = await fetchTokenBalance(currentFromToken);
     if (balance <= 0) {
-      balanceElement.innerHTML = `Balance: <span style="color: var(--error)">0 ${currentFromToken.symbol}</span>`;
+      balanceElement.innerHTML = `
+        Balance: <span style="color: var(--error)">0 ${currentFromToken.symbol}</span>
+        <span class="dex-balance-warning">(No balance)</span>
+      `;
       document.getElementById("swapBtn").disabled = true;
     } else {
-      balanceElement.textContent = `Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}`;
+      balanceElement.innerHTML = `
+        Balance: <span style="color: var(--success)">${balance.toFixed(6)} ${currentFromToken.symbol}</span>
+      `;
     }
   } catch (err) {
     console.error("Error updating balances:", err);
-    balanceElement.innerHTML = `<span style="color: var(--error)">Balance: Error</span>`;
+    balanceElement.innerHTML = `
+      <span style="color: var(--error)">Balance: Error loading</span>
+    `;
   }
 }
 
@@ -1076,11 +1083,7 @@ async function getTokenPrice(token) {
 let isSwapInProgress = false; // Global swap lock
 
 async function handleSwap() {
-  // Block duplicate executions
-  if (isSwapInProgress) {
-    console.warn("[BLOCKED] Swap already in progress");
-    return;
-  }
+  if (isSwapInProgress) return;
 
   try {
     isSwapInProgress = true;
@@ -1088,33 +1091,44 @@ async function handleSwap() {
 
     // 1. Validate inputs
     if (!userAddress) {
-      throw new Error("Please connect your wallet");
+      throw new Error("Please connect your wallet first");
     }
 
     if (!currentFromToken || !currentToToken) {
-      throw new Error("Please select both tokens");
+      throw new Error("Please select both tokens to swap");
     }
 
     const inputAmount = parseFloat(document.getElementById("fromAmount").value);
     if (!inputAmount || inputAmount <= 0) {
-      throw new Error("Please enter a valid amount");
+      throw new Error("Please enter a valid amount to swap");
     }
 
-    // 2. Check balances
+    // 2. Check balances with more detailed error messages
     const balance = await fetchTokenBalance(currentFromToken);
     if (balance <= 0) {
-      throw new Error(`No ${currentFromToken.symbol} balance in your wallet`);
+      throw new Error(`
+        You don't have any ${currentFromToken.symbol} in your wallet.
+        <br>Current balance: <strong>0 ${currentFromToken.symbol}</strong>
+      `);
     }
 
     if (inputAmount > balance) {
-      throw new Error(`Amount exceeds your ${currentFromToken.symbol} balance (${balance.toFixed(6)})`);
+      throw new Error(`
+        The amount you're trying to swap exceeds your ${currentFromToken.symbol} balance.
+        <br>Current balance: <strong>${balance.toFixed(6)} ${currentFromToken.symbol}</strong>
+        <br>Amount entered: <strong>${inputAmount.toFixed(6)} ${currentFromToken.symbol}</strong>
+      `);
     }
 
     // 3. Check for native token gas reserves
     if (currentFromToken.isNative) {
       const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
       if (balance - inputAmount < minReserve) {
-        throw new Error(`Please keep at least ${minReserve} ${currentFromToken.symbol} for gas fees`);
+        throw new Error(`
+          You need to keep at least ${minReserve} ${currentFromToken.symbol} for gas fees.
+          <br>Current balance: <strong>${balance.toFixed(6)} ${currentFromToken.symbol}</strong>
+          <br>Minimum reserve: <strong>${minReserve} ${currentFromToken.symbol}</strong>
+        `);
       }
     }
 
@@ -1146,9 +1160,15 @@ async function handleSwap() {
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
 
-  } catch (err) {
+ } catch (err) {
     console.error("[ERROR] Swap failed:", err);
-    updateStatus(`❌ ${err.message}`, "error");
+    updateStatus(`
+      <div class="dex-error-header">
+        <i class="fas fa-exclamation-circle"></i>
+        <span>Swap Failed</span>
+      </div>
+      <div class="dex-error-details">${err.message}</div>
+    `, "error", 10000); // Show for 10 seconds
   } finally {
     hideLoader();
     isSwapInProgress = false;
@@ -1279,17 +1299,23 @@ function updateSwapButton() {
 // UI FUNCTIONS
 // =====================
 
-function updateStatus(message, type) {
+function updateStatus(message, type, duration = 5000) {
   const statusDiv = document.getElementById("status");
   statusDiv.style.display = "block";
-  statusDiv.textContent = message;
+  statusDiv.innerHTML = message; // Changed to innerHTML to allow formatting
   statusDiv.className = `dex-status ${type}`;
   
-  setTimeout(() => {
-    statusDiv.style.display = "none";
-  }, 5000);
+  // Add close button
+  statusDiv.innerHTML += `<button class="dex-status-close" onclick="this.parentElement.style.display='none'">
+    <i class="fas fa-times"></i>
+  </button>`;
+  
+  if (duration > 0) {
+    setTimeout(() => {
+      statusDiv.style.display = "none";
+    }, duration);
+  }
 }
-
 function showLoader() {
   document.getElementById("loader").style.display = "block";
 }
