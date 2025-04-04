@@ -295,15 +295,14 @@ async function fetchLocalTokens(network) {
   try {
     if (!LOCAL_TOKEN_LISTS[network]) return [];
     
+    // Dynamically import the token list
     const module = await import(LOCAL_TOKEN_LISTS[network]);
     return module.TOKENS[network] || [];
   } catch (err) {
     console.error(`Failed to load local tokens for ${network}:`, err);
-    // Fall back to the main TOKENS list if available
-    return TOKENS[network] || [];
+    return []; // Return empty array if import fails
   }
 }
-
 async function getLocalTokens() {
   return TOKENS[currentNetwork]?.map(t => ({ 
     ...t, 
