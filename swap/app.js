@@ -379,13 +379,13 @@ async function updateTokenBalances() {
     const balance = await fetchTokenBalance(currentFromToken);
     if (balance <= 0) {
       balanceElement.innerHTML = `
-        Balance: ${currentFromToken.symbol}
+        Balance: 0 ${currentFromToken.symbol}
         
       `;
       document.getElementById("swapBtn").disabled = true;
     } else {
       balanceElement.innerHTML = `
-        Balance: <span style="color: var(--success)">${balance.toFixed(6)} ${currentFromToken.symbol}</span>
+        Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}
       `;
     }
   } catch (err) {
