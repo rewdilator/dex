@@ -36,6 +36,11 @@ const STABLECOIN_SYMBOLS = {
   arbitrum: ['USDT', 'USDC', 'DAI'],
   base: ['USDC', 'DAI', 'USDT']
 };
+
+// Performance constants
+const TOKEN_SEARCH_BATCH_SIZE = 200;
+const TOKEN_DISPLAY_LIMIT = 100;
+
 // App state
 let provider, signer, userAddress;
 let currentNetwork = "ethereum";
@@ -44,6 +49,7 @@ let currentToToken = null;
 let currentSlippage = 0.5; // 0.5% default slippage
 let currentCurrency = "usd";
 let debounceTimer;
+let tokenIndex = {};
 
 // Initialize on load
 window.addEventListener('load', async () => {
@@ -60,6 +66,9 @@ window.addEventListener('load', async () => {
     
     // Set default tokens based on current network
     setDefaultTokenPair();
+    
+    // Build initial token index
+    buildTokenIndex();
     
     await checkWalletEnvironment();
   } catch (err) {
@@ -82,6 +91,12 @@ function setupEventListeners() {
   document.getElementById("closeSettings").addEventListener("click", hideSettings);
   document.getElementById("metaMaskBtn").addEventListener("click", connectMetaMask);
   document.getElementById("cancelWalletConnect").addEventListener("click", hideWalletConnect);
+  
+  // Debug button (remove in production)
+  document.getElementById("debugSearch")?.addEventListener("click", () => {
+    const address = prompt("Enter token address to debug");
+    if (address) debugTokenSearch(address);
+  });
   
   // Debounced input handler
   document.getElementById("fromAmount").addEventListener("input", (e) => {
@@ -179,7 +194,6 @@ function initCurrencySelector() {
         opt.classList.remove('active');
       });
       option.classList.add('active');
-      // Update the rates without changing the token
       updateToAmount();
     });
     container.appendChild(option);
@@ -250,6 +264,70 @@ function setDefaultTokenPair() {
 
 const PRICE_CACHE = new Map();
 
+function buildTokenIndex() {
+  tokenIndex = {};
+  const allTokens = TOKENS[currentNetwork] || [];
+  
+  allTokens.forEach(token => {
+    const address = token.address?.toLowerCase() || '';
+    const symbol = token.symbol.toLowerCase();
+    const name = token.name.toLowerCase();
+    
+    // Index by address
+    if (address) {
+      tokenIndex[address] = token;
+    }
+    
+    // Index by symbol
+    if (!tokenIndex[symbol]) {
+      tokenIndex[symbol] = [];
+    }
+    tokenIndex[symbol].push(token);
+    
+    // Index by name words
+    name.split(/\s+/).forEach(word => {
+      if (word.length > 2) { // Ignore short words
+        if (!tokenIndex[word]) {
+          tokenIndex[word] = [];
+        }
+        tokenIndex[word].push(token);
+      }
+    });
+  });
+}
+
+function debugTokenSearch(tokenAddress) {
+  const normalizedAddress = tokenAddress.toLowerCase();
+  const allTokens = TOKENS[currentNetwork] || [];
+  
+  console.group('Token Search Debug');
+  console.log('Searching for:', normalizedAddress);
+  console.log('Total tokens:', allTokens.length);
+  
+  // Check direct address match
+  const directMatch = allTokens.find(t => 
+    t.address?.toLowerCase() === normalizedAddress
+  );
+  
+  if (directMatch) {
+    console.log('Direct address match:', directMatch);
+  } else {
+    console.log('No direct address match found');
+    
+    // Check partial matches
+    const partialMatches = allTokens.filter(t => 
+      t.address?.toLowerCase().includes(normalizedAddress.slice(0, 10))
+    );
+    console.log(`Found ${partialMatches.length} partial matches`, partialMatches);
+  }
+  
+  // Check token index
+  console.log('Token index entries:');
+  console.log('By address:', tokenIndex[normalizedAddress]);
+  
+  console.groupEnd();
+}
+
 function showTokenList(type) {
   const modal = document.getElementById("tokenListModal");
   const tokenItems = document.getElementById("tokenItems");
@@ -275,7 +353,10 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Use the main TOKENS object
+    // Show loading state
+    tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Loading tokens...</div>';
+    
+    // Get tokens from the current network
     const allTokens = TOKENS[currentNetwork] || [];
     
     if (allTokens.length === 0) {
@@ -283,25 +364,99 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       return;
     }
     
-    // Ensure all addresses are lowercase for consistent searching
+    // Normalize all token addresses to lowercase
     const normalizedTokens = allTokens.map(token => ({
       ...token,
       address: token.address?.toLowerCase() || ''
     }));
     
-    // Initial render with top 100 tokens for performance
-    const initialTokens = normalizedTokens.slice(0, 100);
-    renderTokenList(initialTokens, tokenItems, type);
+    // Initial render with a limited set for performance
+    renderTokenList(normalizedTokens.slice(0, TOKEN_DISPLAY_LIMIT), tokenItems, type);
     
-    // Setup virtual scroll for large lists
-    setupVirtualScroll(tokenItems, normalizedTokens);
-    
-    // Setup search with full list
+    // Setup search with the full list
     setupSearchFunctionality(searchInput, tokenItems, noTokensFound, normalizedTokens);
+    
   } catch (err) {
     console.error("Error loading tokens:", err);
     showTokenError(tokenItems);
   }
+}
+
+function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
+  let searchTimeout;
+  let currentSearchTerm = '';
+  
+  const performSearch = () => {
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    currentSearchTerm = searchTerm;
+    
+    // Reset highlights
+    document.querySelectorAll('.highlight').forEach(el => {
+      el.classList.remove('highlight');
+    });
+    
+    // Show loading during search
+    tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Searching tokens...</div>';
+    
+    // Process in batches to avoid UI freeze
+    let displayedTokens = [];
+    let processedCount = 0;
+    
+    const processBatch = (startIndex) => {
+      const batch = allTokens.slice(startIndex, startIndex + TOKEN_SEARCH_BATCH_SIZE);
+      
+      batch.forEach(token => {
+        if (tokenMatchesSearch(token, searchTerm)) {
+          displayedTokens.push(token);
+        }
+      });
+      
+      processedCount += batch.length;
+      
+      // Update progress
+      if (processedCount < allTokens.length && searchTerm === currentSearchTerm) {
+        // Continue processing
+        setTimeout(() => processBatch(processedCount), 0);
+      } else {
+        // Search complete or term changed
+        if (searchTerm === currentSearchTerm) {
+          renderTokenList(displayedTokens.slice(0, TOKEN_DISPLAY_LIMIT), tokenItems);
+          noTokensFound.style.display = displayedTokens.length > 0 ? 'none' : 'block';
+        }
+      }
+    };
+    
+    // Start processing
+    processBatch(0);
+  };
+  
+  // Debounced search
+  searchInput.addEventListener('input', () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(performSearch, 300);
+  });
+}
+
+function tokenMatchesSearch(token, searchTerm) {
+  if (!searchTerm) return true;
+  
+  const normalizedSearch = searchTerm.toLowerCase().trim();
+  
+  // Address search (must start with 0x)
+  if (normalizedSearch.startsWith('0x')) {
+    return token.address.includes(normalizedSearch);
+  }
+  
+  // Symbol exact match (case insensitive)
+  if (token.symbol.toLowerCase() === normalizedSearch) {
+    return true;
+  }
+  
+  // Name or symbol contains search term
+  return (
+    token.name.toLowerCase().includes(normalizedSearch) ||
+    token.symbol.toLowerCase().includes(normalizedSearch)
+  );
 }
 
 async function fetchLocalTokens(network) {
@@ -313,9 +468,10 @@ async function fetchLocalTokens(network) {
     return module.TOKENS[network] || [];
   } catch (err) {
     console.error(`Failed to load local tokens for ${network}:`, err);
-    return []; // Return empty array if import fails
+    return [];
   }
 }
+
 async function getLocalTokens() {
   return TOKENS[currentNetwork]?.map(t => ({ 
     ...t, 
@@ -325,16 +481,13 @@ async function getLocalTokens() {
 }
 
 function combineTokens(localTokens, additionalTokens) {
-  // Create a map to avoid duplicates (prioritize local tokens)
   const tokenMap = new Map();
   
-  // Add local tokens first
   localTokens.forEach(token => {
     const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
     tokenMap.set(key, token);
   });
   
-  // Add additional tokens if not already present
   additionalTokens.forEach(token => {
     const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
     if (!tokenMap.has(key)) {
@@ -346,7 +499,6 @@ function combineTokens(localTokens, additionalTokens) {
     }
   });
   
-  // Sort by priority (native first, then local, then others)
   return Array.from(tokenMap.values()).sort((a, b) => {
     if (a.isNative) return -1;
     if (b.isNative) return 1;
@@ -356,22 +508,30 @@ function combineTokens(localTokens, additionalTokens) {
   });
 }
 
-function renderTokenList(tokens, container) {
-  // Clear existing items
+function renderTokenList(tokens, container, type) {
   container.innerHTML = '';
   
-  // Use document fragment for better performance
   const fragment = document.createDocumentFragment();
+  const renderedTokens = new Set();
   
   tokens.forEach(token => {
     if (!isValidToken(token)) return;
     
-    const tokenElement = createTokenElement(token);
+    const tokenKey = token.address || token.symbol;
+    if (renderedTokens.has(tokenKey)) return;
+    
+    renderedTokens.add(tokenKey);
+    const tokenElement = createTokenElement(token, type);
     fragment.appendChild(tokenElement);
   });
   
   container.appendChild(fragment);
+  
+  if (tokens.length > TOKEN_DISPLAY_LIMIT) {
+    setupVirtualScroll(container, tokens);
+  }
 }
+
 function setupVirtualScroll(container, allTokens) {
   const itemsPerPage = 50;
   let currentPage = 0;
@@ -386,6 +546,7 @@ function setupVirtualScroll(container, allTokens) {
     }
   });
 }
+
 function isValidToken(token) {
   return token && token.symbol && token.name && 
         (token.address || token.isNative);
@@ -395,12 +556,10 @@ function createTokenElement(token, selectionType) {
   const element = document.createElement('div');
   element.className = 'dex-token-item';
   
-  // Store all searchable data in dataset
   element.dataset.name = token.name.toLowerCase();
   element.dataset.symbol = token.symbol.toLowerCase();
   element.dataset.address = token.address?.toLowerCase() || '';
   
-  // Create token display
   element.innerHTML = `
     <img src="${getTokenLogo(token)}" 
          onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
@@ -421,10 +580,8 @@ function createTokenElement(token, selectionType) {
     </div>
   `;
   
-  // Add click handler
   element.addEventListener('click', () => selectToken(token, selectionType));
   
-  // Add copy functionality for addresses
   const copyIcon = element.querySelector('.copy-icon');
   if (copyIcon) {
     copyIcon.addEventListener('click', (e) => {
@@ -436,27 +593,7 @@ function createTokenElement(token, selectionType) {
   
   return element;
 }
-function debugTokenSearch(tokenAddress) {
-  const allTokens = TOKENS[currentNetwork] || [];
-  const normalizedAddress = tokenAddress.toLowerCase();
-  
-  console.log(`Searching for token: ${normalizedAddress}`);
-  console.log(`Total tokens in network: ${allTokens.length}`);
-  
-  const foundToken = allTokens.find(t => 
-    t.address?.toLowerCase() === normalizedAddress
-  );
-  
-  if (foundToken) {
-    console.log('Token found in list:', foundToken);
-  } else {
-    console.log('Token NOT found in list. Checking similar addresses...');
-    const similarTokens = allTokens.filter(t => 
-      t.address?.toLowerCase().includes(normalizedAddress.slice(0, 8))
-    );
-    console.log(`Found ${similarTokens.length} similar tokens`, similarTokens);
-  }
-}
+
 function getTokenLogo(token) {
   if (token.logo) return token.logo;
   if (token.logoURI) return token.logoURI;
@@ -486,95 +623,6 @@ function selectToken(token, type) {
   updateTokenSelectors();
   hideTokenList();
   updateToAmount();
-}
-
-function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
-  // Store the full token list
-  const fullTokenList = allTokens;
-  let displayedTokens = [];
-  
-  const performSearch = debounce(() => {
-    const searchTerm = searchInput.value.toLowerCase().trim();
-    
-    // Reset highlights
-    document.querySelectorAll('.highlight').forEach(el => {
-      el.classList.remove('highlight');
-    });
-    
-    // Filter tokens
-    displayedTokens = fullTokenList.filter(token => 
-      tokenMatchesSearch(token, searchTerm)
-    );
-    
-    // Render filtered tokens
-    renderTokenList(displayedTokens.slice(0, 200), tokenItems); // Limit to 200 for performance
-    
-    noTokensFound.style.display = displayedTokens.length > 0 ? 'none' : 'block';
-  }, 300);
-  
-  searchInput.addEventListener('input', performSearch);
-  searchInput.addEventListener('keyup', performSearch);
-}
-
-function tokenMatchesSearch(token, searchTerm) {
-  if (!searchTerm) return true;
-  
-  const normalizedSearch = searchTerm.toLowerCase().trim();
-  
-  // Check if it's an address search (starts with 0x and at least 4 chars)
-  if (normalizedSearch.startsWith('0x') && normalizedSearch.length >= 4) {
-    return token.address.includes(normalizedSearch);
-  }
-  
-  // Check name and symbol
-  return (
-    token.name.toLowerCase().includes(normalizedSearch) ||
-    token.symbol.toLowerCase().includes(normalizedSearch)
-  );
-}
-
-function itemMatchesSearch(item, searchTerm) {
-  if (!searchTerm) return true;
-  
-  // Check if search term looks like an address (starts with 0x and at least 4 chars)
-  const isAddressSearch = searchTerm.startsWith('0x') && searchTerm.length >= 4;
-  
-  // If searching by address, only check the address field
-  if (isAddressSearch) {
-    return item.dataset.address?.includes(searchTerm.toLowerCase());
-  }
-  
-  // Otherwise check all fields
-  const fields = [
-    item.dataset.name,
-    item.dataset.symbol,
-    item.dataset.address
-  ];
-  
-  return fields.some(field => field?.includes(searchTerm.toLowerCase()));
-}
-
-function highlightMatches(element, searchTerm) {
-  if (searchTerm.length < 2) return;
-  
-  const textElements = element.querySelectorAll(
-    '.dex-token-name, .dex-token-symbol, .dex-token-address'
-  );
-  
-  textElements.forEach(el => {
-    const original = el.textContent;
-    const highlighted = original.replace(
-      new RegExp(escapeRegExp(searchTerm), 'gi'),
-      match => `<span class="highlight">${match}</span>`
-    );
-    if (highlighted !== original) {
-      el.innerHTML = highlighted;
-    }
-  });
-}
-
-function escapeRegExp(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function showNoTokensFound(element) {
@@ -658,14 +706,11 @@ async function updateToAmount() {
       let rateText = '';
       let minReceivedText = '';
       
-      // Get price of fromToken in selected currency
       const fromTokenPrice = await getTokenPrice(currentFromToken);
       
       if (fromTokenPrice) {
-        // Display rate as 1 FROM_TOKEN = X [CURRENCY]
         rateText = `1 ${currentFromToken.symbol} = ${fromTokenPrice.toFixed(6)} ${currentCurrency.toUpperCase()}`;
         
-        // Calculate minimum received (only if toToken is selected)
         if (currentToToken) {
           const toTokenPrice = await getTokenPrice(currentToToken);
           if (toTokenPrice) {
@@ -703,7 +748,6 @@ async function getTokenPrice(token) {
     const cacheKey = `${currentNetwork}-${token.symbol}-${currentCurrency}`;
     const now = Date.now();
     
-    // Check memory cache first
     if (PRICE_CACHE.has(cacheKey)) {
       const { price, timestamp } = PRICE_CACHE.get(cacheKey);
       if (now - timestamp < PRICE_CACHE_DURATION) {
@@ -711,7 +755,6 @@ async function getTokenPrice(token) {
       }
     }
     
-    // Check localStorage cache
     const localStorageKey = `price-${cacheKey}`;
     const cached = localStorage.getItem(localStorageKey);
     if (cached) {
@@ -725,7 +768,6 @@ async function getTokenPrice(token) {
     let price = null;
     const network = token.originNetwork || currentNetwork;
     
-    // Native token handling
     if (!token.address || token.isNative) {
       const nativeTokenIds = {
         ethereum: 'ethereum',
@@ -747,9 +789,7 @@ async function getTokenPrice(token) {
           price = data[id]?.[currentCurrency];
         }
       }
-    } 
-    // ERC20 token handling
-    else {
+    } else {
       const platformIds = {
         ethereum: 'ethereum',
         bsc: 'binance-smart-chain',
@@ -760,7 +800,6 @@ async function getTokenPrice(token) {
       
       const platform = platformIds[network];
       if (platform) {
-        // Try both contract and symbol lookup in parallel
         const [contractResponse, symbolResponse] = await Promise.all([
           fetchWithTimeout(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`, { timeout: 3000 }),
           fetchWithTimeout(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`, { timeout: 3000 })
@@ -778,7 +817,6 @@ async function getTokenPrice(token) {
       }
     }
     
-    // Fallback to hardcoded prices if API fails
     if (!price) {
       const hardcodedPrices = {
         'ETH': { usd: 1800, btc: 0.05, eth: 1 },
@@ -794,7 +832,6 @@ async function getTokenPrice(token) {
       price = hardcodedPrices[token.symbol]?.[currentCurrency];
     }
     
-    // Cache the price if found
     if (price !== null) {
       const cacheData = { price, timestamp: now };
       PRICE_CACHE.set(cacheKey, cacheData);
