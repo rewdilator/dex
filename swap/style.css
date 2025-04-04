@@ -51,13 +51,12 @@ body {
   flex: 1;
   padding-bottom: 112px !important;
 }
-/* Enhanced Error Styles */
 .dex-status {
   position: fixed;
-  bottom: 80px;
+  top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  width: 90%;
+  width: calc(100% - 40px);
   max-width: 500px;
   z-index: 1000;
   padding: 15px;
@@ -69,9 +68,10 @@ body {
 }
 
 @keyframes slideIn {
-  from { bottom: -100px; opacity: 0; }
-  to { bottom: 80px; opacity: 1; }
+  from { top: -100px; opacity: 0; }
+  to { top: 20px; opacity: 1; }
 }
+
 
 .dex-status.error {
   background: var(--darkest);
@@ -85,7 +85,7 @@ body {
   color: var(--success);
 }
 
-.dex-status-close {
+dex-status-close {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -119,6 +119,22 @@ body {
 .dex-error-details strong {
   color: var(--text1);
   font-weight: 600;
+}
+/* Mobile adjustments */
+@media (max-width: 768px) {
+  .dex-status {
+    width: calc(100% - 30px);
+    padding: 12px;
+    top: 15px;
+  }
+  
+  .dex-error-header {
+    font-size: 15px;
+  }
+  
+  .dex-error-details {
+    font-size: 13px;
+  }
 }
 
 @media (max-width: 480px) {
