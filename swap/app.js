@@ -365,20 +365,13 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Add debug logging
-    console.log('Loading tokens for network:', currentNetwork);
-    console.log('Available networks:', Object.keys(TOKENS));
-    
     const allTokens = TOKENS[currentNetwork] || [];
-    console.log('Tokens found:', allTokens.length);
     
     if (allTokens.length === 0) {
-      console.warn('No tokens available for network:', currentNetwork);
       showNoTokensFound(noTokensFound, "No tokens available for this network");
       return;
     }
     
-    // Normalize token data for consistent searching
     const normalizedTokens = allTokens.map(token => ({
       ...token,
       searchName: token.name.toLowerCase(),
@@ -386,18 +379,13 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       searchAddress: token.address?.toLowerCase() || ''
     }));
     
-    // Initial render with a limited set for performance
     renderTokenList(normalizedTokens.slice(0, 100), tokenItems, type);
-    
-    // Setup search functionality with the full list
     setupSearchFunctionality(searchInput, tokenItems, noTokensFound, normalizedTokens);
-    
- } catch (err) {
+  } catch (err) {
     console.error("Error loading tokens:", err);
     showTokenError(tokenItems, "Failed to load tokens. Please try again.");
   }
 }
-
 function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
   // First filter by priority if available
   const priorityTokens = allTokens.filter(t => t.priority).slice(0, 100);
@@ -432,13 +420,12 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
     renderTokenList(results.slice(0, 100), tokenItems);
   };
   
-  // Handle search input with debouncing
+  // Only keep this single event listener block
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(performSearch, 300);
   });
   
-  // Also trigger search on keyup for immediate feedback
   searchInput.addEventListener('keyup', () => {
     if (searchInput.value.trim() !== currentSearchTerm) {
       clearTimeout(searchTimeout);
