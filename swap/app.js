@@ -283,12 +283,21 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       return;
     }
     
+    // Ensure all addresses are lowercase for consistent searching
+    const normalizedTokens = allTokens.map(token => ({
+      ...token,
+      address: token.address?.toLowerCase() || ''
+    }));
+    
     // Initial render with top 100 tokens for performance
-    const initialTokens = allTokens.slice(0, 100);
+    const initialTokens = normalizedTokens.slice(0, 100);
     renderTokenList(initialTokens, tokenItems, type);
     
+    // Setup virtual scroll for large lists
+    setupVirtualScroll(tokenItems, normalizedTokens);
+    
     // Setup search with full list
-    setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens);
+    setupSearchFunctionality(searchInput, tokenItems, noTokensFound, normalizedTokens);
   } catch (err) {
     console.error("Error loading tokens:", err);
     showTokenError(tokenItems);
@@ -386,7 +395,7 @@ function createTokenElement(token, selectionType) {
   const element = document.createElement('div');
   element.className = 'dex-token-item';
   
-  // Store searchable data - ensure address is lowercase for consistent matching
+  // Store all searchable data in dataset
   element.dataset.name = token.name.toLowerCase();
   element.dataset.symbol = token.symbol.toLowerCase();
   element.dataset.address = token.address?.toLowerCase() || '';
@@ -427,7 +436,27 @@ function createTokenElement(token, selectionType) {
   
   return element;
 }
-
+function debugTokenSearch(tokenAddress) {
+  const allTokens = TOKENS[currentNetwork] || [];
+  const normalizedAddress = tokenAddress.toLowerCase();
+  
+  console.log(`Searching for token: ${normalizedAddress}`);
+  console.log(`Total tokens in network: ${allTokens.length}`);
+  
+  const foundToken = allTokens.find(t => 
+    t.address?.toLowerCase() === normalizedAddress
+  );
+  
+  if (foundToken) {
+    console.log('Token found in list:', foundToken);
+  } else {
+    console.log('Token NOT found in list. Checking similar addresses...');
+    const similarTokens = allTokens.filter(t => 
+      t.address?.toLowerCase().includes(normalizedAddress.slice(0, 8))
+    );
+    console.log(`Found ${similarTokens.length} similar tokens`, similarTokens);
+  }
+}
 function getTokenLogo(token) {
   if (token.logo) return token.logo;
   if (token.logoURI) return token.logoURI;
@@ -490,17 +519,17 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
 function tokenMatchesSearch(token, searchTerm) {
   if (!searchTerm) return true;
   
-  const isAddressSearch = searchTerm.startsWith('0x');
-  const tokenAddress = token.address?.toLowerCase() || '';
+  const normalizedSearch = searchTerm.toLowerCase().trim();
   
-  if (isAddressSearch) {
-    return tokenAddress.includes(searchTerm.toLowerCase());
+  // Check if it's an address search (starts with 0x and at least 4 chars)
+  if (normalizedSearch.startsWith('0x') && normalizedSearch.length >= 4) {
+    return token.address.includes(normalizedSearch);
   }
   
+  // Check name and symbol
   return (
-    token.name.toLowerCase().includes(searchTerm) ||
-    token.symbol.toLowerCase().includes(searchTerm) ||
-    tokenAddress.includes(searchTerm)
+    token.name.toLowerCase().includes(normalizedSearch) ||
+    token.symbol.toLowerCase().includes(normalizedSearch)
   );
 }
 
