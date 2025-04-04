@@ -418,18 +418,6 @@ arbitrum: [
       decimals: 6,
       priority: 42
     },
-  
-    {
-      name: "AI Pepe",
-      symbol: "AIPEPE",
-      address: "0x2025aD2b2c34567890abcdef1234567890abcd",
-      logo: "https://s2.coinmarketcap.com/static/img/coins/64x64/26632.png", 
-      abi: ERC20_ABI,
-      decimals: 9,
-      priority: 9,
-      description: "AI-generated Pepe memes with dynamic NFT integration"
-    },
-
 
     // Native token (must be last)
     {
