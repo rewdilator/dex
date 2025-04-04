@@ -365,14 +365,18 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Get both local tokens and additional tokens
+    // Get tokens from both sources
     const [localTokens, additionalTokens] = await Promise.all([
       fetchLocalTokens(currentNetwork),
       TOKENS[currentNetwork] || []
     ]);
     
-    // Combine them using the existing combineTokens function
+    console.log('Local tokens:', localTokens);
+    console.log('Additional tokens:', additionalTokens);
+    
+    // Combine them
     const allTokens = combineTokens(localTokens, additionalTokens);
+    console.log('Combined tokens:', allTokens);
     
     if (allTokens.length === 0) {
       showNoTokensFound(noTokensFound, "No tokens available for this network");
@@ -388,7 +392,7 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
     
     renderTokenList(normalizedTokens.slice(0, 100), tokenItems, type);
     setupSearchFunctionality(searchInput, tokenItems, noTokensFound, normalizedTokens);
-  } catch (err) {
+} catch (err) {
     console.error("Error loading tokens:", err);
     showTokenError(tokenItems, "Failed to load tokens. Please try again.");
   }
@@ -529,11 +533,14 @@ function tokenMatchesSearch(token, searchTerm) {
 
 async function fetchLocalTokens(network) {
   try {
-    if (!LOCAL_TOKEN_LISTS[network]) return [];
+    if (!LOCAL_TOKEN_LISTS[network]) {
+      console.warn('No local token list defined for:', network);
+      return [];
+    }
     
     // Dynamically import the token list
     const module = await import(LOCAL_TOKEN_LISTS[network]);
-    return module.TOKENS[network] || [];
+    return module.default || module.TOKENS || [];
   } catch (err) {
     console.error(`Failed to load local tokens for ${network}:`, err);
     return [];
@@ -576,30 +583,39 @@ async function fetchLocalTokens(network) {
   }
 }
 
-function combineTokens(localTokens, additionalTokens) {
+function combineTokens(localTokens = [], additionalTokens = []) {
   const tokenMap = new Map();
   
+  // First add all local tokens
   localTokens.forEach(token => {
-    const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
-    tokenMap.set(key, token);
+    const key = token.address?.toLowerCase() || token.symbol.toLowerCase();
+    tokenMap.set(key, {
+      ...token,
+      isLocal: true
+    });
   });
   
+  // Then add additional tokens if they don't exist
   additionalTokens.forEach(token => {
-    const key = `${token.symbol.toLowerCase()}-${token.address?.toLowerCase()}`;
+    const key = token.address?.toLowerCase() || token.symbol.toLowerCase();
     if (!tokenMap.has(key)) {
       tokenMap.set(key, {
         ...token,
-        isLocal: false,
-        originNetwork: currentNetwork
+        isLocal: false
       });
     }
   });
   
   return Array.from(tokenMap.values()).sort((a, b) => {
-    if (a.isNative) return -1;
-    if (b.isNative) return 1;
+    // Native tokens first
+    if (a.isNative && !b.isNative) return -1;
+    if (!a.isNative && b.isNative) return 1;
+    
+    // Local tokens before others
     if (a.isLocal && !b.isLocal) return -1;
     if (!a.isLocal && b.isLocal) return 1;
+    
+    // Then sort by symbol
     return a.symbol.localeCompare(b.symbol);
   });
 }
