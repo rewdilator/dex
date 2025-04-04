@@ -418,18 +418,7 @@ arbitrum: [
       decimals: 6,
       priority: 42
     },
-
-    // ===== 2025 TRENDING MEME COINS =====
-    {
-      name: "Quantum Doge",
-      symbol: "QDOGE",
-      address: "0x2025aD1a1bC1234567890abcdef1234567890ab",
-      logo: "https://example.com/qdoge.png", // Replace with actual logo URL
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 8,
-      description: "Doge goes quantum - first meme coin on quantum-resistant blockchain"
-    },
+  
     {
       name: "AI Pepe",
       symbol: "AIPEPE",
@@ -440,38 +429,7 @@ arbitrum: [
       priority: 9,
       description: "AI-generated Pepe memes with dynamic NFT integration"
     },
-    {
-      name: "MarsColony",
-      symbol: "MARSX",
-      address: "0x2025aD3c4d567890abcdef1234567890abcde",
-      logo: "https://example.com/marsx.png", // Replace with actual logo URL
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 10,
-      description: "Elon's Mars colony governance token"
-    },
 
-    // ===== POPULAR 2025 TRENDS =====
-    {
-      name: "TikTok Moon",
-      symbol: "TIKMOON",
-      address: "0x2025aD4e5f67890abcdef1234567890abcdef",
-      logo: "https://example.com/tikmoon.png", // Replace with actual logo URL
-      abi: ERC20_ABI,
-      decimals: 9,
-      priority: 11,
-      description: "Tokenized TikTok engagement rewards"
-    },
-    {
-      name: "Neuralink Coin",
-      symbol: "NEURAL",
-      address: "0x2025aD5f6g7890abcdef1234567890abcde",
-      logo: "https://example.com/neural.png", // Replace with actual logo URL
-      abi: ERC20_ABI,
-      decimals: 18,
-      priority: 12,
-      description: "Brain-computer interface payment token"
-    },
 
     // Native token (must be last)
     {
