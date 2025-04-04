@@ -549,7 +549,6 @@ function showTokenList(type) {
   searchInput.focus();
 }
 
-// Update the populateTokenList function
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   tokenItems.innerHTML = '<div class="dex-loading-tokens">Loading tokens...</div>';
   noTokensFound.style.display = 'none';
@@ -701,71 +700,6 @@ async function fetchCoinGeckoTokens(network) {
   } catch (err) {
     console.error(`Failed to fetch CoinGecko tokens for ${network}:`, err);
     return [];
-  }
-}
-  
-  networkTokens.sort((a, b) => a.priority - b.priority);
-  
-  searchInput.oninput = (e) => {
-    const searchTerm = e.target.value.toLowerCase();
-    let hasVisibleItems = false;
-    const items = document.querySelectorAll('.dex-token-item');
-    
-    items.forEach(item => {
-      const name = item.dataset.name.toLowerCase();
-      const symbol = item.dataset.symbol.toLowerCase();
-      const address = item.dataset.address.toLowerCase();
-      
-      if (name.includes(searchTerm) || 
-          symbol.includes(searchTerm) || 
-          address.includes(searchTerm)) {
-        item.style.display = 'flex';
-        hasVisibleItems = true;
-      } else {
-        item.style.display = 'none';
-      }
-    });
-    
-    noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
-  };
-  
-  if (networkTokens.length === 0) {
-    noTokensFound.style.display = 'block';
-  } else {
-    networkTokens.forEach(token => {
-      const tokenItem = document.createElement('div');
-      tokenItem.className = 'dex-token-item';
-      tokenItem.dataset.name = token.name.toLowerCase();
-      tokenItem.dataset.symbol = token.symbol.toLowerCase();
-      tokenItem.dataset.address = token.address.toLowerCase();
-      
-      const tokenLogo = token.logo || `https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png`;
-      
-      tokenItem.innerHTML = `
-        <img src="${tokenLogo}" 
-             onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
-             alt="${token.symbol}">
-        <div>
-          <div class="dex-token-name">${token.name} ${token.originNetwork !== currentNetwork ? `<span class="token-network-badge">${token.originNetwork}</span>` : ''}</div>
-          <div class="dex-token-symbol">${token.symbol}</div>
-          <div class="dex-token-address" style="font-size: 12px; color: var(--text3);">${token.address}</div>
-        </div>
-      `;
-      
-      tokenItem.addEventListener('click', () => {
-        if (type === 'from') {
-          currentFromToken = token;
-          updateTokenBalances();
-        } else {
-          currentToToken = token;
-        }
-        updateTokenSelectors();
-        hideTokenList();
-        updateToAmount();
-      });
-      
-      tokenItems.appendChild(tokenItem);
-    });
   }
 }
 
