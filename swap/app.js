@@ -572,6 +572,8 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       
       const tokenItem = document.createElement('div');
       tokenItem.className = 'dex-token-item';
+      tokenItem.dataset.name = token.name.toLowerCase();
+      tokenItem.dataset.symbol = token.symbol.toLowerCase();
       
       tokenItem.innerHTML = `
         <img src="${token.logo || 'https://cryptologos.cc/logos/ethereum-eth-logo.png'}" 
@@ -602,13 +604,13 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
     });
 
     // Setup search functionality
-    searchInput.oninput = (e) => {
-      const searchTerm = e.target.value.toLowerCase();
+    searchInput.addEventListener('input', (e) => {
+      const searchTerm = e.target.value.toLowerCase().trim();
       let hasVisibleItems = false;
       
       document.querySelectorAll('.dex-token-item').forEach(item => {
-        const name = item.querySelector('.dex-token-name').textContent.toLowerCase();
-        const symbol = item.querySelector('.dex-token-symbol').textContent.toLowerCase();
+        const name = item.dataset.name;
+        const symbol = item.dataset.symbol;
         
         if (name.includes(searchTerm) || symbol.includes(searchTerm)) {
           item.style.display = 'flex';
@@ -619,7 +621,7 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       });
       
       noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
-    };
+    });
 
   } catch (err) {
     console.error("Error populating token list:", err);
