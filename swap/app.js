@@ -342,87 +342,84 @@ function showTokenList(type) {
   noTokensFound.style.display = 'none';
   searchInput.value = '';
   
-  // Small delay to allow loading message to show
+  // Focus search input after a small delay to ensure it's visible
   setTimeout(() => {
-    populateTokenList(type, tokenItems, searchInput, noTokensFound);
-  }, 50);
+    searchInput.focus();
+  }, 100);
+  
+  // Load tokens immediately
+  populateTokenList(type, tokenItems, searchInput, noTokensFound);
   
   modal.style.display = 'flex';
-  searchInput.focus();
 }
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Show loading state
-    tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Loading tokens...</div>';
-    
     // Get tokens from the current network
     const allTokens = TOKENS[currentNetwork] || [];
     
     if (allTokens.length === 0) {
-      showNoTokensFound(noTokensFound);
+      showNoTokensFound(noTokensFound, "No tokens available for this network");
       return;
     }
     
-    // Normalize all token addresses to lowercase
+    // Normalize token data for consistent searching
     const normalizedTokens = allTokens.map(token => ({
       ...token,
-      address: token.address?.toLowerCase() || ''
+      searchName: token.name.toLowerCase(),
+      searchSymbol: token.symbol.toLowerCase(),
+      searchAddress: token.address?.toLowerCase() || ''
     }));
     
     // Initial render with a limited set for performance
-    renderTokenList(normalizedTokens.slice(0, TOKEN_DISPLAY_LIMIT), tokenItems, type);
+    renderTokenList(normalizedTokens.slice(0, 100), tokenItems, type);
     
-    // Setup search with the full list
+    // Setup search functionality with the full list
     setupSearchFunctionality(searchInput, tokenItems, noTokensFound, normalizedTokens);
     
   } catch (err) {
     console.error("Error loading tokens:", err);
-    showTokenError(tokenItems);
+    showTokenError(tokenItems, "Failed to load tokens. Please try again.");
   }
 }
 
 function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
-  let searchTimeout;
   let currentSearchTerm = '';
+  let searchTimeout;
   
   const performSearch = () => {
-    const searchTerm = searchInput.value.toLowerCase().trim();
+    const searchTerm = searchInput.value.trim().toLowerCase();
     currentSearchTerm = searchTerm;
     
-    // Reset highlights
-    document.querySelectorAll('.highlight').forEach(el => {
-      el.classList.remove('highlight');
-    });
+    // Show loading state during search
+    tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
     
-    // Show loading during search
-    tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Searching tokens...</div>';
-    
-    // Process in batches to avoid UI freeze
-    let displayedTokens = [];
+    // Process in small batches to keep UI responsive
+    const batchSize = 200;
+    let matchingTokens = [];
     let processedCount = 0;
     
     const processBatch = (startIndex) => {
-      const batch = allTokens.slice(startIndex, startIndex + TOKEN_SEARCH_BATCH_SIZE);
+      const endIndex = Math.min(startIndex + batchSize, allTokens.length);
       
-      batch.forEach(token => {
+      for (let i = startIndex; i < endIndex; i++) {
+        const token = allTokens[i];
         if (tokenMatchesSearch(token, searchTerm)) {
-          displayedTokens.push(token);
+          matchingTokens.push(token);
         }
-      });
+      }
       
-      processedCount += batch.length;
+      processedCount = endIndex;
       
-      // Update progress
-      if (processedCount < allTokens.length && searchTerm === currentSearchTerm) {
-        // Continue processing
-        setTimeout(() => processBatch(processedCount), 0);
+      // Update UI if we've processed everything or found enough matches
+      if (processedCount >= allTokens.length || matchingTokens.length >= 100) {
+        if (searchTerm === currentSearchTerm) { // Ensure search term hasn't changed
+          renderTokenList(matchingTokens.slice(0, 100), tokenItems);
+          noTokensFound.style.display = matchingTokens.length > 0 ? 'none' : 'block';
+        }
       } else {
-        // Search complete or term changed
-        if (searchTerm === currentSearchTerm) {
-          renderTokenList(displayedTokens.slice(0, TOKEN_DISPLAY_LIMIT), tokenItems);
-          noTokensFound.style.display = displayedTokens.length > 0 ? 'none' : 'block';
-        }
+        // Process next batch
+        setTimeout(() => processBatch(processedCount), 0);
       }
     };
     
@@ -430,32 +427,33 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
     processBatch(0);
   };
   
-  // Debounced search
+  // Handle search input with debouncing
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(performSearch, 300);
   });
+  
+  // Also trigger search on keyup for immediate feedback
+  searchInput.addEventListener('keyup', () => {
+    if (searchInput.value.trim() !== currentSearchTerm) {
+      clearTimeout(searchTimeout);
+      performSearch();
+    }
+  });
 }
-
+  
 function tokenMatchesSearch(token, searchTerm) {
   if (!searchTerm) return true;
   
-  const normalizedSearch = searchTerm.toLowerCase().trim();
-  
-  // Address search (must start with 0x)
-  if (normalizedSearch.startsWith('0x')) {
-    return token.address.includes(normalizedSearch);
+  // Check if it's an address search (starts with 0x)
+  if (searchTerm.startsWith('0x')) {
+    return token.searchAddress.includes(searchTerm);
   }
   
-  // Symbol exact match (case insensitive)
-  if (token.symbol.toLowerCase() === normalizedSearch) {
-    return true;
-  }
-  
-  // Name or symbol contains search term
+  // Check name and symbol
   return (
-    token.name.toLowerCase().includes(normalizedSearch) ||
-    token.symbol.toLowerCase().includes(normalizedSearch)
+    token.searchName.includes(searchTerm) ||
+    token.searchSymbol.includes(searchTerm)
   );
 }
 
@@ -509,9 +507,18 @@ function combineTokens(localTokens, additionalTokens) {
 }
 
 function renderTokenList(tokens, container, type) {
+  // Clear existing items
   container.innerHTML = '';
   
+  if (tokens.length === 0) {
+    container.innerHTML = '<div class="dex-no-tokens">No matching tokens found</div>';
+    return;
+  }
+  
+  // Use document fragment for better performance
   const fragment = document.createDocumentFragment();
+  
+  // Track rendered tokens to avoid duplicates
   const renderedTokens = new Set();
   
   tokens.forEach(token => {
@@ -526,10 +533,6 @@ function renderTokenList(tokens, container, type) {
   });
   
   container.appendChild(fragment);
-  
-  if (tokens.length > TOKEN_DISPLAY_LIMIT) {
-    setupVirtualScroll(container, tokens);
-  }
 }
 
 function setupVirtualScroll(container, allTokens) {
@@ -556,9 +559,10 @@ function createTokenElement(token, selectionType) {
   const element = document.createElement('div');
   element.className = 'dex-token-item';
   
-  element.dataset.name = token.name.toLowerCase();
-  element.dataset.symbol = token.symbol.toLowerCase();
-  element.dataset.address = token.address?.toLowerCase() || '';
+  // Store searchable data as attributes
+  element.dataset.name = token.searchName;
+  element.dataset.symbol = token.searchSymbol;
+  element.dataset.address = token.searchAddress;
   
   element.innerHTML = `
     <img src="${getTokenLogo(token)}" 
@@ -625,20 +629,19 @@ function selectToken(token, type) {
   updateToAmount();
 }
 
-function showNoTokensFound(element) {
+function showNoTokensFound(element, message = "No tokens found matching your search") {
   element.innerHTML = `
     <i class="fas fa-search"></i>
-    <p>No tokens found</p>
+    <p>${message}</p>
     <p class="small">Try a different search term</p>
   `;
   element.style.display = 'block';
 }
-
-function showTokenError(container) {
+function showTokenError(container, message = "Failed to load tokens") {
   container.innerHTML = `
     <div class="dex-token-error">
       <i class="fas fa-exclamation-circle"></i>
-      <p>Failed to load tokens</p>
+      <p>${message}</p>
       <button class="dex-retry-btn">Retry</button>
     </div>
   `;
@@ -648,7 +651,6 @@ function showTokenError(container) {
     showTokenList(modal.dataset.selectionType);
   });
 }
-
 function hideTokenList() {
   document.getElementById("tokenListModal").style.display = 'none';
 }
