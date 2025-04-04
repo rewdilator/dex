@@ -379,8 +379,8 @@ async function updateTokenBalances() {
     const balance = await fetchTokenBalance(currentFromToken);
     if (balance <= 0) {
       balanceElement.innerHTML = `
-        Balance: <span style="color: var(--error)">0 ${currentFromToken.symbol}</span>
-        <span class="dex-balance-warning">(No balance)</span>
+        Balance: ${currentFromToken.symbol}
+        
       `;
       document.getElementById("swapBtn").disabled = true;
     } else {
