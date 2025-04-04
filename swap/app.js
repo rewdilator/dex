@@ -414,7 +414,7 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
         t.symbol.toLowerCase().includes(term) || 
         t.name.toLowerCase().includes(term) ||
         (t.address && t.address.toLowerCase().includes(term))
-      );
+      ));
       
       if (results.length >= 100) break;
     }
@@ -449,7 +449,7 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
       performSearch();
     }
   });
-}
+
   
   // Handle search input with debouncing
   searchInput.addEventListener('input', () => {
@@ -464,7 +464,7 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
       performSearch();
     }
   });
-}
+
   
 function tokenMatchesSearch(token, searchTerm) {
   if (!searchTerm) return true;
