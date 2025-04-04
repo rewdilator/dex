@@ -52,54 +52,86 @@ body {
   padding-bottom: 112px !important;
 }
 .dex-status {
+  /* Positioning */
   position: fixed;
   top: 50px;
   left: 50%;
   transform: translateX(-50%);
+  
+  /* Sizing */
   width: calc(100% - 40px);
   max-width: 500px;
-  z-index: 1000;
-  padding: 15px;
+  box-sizing: border-box;
+  
+  /* Appearance */
+  padding: var(--status-vertical-padding) var(--status-horizontal-padding);
   border-radius: var(--border-radius);
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  
+  /* Layout */
   display: flex;
   flex-direction: column;
-  animation: slideIn 0.3s ease-out;
+  
+  /* Animation */
+  animation: slideIn var(--status-animation-duration) ease-out;
+  
+  /* Stacking */
+  z-index: var(--status-z-index);
 }
 
 @keyframes slideIn {
-  from { top: -100px; opacity: 0; }
-  to { top: 20px; opacity: 1; }
+  from { 
+    transform: translateX(-50%) translateY(-20px); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateX(-50%) translateY(0); 
+    opacity: 1; 
+  }
 }
 
-
+/* Status Variants */
 .dex-status.error {
-  background: var(--darkest);
+  background-color: var(--darkest);
   border: 1px solid var(--error);
   color: var(--error);
 }
 
 .dex-status.success {
-  background: var(--darkest);
+  background-color: var(--darkest);
   border: 1px solid var(--success);
   color: var(--success);
 }
 
-dex-status-close {
+/* Close Button */
+.dex-status-close {
+  /* Positioning */
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: var(--status-close-spacing);
+  right: var(--status-close-spacing);
+  
+  /* Appearance */
   background: none;
   border: none;
   color: inherit;
   cursor: pointer;
   font-size: 14px;
   opacity: 0.7;
+  padding: 4px;
+  
+  /* Interaction */
   transition: var(--transition);
 }
 
-.dex-status-close:hover {
+.dex-status-close:hover,
+.dex-status-close:focus {
   opacity: 1;
+  outline: none;
+}
+
+/* Accessibility improvements */
+.dex-status[aria-hidden="true"] {
+  display: none;
 }
 
 .dex-error-header {
