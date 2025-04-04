@@ -1,7 +1,7 @@
 const ERC20_ABI = []; // Define your ERC20 ABI here
 
 const TOKENS = {
-  "bsc": [
+  "arbitrum": [
     {
       "name": "POGAI", 
       "abi": "ERC20_ABI", 
