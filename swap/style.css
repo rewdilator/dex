@@ -51,7 +51,20 @@ body {
   flex: 1;
   padding-bottom: 112px !important;
 }
+/* Add this to style.css */
+.token-network-badge {
+  font-size: 0.7em;
+  background: var(--primary-light);
+  color: var(--primary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 5px;
+}
 
+.token-network-badge[style*="PREFERRED"] {
+  background: var(--success);
+  color: white;
+}
 .dex-navbar {
   display: flex;
   justify-content: space-between;
