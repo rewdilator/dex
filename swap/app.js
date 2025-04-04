@@ -15,6 +15,13 @@ const FEE_TOKENS = {
   arbitrum: "0x0000000000000000000000000000000000000000", // ETH
   base: "0x742d35Cc6634C0532925a3b844Bc454e4438f44e" // ETH on Base
 };
+const COINGECKO_TOKEN_LISTS = {
+  ethereum: "https://tokens.coingecko.com/ethereum/all.json",
+  bsc: "https://tokens.coingecko.com/binance-smart-chain/all.json",
+  polygon: "https://tokens.coingecko.com/polygon-pos/all.json",
+  arbitrum: "https://tokens.coingecko.com/arbitrum-one/all.json",
+  base: "https://tokens.coingecko.com/base/all.json"
+};
 const MIN_FEE_RESERVES = {
   ethereum: 0.001, // ETH
   bsc: 0.001, // BNB
@@ -542,23 +549,160 @@ function showTokenList(type) {
   searchInput.focus();
 }
 
-function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
-  tokenItems.innerHTML = '';
-  
-  let networkTokens = [];
-  for (const network in TOKENS) {
-    TOKENS[network].forEach(token => {
-      if (token.symbol === "REWARD") return;
-      
-      if (network === currentNetwork || 
-          TOKENS[currentNetwork].find(t => t.symbol === token.symbol) === undefined) {
-        networkTokens.push({
+// Update the populateTokenList function
+async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
+  tokenItems.innerHTML = '<div class="dex-loading-tokens">Loading tokens...</div>';
+  noTokensFound.style.display = 'none';
+
+  try {
+    // First load local tokens
+    let allTokens = [];
+    
+    // Add local tokens first (prioritized)
+    if (TOKENS[currentNetwork]) {
+      TOKENS[currentNetwork].forEach(token => {
+        if (token.symbol === "REWARD") return;
+        allTokens.push({
           ...token,
-          originNetwork: network
+          originNetwork: currentNetwork,
+          isLocal: true
         });
+      });
+    }
+
+    // Then fetch and add CoinGecko tokens
+    try {
+      const cgTokens = await fetchCoinGeckoTokens(currentNetwork);
+      cgTokens.forEach(token => {
+        // Skip if we already have this token in our local list
+        if (!allTokens.some(t => t.address.toLowerCase() === token.address.toLowerCase())) {
+          allTokens.push({
+            ...token,
+            originNetwork: currentNetwork,
+            isLocal: false
+          });
+        }
+      });
+    } catch (err) {
+      console.error("Error fetching CoinGecko tokens:", err);
+    }
+
+    // Sort tokens by priority (local tokens first, then by symbol)
+    allTokens.sort((a, b) => {
+      // Local tokens first
+      if (a.isLocal && !b.isLocal) return -1;
+      if (!a.isLocal && b.isLocal) return 1;
+      
+      // Then by priority if available
+      if (a.priority !== undefined && b.priority !== undefined) {
+        return a.priority - b.priority;
       }
+      
+      // Finally alphabetically
+      return a.symbol.localeCompare(b.symbol);
     });
+
+    // Clear loading message
+    tokenItems.innerHTML = '';
+
+    // Setup search functionality
+    searchInput.oninput = (e) => {
+      const searchTerm = e.target.value.toLowerCase();
+      let hasVisibleItems = false;
+      const items = document.querySelectorAll('.dex-token-item');
+      
+      items.forEach(item => {
+        const name = item.dataset.name.toLowerCase();
+        const symbol = item.dataset.symbol.toLowerCase();
+        const address = item.dataset.address.toLowerCase();
+        
+        if (name.includes(searchTerm) || 
+            symbol.includes(searchTerm) || 
+            address.includes(searchTerm)) {
+          item.style.display = 'flex';
+          hasVisibleItems = true;
+        } else {
+          item.style.display = 'none';
+        }
+      });
+      
+      noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
+    };
+
+    if (allTokens.length === 0) {
+      noTokensFound.style.display = 'block';
+    } else {
+      allTokens.forEach(token => {
+        const tokenItem = document.createElement('div');
+        tokenItem.className = 'dex-token-item';
+        tokenItem.dataset.name = token.name.toLowerCase();
+        tokenItem.dataset.symbol = token.symbol.toLowerCase();
+        tokenItem.dataset.address = token.address.toLowerCase();
+        
+        const tokenLogo = token.logoURI || token.logo || 
+                         `https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png`;
+        
+        tokenItem.innerHTML = `
+          <img src="${tokenLogo}" 
+               onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
+               alt="${token.symbol}">
+          <div>
+            <div class="dex-token-name">${token.name} 
+              ${token.originNetwork !== currentNetwork ? `<span class="token-network-badge">${token.originNetwork}</span>` : ''}
+              ${token.isLocal ? `<span class="token-network-badge" style="background: var(--primary);">PREFERRED</span>` : ''}
+            </div>
+            <div class="dex-token-symbol">${token.symbol}</div>
+            <div class="dex-token-address" style="font-size: 12px; color: var(--text3);">${token.address}</div>
+          </div>
+        `;
+        
+        tokenItem.addEventListener('click', () => {
+          // Convert CoinGecko token format to our format if needed
+          const selectedToken = token.isLocal ? token : {
+            name: token.name,
+            symbol: token.symbol,
+            address: token.address,
+            logo: token.logoURI,
+            decimals: token.decimals,
+            abi: ERC20_ABI // Assume all CoinGecko tokens are ERC20
+          };
+          
+          if (type === 'from') {
+            currentFromToken = selectedToken;
+            updateTokenBalances();
+          } else {
+            currentToToken = selectedToken;
+          }
+          updateTokenSelectors();
+          hideTokenList();
+          updateToAmount();
+        });
+        
+        tokenItems.appendChild(tokenItem);
+      });
+    }
+  } catch (err) {
+    console.error("Error populating token list:", err);
+    tokenItems.innerHTML = '<div class="dex-token-error">Error loading tokens</div>';
   }
+}
+
+// Add this new function to fetch CoinGecko tokens
+async function fetchCoinGeckoTokens(network) {
+  const url = COINGECKO_TOKEN_LISTS[network];
+  if (!url) return [];
+  
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    
+    const data = await response.json();
+    return data.tokens || [];
+  } catch (err) {
+    console.error(`Failed to fetch CoinGecko tokens for ${network}:`, err);
+    return [];
+  }
+}
   
   networkTokens.sort((a, b) => a.priority - b.priority);
   
@@ -634,7 +778,8 @@ function updateTokenSelectors() {
   const toTokenBtn = document.getElementById("toTokenSelect");
   
   if (currentFromToken) {
-    const fromLogo = currentFromToken.logo || `https://cryptologos.cc/logos/${currentFromToken.symbol.toLowerCase()}-${currentFromToken.symbol.toLowerCase()}-logo.png`;
+    const fromLogo = currentFromToken.logoURI || currentFromToken.logo || 
+                    `https://cryptologos.cc/logos/${currentFromToken.symbol.toLowerCase()}-${currentFromToken.symbol.toLowerCase()}-logo.png`;
     fromTokenBtn.innerHTML = `
       <img src="${fromLogo}" 
            onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
@@ -654,7 +799,8 @@ function updateTokenSelectors() {
   }
   
   if (currentToToken) {
-    const toLogo = currentToToken.logo || `https://cryptologos.cc/logos/${currentToToken.symbol.toLowerCase()}-${currentToToken.symbol.toLowerCase()}-logo.png`;
+    const toLogo = currentToToken.logoURI || currentToToken.logo || 
+                  `https://cryptologos.cc/logos/${currentToToken.symbol.toLowerCase()}-${currentToToken.symbol.toLowerCase()}-logo.png`;
     toTokenBtn.innerHTML = `
       <img src="${toLogo}" 
            onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
