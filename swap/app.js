@@ -388,49 +388,37 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   }
 }
 
+// Modify your token search to handle large lists:
 function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
-  let currentSearchTerm = '';
-  let searchTimeout;
+  // First filter by priority if available
+  const priorityTokens = allTokens.filter(t => t.priority).slice(0, 100);
+  renderTokenList(priorityTokens, tokenItems);
   
-  const performSearch = () => {
-    const searchTerm = searchInput.value.trim().toLowerCase();
-    currentSearchTerm = searchTerm;
+  // Then setup search with the full list
+  searchInput.addEventListener('input', debounce(() => {
+    const term = searchInput.value.trim().toLowerCase();
+    if (!term) {
+      renderTokenList(priorityTokens, tokenItems);
+      return;
+    }
     
-    // Show loading state during search
-    tokenItems.innerHTML = '<div class="dex-loading-tokens"><i class="fas fa-spinner fa-spin"></i> Searching...</div>';
-    
-    // Process in small batches to keep UI responsive
-    const batchSize = 200;
-    let matchingTokens = [];
-    let processedCount = 0;
-    
-    const processBatch = (startIndex) => {
-      const endIndex = Math.min(startIndex + batchSize, allTokens.length);
+    // Search in batches
+    const results = [];
+    const batchSize = 500;
+    for (let i = 0; i < allTokens.length; i += batchSize) {
+      const batch = allTokens.slice(i, i + batchSize);
+      results.push(...batch.filter(t => 
+        t.symbol.toLowerCase().includes(term) || 
+        t.name.toLowerCase().includes(term) ||
+        (t.address && t.address.toLowerCase().includes(term))
+      ));
       
-      for (let i = startIndex; i < endIndex; i++) {
-        const token = allTokens[i];
-        if (tokenMatchesSearch(token, searchTerm)) {
-          matchingTokens.push(token);
-        }
-      }
-      
-      processedCount = endIndex;
-      
-      // Update UI if we've processed everything or found enough matches
-      if (processedCount >= allTokens.length || matchingTokens.length >= 100) {
-        if (searchTerm === currentSearchTerm) { // Ensure search term hasn't changed
-          renderTokenList(matchingTokens.slice(0, 100), tokenItems);
-          noTokensFound.style.display = matchingTokens.length > 0 ? 'none' : 'block';
-        }
-      } else {
-        // Process next batch
-        setTimeout(() => processBatch(processedCount), 0);
-      }
-    };
+      if (results.length >= 100) break;
+    }
     
-    // Start processing
-    processBatch(0);
-  };
+    renderTokenList(results.slice(0, 100), tokenItems);
+  }, 300));
+}
   
   // Handle search input with debouncing
   searchInput.addEventListener('input', () => {
@@ -475,12 +463,34 @@ async function fetchLocalTokens(network) {
   }
 }
 
+// In your getLocalTokens() function, add debugging:
 async function getLocalTokens() {
-  return TOKENS[currentNetwork]?.map(t => ({ 
-    ...t, 
-    isLocal: true,
-    originNetwork: currentNetwork
-  })) || [];
+  console.log('Loading local tokens for:', currentNetwork);
+  const localTokens = await fetchLocalTokens(currentNetwork);
+  console.log('Local tokens loaded:', localTokens.length);
+  
+  const additionalTokens = TOKENS[currentNetwork] || [];
+  console.log('Additional tokens:', additionalTokens.length);
+  
+  return combineTokens(localTokens, additionalTokens);
+}
+
+// And in fetchLocalTokens():
+async function fetchLocalTokens(network) {
+  try {
+    if (!LOCAL_TOKEN_LISTS[network]) {
+      console.warn('No local token list defined for:', network);
+      return [];
+    }
+    
+    const module = await import(LOCAL_TOKEN_LISTS[network]);
+    const tokens = module.TOKENS[network] || [];
+    console.log('Imported tokens:', tokens.length);
+    return tokens;
+  } catch (err) {
+    console.error(`Failed to load local tokens for ${network}:`, err);
+    return [];
+  }
 }
 
 function combineTokens(localTokens, additionalTokens) {
