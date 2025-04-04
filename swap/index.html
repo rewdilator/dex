@@ -115,26 +115,23 @@
         </button>
 
         <!-- Improved Token List Modal -->
-        <div class="dex-token-list" id="tokenListModal" style="display: none;">
-          <div class="dex-token-list-container">
-            <div class="dex-token-list-header">
-              <h3>Select Token</h3>
-              <button id="closeTokenList" class="dex-close-btn">
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
-            <div class="dex-token-search-container">
-              <div class="dex-token-search">
-                <i class="fas fa-search"></i>
-                <input type="text" placeholder="Search name or paste address" id="tokenSearch">
-              </div>
-            </div>
-            <div id="noTokensFound">
-              <i class="fas fa-search"></i>
-              <p>No tokens found matching your search</p>
-            </div>
-            <div class="dex-token-list-content">
-              <div class="dex-token-items" id="tokenItems">
+      <div class="dex-token-list" id="tokenListModal" style="display: none;">
+  <div class="dex-token-list-container">
+    <div class="dex-token-list-header">
+      <h3>Select Token</h3>
+      <button id="closeTokenList" class="dex-close-btn">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="dex-token-search">
+      <input type="text" placeholder="Search token name or symbol" id="tokenSearch">
+      <i class="fas fa-search"></i>
+    </div>
+    <div id="noTokensFound">
+      <i class="fas fa-search"></i>
+      <p>No tokens found</p>
+    </div>
+    <div class="dex-token-items" id="tokenItems">
                 <!-- Tokens will be populated here -->
               </div>
             </div>
