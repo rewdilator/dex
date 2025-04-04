@@ -1,7 +1,6 @@
-const ERC20_ABI = []; // Define your ERC20 ABI here
-
+// config/bsc-tokens.js
 const TOKENS = {
-  "bsc": [
+  bsc: [
     {
       "name": "Lithosphere", 
       "abi": "ERC20_ABI", 
