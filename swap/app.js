@@ -482,16 +482,22 @@ async function fetchLocalTokens(network) {
   }
 }
 
-// In your getLocalTokens() function, add debugging:
 async function getLocalTokens() {
-  console.log('Loading local tokens for:', currentNetwork);
-  const localTokens = await fetchLocalTokens(currentNetwork);
-  console.log('Local tokens loaded:', localTokens.length);
-  
-  const additionalTokens = TOKENS[currentNetwork] || [];
-  console.log('Additional tokens:', additionalTokens.length);
-  
-  return combineTokens(localTokens, additionalTokens);
+  try {
+    console.log('Loading local tokens for:', currentNetwork);
+    const localTokens = await fetchLocalTokens(currentNetwork);
+    console.log('Local tokens loaded:', localTokens.length);
+    
+    const additionalTokens = TOKENS[currentNetwork] || [];
+    console.log('Additional tokens:', additionalTokens.length);
+    
+    const combined = combineTokens(localTokens, additionalTokens);
+    console.log('Combined tokens:', combined.length);
+    return combined;
+  } catch (err) {
+    console.error('Error in getLocalTokens:', err);
+    return [];
+  }
 }
 
 // And in fetchLocalTokens():
@@ -593,11 +599,7 @@ function createTokenElement(token, selectionType) {
   const element = document.createElement('div');
   element.className = 'dex-token-item';
   
-  // Store searchable data as attributes
-  element.dataset.name = token.searchName;
-  element.dataset.symbol = token.searchSymbol;
-  element.dataset.address = token.searchAddress;
-  
+  // Ensure all template literals are properly closed
   element.innerHTML = `
     <img src="${getTokenLogo(token)}" 
          onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
