@@ -363,7 +363,7 @@ function createTokenElement(token, selectionType) {
   const element = document.createElement('div');
   element.className = 'dex-token-item';
   
-  // Store searchable data
+  // Store searchable data - ensure address is lowercase for consistent matching
   element.dataset.name = token.name.toLowerCase();
   element.dataset.symbol = token.symbol.toLowerCase();
   element.dataset.address = token.address?.toLowerCase() || '';
@@ -467,13 +467,22 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound) {
 function itemMatchesSearch(item, searchTerm) {
   if (!searchTerm) return true;
   
+  // Check if search term looks like an address (starts with 0x and at least 4 chars)
+  const isAddressSearch = searchTerm.startsWith('0x') && searchTerm.length >= 4;
+  
+  // If searching by address, only check the address field
+  if (isAddressSearch) {
+    return item.dataset.address?.includes(searchTerm.toLowerCase());
+  }
+  
+  // Otherwise check all fields
   const fields = [
     item.dataset.name,
     item.dataset.symbol,
     item.dataset.address
   ];
   
-  return fields.some(field => field?.includes(searchTerm));
+  return fields.some(field => field?.includes(searchTerm.toLowerCase()));
 }
 
 function highlightMatches(element, searchTerm) {
