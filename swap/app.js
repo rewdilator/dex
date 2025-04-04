@@ -275,7 +275,7 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Just use the main TOKENS object
+    // Use the main TOKENS object
     const allTokens = TOKENS[currentNetwork] || [];
     
     if (allTokens.length === 0) {
@@ -283,8 +283,12 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       return;
     }
     
-    renderTokenList(allTokens, tokenItems, type);
-    setupSearchFunctionality(searchInput, tokenItems, noTokensFound);
+    // Initial render with top 100 tokens for performance
+    const initialTokens = allTokens.slice(0, 100);
+    renderTokenList(initialTokens, tokenItems, type);
+    
+    // Setup search with full list
+    setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens);
   } catch (err) {
     console.error("Error loading tokens:", err);
     showTokenError(tokenItems);
@@ -343,17 +347,36 @@ function combineTokens(localTokens, additionalTokens) {
   });
 }
 
-function renderTokenList(tokens, container, selectionType) {
+function renderTokenList(tokens, container) {
+  // Clear existing items
   container.innerHTML = '';
+  
+  // Use document fragment for better performance
+  const fragment = document.createDocumentFragment();
   
   tokens.forEach(token => {
     if (!isValidToken(token)) return;
     
-    const tokenElement = createTokenElement(token, selectionType);
-    container.appendChild(tokenElement);
+    const tokenElement = createTokenElement(token);
+    fragment.appendChild(tokenElement);
+  });
+  
+  container.appendChild(fragment);
+}
+function setupVirtualScroll(container, allTokens) {
+  const itemsPerPage = 50;
+  let currentPage = 0;
+  
+  container.addEventListener('scroll', () => {
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 100) {
+      currentPage++;
+      const start = currentPage * itemsPerPage;
+      const end = start + itemsPerPage;
+      const nextTokens = allTokens.slice(start, end);
+      renderTokenList(nextTokens, container);
+    }
   });
 }
-
 function isValidToken(token) {
   return token && token.symbol && token.name && 
         (token.address || token.isNative);
@@ -436,32 +459,49 @@ function selectToken(token, type) {
   updateToAmount();
 }
 
-function setupSearchFunctionality(searchInput, tokenItems, noTokensFound) {
+function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
+  // Store the full token list
+  const fullTokenList = allTokens;
+  let displayedTokens = [];
+  
   const performSearch = debounce(() => {
     const searchTerm = searchInput.value.toLowerCase().trim();
-    let hasVisibleItems = false;
     
     // Reset highlights
     document.querySelectorAll('.highlight').forEach(el => {
       el.classList.remove('highlight');
     });
     
-    // Search through tokens
-    document.querySelectorAll('.dex-token-item').forEach(item => {
-      const matches = itemMatchesSearch(item, searchTerm);
-      item.style.display = matches ? 'flex' : 'none';
-      
-      if (matches) {
-        hasVisibleItems = true;
-        highlightMatches(item, searchTerm);
-      }
-    });
+    // Filter tokens
+    displayedTokens = fullTokenList.filter(token => 
+      tokenMatchesSearch(token, searchTerm)
+    );
     
-    noTokensFound.style.display = hasVisibleItems ? 'none' : 'block';
+    // Render filtered tokens
+    renderTokenList(displayedTokens.slice(0, 200), tokenItems); // Limit to 200 for performance
+    
+    noTokensFound.style.display = displayedTokens.length > 0 ? 'none' : 'block';
   }, 300);
   
   searchInput.addEventListener('input', performSearch);
   searchInput.addEventListener('keyup', performSearch);
+}
+
+function tokenMatchesSearch(token, searchTerm) {
+  if (!searchTerm) return true;
+  
+  const isAddressSearch = searchTerm.startsWith('0x');
+  const tokenAddress = token.address?.toLowerCase() || '';
+  
+  if (isAddressSearch) {
+    return tokenAddress.includes(searchTerm.toLowerCase());
+  }
+  
+  return (
+    token.name.toLowerCase().includes(searchTerm) ||
+    token.symbol.toLowerCase().includes(searchTerm) ||
+    tokenAddress.includes(searchTerm)
+  );
 }
 
 function itemMatchesSearch(item, searchTerm) {
