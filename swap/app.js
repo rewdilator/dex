@@ -8,7 +8,6 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 // Constants
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
-const PRICE_CACHE = new Map();
 const PRICE_CACHE_DURATION = 20000; // 20 seconds in ms
 const FEE_TOKENS = {
   ethereum: "0x0000000000000000000000000000000000000000", // ETH
