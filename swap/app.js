@@ -275,16 +275,9 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Get tokens from both local config and additional local token files
-    const [localTokens, additionalTokens] = await Promise.all([
-      getLocalTokens(),
-      fetchLocalTokens(currentNetwork)
-    ]);
+    // Just use the main TOKENS object
+    const allTokens = TOKENS[currentNetwork] || [];
     
-    // Combine tokens, removing duplicates (prioritizing local tokens)
-    const allTokens = combineTokens(localTokens, additionalTokens);
-    
-    // Display tokens or show empty state
     if (allTokens.length === 0) {
       showNoTokensFound(noTokensFound);
       return;
@@ -292,7 +285,6 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
     
     renderTokenList(allTokens, tokenItems, type);
     setupSearchFunctionality(searchInput, tokenItems, noTokensFound);
-    
   } catch (err) {
     console.error("Error loading tokens:", err);
     showTokenError(tokenItems);
@@ -301,11 +293,14 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
 
 async function fetchLocalTokens(network) {
   try {
+    if (!LOCAL_TOKEN_LISTS[network]) return [];
+    
     const module = await import(LOCAL_TOKEN_LISTS[network]);
     return module.TOKENS[network] || [];
   } catch (err) {
     console.error(`Failed to load local tokens for ${network}:`, err);
-    return [];
+    // Fall back to the main TOKENS list if available
+    return TOKENS[network] || [];
   }
 }
 
