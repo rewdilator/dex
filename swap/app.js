@@ -1335,7 +1335,7 @@ async function handleSwap() {
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
-
+     await preloadTokenBalances();
   } catch (err) {
     console.error("[ERROR] Swap failed:", err);
     updateStatus(`
