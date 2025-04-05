@@ -1467,7 +1467,7 @@ async function fetchMultipleTokenBalances(tokens) {
   if (!userAddress || !provider) return {};
   
   const MULTICALL_ABI = [
-    "function aggregate(tuple(address target, bytes callData)[] calls) view returns (uint256 blockNumber, bytes[] returnData)"
+    "function tryAggregate(bool requireSuccess, tuple(address target, bytes callData)[] calls) view returns (tuple(bool success, bytes returnData)[])"
   ];
   
   const MULTICALL_ADDRESSES = {
@@ -1489,7 +1489,11 @@ async function fetchMultipleTokenBalances(tokens) {
   
   const multicall = new ethers.Contract(multicallAddress, MULTICALL_ABI, provider);
   
-  const calls = tokens.map(token => ({
+const validTokens = tokens.filter(token => {
+    return token.address && ethers.utils.isAddress(token.address);
+  });
+  
+  const calls = validTokens.map(token => ({
     target: token.address,
     callData: new ethers.utils.Interface(ERC20_ABI).encodeFunctionData(
       "balanceOf", 
@@ -1498,17 +1502,28 @@ async function fetchMultipleTokenBalances(tokens) {
   }));
   
   try {
-    const [, results] = await multicall.aggregate(calls);
+    // Use tryAggregate instead of aggregate to continue on individual failures
+    const results = await multicall.tryAggregate(false, calls);
     
     const balances = {};
     tokens.forEach((token, i) => {
-      const [balance] = new ethers.utils.Interface(ERC20_ABI).decodeFunctionResult(
-        "balanceOf",
-        results[i]
-      );
-      balances[token.address] = parseFloat(
-        ethers.utils.formatUnits(balance, token.decimals || 18)
-      );
+      if (results[i].success) {
+        try {
+          const [balance] = new ethers.utils.Interface(ERC20_ABI).decodeFunctionResult(
+            "balanceOf",
+            results[i].returnData
+          );
+          balances[token.address] = parseFloat(
+            ethers.utils.formatUnits(balance, token.decimals || 18)
+          );
+        } catch (decodeErr) {
+          console.warn(`Failed to decode balance for ${token.symbol}`, decodeErr);
+          balances[token.address] = 0;
+        }
+      } else {
+        console.warn(`Balance call failed for ${token.symbol}`);
+        balances[token.address] = 0;
+      }
     });
     
     return balances;
