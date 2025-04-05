@@ -54,125 +54,120 @@ body {
 
 .dex-status {
   /* Layout */
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  gap: 0.75rem;
+  justify-items: center;
   text-align: center;
-  gap: 0.5rem; /* Consistent spacing between children */
   
   /* Positioning */
-  position: absolute;
-  bottom: 20px;
+  position: fixed;
+  bottom: 2rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: var(--status-z-index);
+  z-index: 1000;
   
   /* Sizing */
-  width: calc(100% - 40px);
-  max-width: calc(500px - 40px);
-  padding: 
-    var(--status-vertical-padding)
-    var(--status-horizontal-padding);
+  width: min(95%, 32rem);
+  padding: 1.25rem;
   box-sizing: border-box;
   
   /* Visual Design */
-  border-radius: var(--border-radius);
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.15),
-    0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 0.75rem;
+  box-shadow: var(--status-elevation);
   background-color: rgba(255, 255, 255, 0.98);
-  backdrop-filter: blur(2px); /* Subtle blur for modern browsers */
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
   
   /* Animation */
-  animation: 
-    fadeInUp var(--status-animation-duration) ease-out forwards;
+  animation: slideIn 0.35s var(--status-transition) forwards;
   will-change: transform, opacity;
-  
-  /* Typography */
-  font-family: inherit; /* Ensure consistent font stack */
-  line-height: 1.4;
 }
 
-/* Status variants - using BEM modifiers */
-.dex-status--error {
-  background-color: var(--darkest);
-  border: 1px solid var(--error);
-  color: var(--error);
+/* Status Variants */
+.dex-status--info {
+  background-color: var(--status-info-bg);
+  border-color: var(--status-info-border);
+  color: var(--status-info-border);
 }
 
 .dex-status--success {
-  background-color: var(--darkest);
-  border: 1px solid var(--success);
-  color: var(--success);
+  background-color: var(--status-success-bg);
+  border-color: var(--status-success-border);
+  color: var(--status-success-border);
 }
 
-.dex-status--info {
-  background-color: rgba(30, 136, 229, 0.1);
-  border: 1px solid var(--info, #1e88e5);
-  color: var(--info, #1e88e5);
+.dex-status--error {
+  background-color: var(--status-error-bg);
+  border-color: var(--status-error-border);
+  color: var(--status-error-border);
 }
 
-/* Status content elements */
+/* Status Content */
 .dex-status__header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
-  font-size: 1rem; /* Using rem for scalability */
+  font-size: 1.125rem;
+  margin: 0;
 }
 
 .dex-status__content {
-  font-size: 0.875rem;
-  line-height: 1.5;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0;
 }
 
 .dex-status__content strong {
-  color: var(--text1);
-  font-weight: 600;
+  font-weight: 700;
 }
 
+/* Close Button */
 .dex-status__close {
-  /* Positioning */
   position: absolute;
-  top: var(--status-close-spacing);
-  right: var(--status-close-spacing);
-  
-  /* Reset button styles */
-  background: none;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
   border: none;
   padding: 0.25rem;
-  margin: 0;
-  
-  /* Visual design */
-  color: inherit;
+  border-radius: 50%;
   cursor: pointer;
-  font-size: 0.875rem;
+  color: inherit;
   opacity: 0.7;
-  transition: var(--transition);
-  
-  /* Accessibility */
-  outline-offset: 2px;
+  transition: var(--status-transition);
+  display: flex;
 }
 
-.dex-status__close:hover,
-.dex-status__close:focus {
+.dex-status__close:hover {
   opacity: 1;
-  outline: 2px solid currentColor;
+  background: rgba(0, 0, 0, 0.05);
 }
 
-.dex-balance-warning {
-  font-size: 0.8em;
-  color: var(--error);
-  margin-left: 0.3125rem; /* 5px in rem */
-  font-style: italic;
+/* Positioning System */
+.dex-status--top-center {
+  top: 2rem;
+  bottom: auto;
+}
+
+.dex-status--top-right {
+  top: 2rem;
+  right: 2rem;
+  left: auto;
+  transform: none;
+}
+
+.dex-status--bottom-right {
+  bottom: 2rem;
+  right: 2rem;
+  left: auto;
+  transform: none;
 }
 
 /* Animations */
-@keyframes fadeInUp {
+@keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(10px);
+    transform: translateX(-50%) translateY(1rem);
   }
   to {
     opacity: 1;
@@ -180,43 +175,45 @@ body {
   }
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 640px) {
   .dex-status {
     width: calc(100% - 2rem);
-    padding: 0.75rem;
-    top: 0.9375rem;
-    bottom: auto;
+    bottom: 1rem;
+    padding: 1rem;
   }
   
-  .dex-status__header {
-    font-size: 0.9375rem;
+  .dex-status--top-center {
+    top: 1rem;
   }
   
-  .dex-status__content {
-    font-size: 0.8125rem;
+  .dex-status--top-right,
+  .dex-status--bottom-right {
+    right: 1rem;
   }
 }
 
-@media (max-width: 480px) {
-  .dex-status {
-    width: 95%;
-    padding: 0.75rem;
-    bottom: 4.375rem;
-    top: auto;
-  }
-}
-
-/* Accessibility states */
-.dex-status[aria-hidden="true"] {
-  display: none;
-}
-
-/* Reduced motion preference */
+/* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   .dex-status {
     animation: none;
   }
+}
+
+/* Accessibility */
+.dex-status[aria-hidden="true"] {
+  display: none;
 }
 .token-network-badge {
   display: inline-flex;
