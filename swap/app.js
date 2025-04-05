@@ -339,7 +339,7 @@ function debugTokenSearch(tokenAddress) {
 }
 
 function showTokenList(type) {
-  const modal = document.getElementById("tokenListModal");
+  const modal = document.getElementById("tokenListModal")
   const tokenItems = document.getElementById("tokenItems");
   const searchInput = document.getElementById("tokenSearch");
   const noTokensFound = document.getElementById("noTokensFound");
@@ -645,7 +645,11 @@ function createTokenElement(token, selectionType) {
     </div>
   `;
 
-  element.addEventListener('click', () => selectToken(token, selectionType));
+element.addEventListener('click', () => {
+    const modal = document.getElementById("tokenListModal");
+    const selectionType = modal.dataset.selectionType;
+    selectToken(token, selectionType);
+  });
   
   const copyIcon = element.querySelector('.copy-icon');
   if (copyIcon) {
@@ -679,9 +683,23 @@ function getChainBadge(chain) {
 
 function selectToken(token, type) {
   if (type === 'from') {
+    // Don't allow selecting the same token in both fields
+    if (currentToToken && 
+        ((token.address && token.address === currentToToken.address) || 
+         (token.isNative && currentToToken.isNative))) {
+      updateStatus("Cannot select the same token for both sides", "error");
+      return;
+    }
     currentFromToken = token;
     updateTokenBalances();
   } else {
+    // Don't allow selecting the same token in both fields
+    if (currentFromToken && 
+        ((token.address && token.address === currentFromToken.address) || 
+         (token.isNative && currentFromToken.isNative))) {
+      updateStatus("Cannot select the same token for both sides", "error");
+      return;
+    }
     currentToToken = token;
   }
   
