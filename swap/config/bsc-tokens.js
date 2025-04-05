@@ -1,5 +1,5 @@
 // config/bsc-tokens.js
-const BSC_TOKENS = [
+const TOKENS = [
   {
       "name": "Lithosphere", 
       "abi": "ERC20_ABI", 
@@ -27102,5 +27102,5 @@ const BSC_TOKENS = [
 ];
 
 export default {
-  bsc: BSC_TOKENS
+  bsc: TOKENS
 };
