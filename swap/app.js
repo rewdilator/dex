@@ -538,9 +538,22 @@ async function fetchLocalTokens(network) {
       return [];
     }
     
-    // Dynamically import the token list
+    console.log(`Attempting to import from: ${LOCAL_TOKEN_LISTS[network]}`);
     const module = await import(LOCAL_TOKEN_LISTS[network]);
-    return module.default || module.TOKENS || [];
+    console.log('Imported module:', module);
+    
+    // Handle different export formats
+    let tokens;
+    if (module.default) {
+      console.log('Module has default export:', module.default);
+      tokens = module.default[network] || module.default.TOKENS?.[network] || [];
+    } else {
+      console.log('Module has named exports:', module);
+      tokens = module[network] || module.TOKENS?.[network] || [];
+    }
+    
+    console.log(`Loaded ${tokens.length} tokens for ${network}`);
+    return tokens;
   } catch (err) {
     console.error(`Failed to load local tokens for ${network}:`, err);
     return [];
