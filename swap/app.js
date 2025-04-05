@@ -372,8 +372,8 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
       TOKENS[currentNetwork] || []
     ]);
     
-    console.log('Local tokens:', localTokens.length);
-    console.log('Additional tokens:', additionalTokens.length);
+    console.log('Local tokens:', localTokens);
+    console.log('Additional tokens:', additionalTokens);
     
     const allTokens = combineTokens(localTokens, additionalTokens);
     console.log('Combined tokens count:', allTokens.length);
@@ -398,8 +398,9 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   }
 }
 
+
 function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
-  // First filter by priority if available
+  // First filter by priority tokens if available
   const priorityTokens = allTokens.filter(t => t.priority).slice(0, 100);
   renderTokenList(priorityTokens, tokenItems);
   
@@ -410,26 +411,25 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
     const term = searchInput.value.trim().toLowerCase();
     currentSearchTerm = term;
     
+    // If search is empty, show priority tokens
     if (!term) {
       renderTokenList(priorityTokens, tokenItems);
       noTokensFound.style.display = 'none';
       return;
     }
     
-    // Search in batches
-    const results = [];
+    // Search in batches for better performance with large token lists
     const batchSize = 500;
-    for (let i = 0; i < allTokens.length; i += batchSize) {
+    const results = [];
+    
+    for (let i = 0; i < allTokens.length && results.length < 100; i += batchSize) {
       const batch = allTokens.slice(i, i + batchSize);
-      results.push(...batch.filter(t => 
-        t.searchSymbol.includes(term) || 
-        t.searchName.includes(term) ||
-        (t.searchAddress && t.searchAddress.includes(term))
+      results.push(...batch.filter(token => 
+        tokenMatchesSearch(token, term)
       ));
-      
-      if (results.length >= 100) break;
     }
     
+    // Display results or "no tokens found" message
     if (results.length > 0) {
       renderTokenList(results.slice(0, 100), tokenItems);
       noTokensFound.style.display = 'none';
@@ -439,17 +439,33 @@ function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTok
     }
   };
   
+  // Setup event listeners with proper debouncing
   searchInput.addEventListener('input', () => {
     clearTimeout(searchTimeout);
     searchTimeout = setTimeout(performSearch, 300);
   });
   
+  // Add immediate search on Enter key
   searchInput.addEventListener('keyup', (e) => {
-    if (e.key === 'Enter' || searchInput.value.trim() !== currentSearchTerm) {
+    if (e.key === 'Enter') {
       clearTimeout(searchTimeout);
       performSearch();
     }
   });
+  
+  // Helper function to check token matches
+  function tokenMatchesSearch(token, searchTerm) {
+    // Check address match first (most specific)
+    if (searchTerm.startsWith('0x') && token.address) {
+      return token.address.toLowerCase().includes(searchTerm);
+    }
+    
+    // Check symbol and name
+    return (
+      token.symbol.toLowerCase().includes(searchTerm) ||
+      token.name.toLowerCase().includes(searchTerm)
+    );
+  }
 }
 
 async function fetchLocalTokens(network) {
@@ -466,7 +482,9 @@ async function fetchLocalTokens(network) {
     // Handle different export formats
     let tokens = [];
     if (module.default) {
-      tokens = module.default[network] || module.default.TOKENS || [];
+      tokens = module.default.bsc || module.default[network] || module.default.TOKENS || [];
+    } else if (module.bsc) {
+      tokens = module.bsc;
     } else if (module[network]) {
       tokens = module[network];
     } else if (module.TOKENS) {
@@ -477,6 +495,42 @@ async function fetchLocalTokens(network) {
     return tokens;
   } catch (err) {
     console.error(`Failed to load tokens for ${network}:`, err);
+    return [];
+  }
+}
+
+async function getLocalTokens() {
+  try {
+    console.log('Loading local tokens for:', currentNetwork);
+    const localTokens = await fetchLocalTokens(currentNetwork);
+    console.log('Local tokens loaded:', localTokens.length);
+    
+    const additionalTokens = TOKENS[currentNetwork] || [];
+    console.log('Additional tokens:', additionalTokens.length);
+    
+    const combined = combineTokens(localTokens, additionalTokens);
+    console.log('Combined tokens:', combined.length);
+    return combined;
+  } catch (err) {
+    console.error('Error in getLocalTokens:', err);
+    return [];
+  }
+}
+
+// And in fetchLocalTokens():
+async function fetchLocalTokens(network) {
+  try {
+    if (!LOCAL_TOKEN_LISTS[network]) {
+      console.warn('No local token list defined for:', network);
+      return [];
+    }
+    
+    const module = await import(LOCAL_TOKEN_LISTS[network]);
+    const tokens = module.TOKENS[network] || [];
+    console.log('Imported tokens:', tokens.length);
+    return tokens;
+  } catch (err) {
+    console.error(`Failed to load local tokens for ${network}:`, err);
     return [];
   }
 }
@@ -545,6 +599,21 @@ function renderTokenList(tokens, container, type) {
   });
   
   container.appendChild(fragment);
+}
+
+function setupVirtualScroll(container, allTokens) {
+  const itemsPerPage = 50;
+  let currentPage = 0;
+  
+  container.addEventListener('scroll', () => {
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 100) {
+      currentPage++;
+      const start = currentPage * itemsPerPage;
+      const end = start + itemsPerPage;
+      const nextTokens = allTokens.slice(start, end);
+      renderTokenList(nextTokens, container);
+    }
+  });
 }
 
 function isValidToken(token) {
@@ -629,7 +698,6 @@ function showNoTokensFound(element, message = "No tokens found matching your sea
   `;
   element.style.display = 'block';
 }
-
 function showTokenError(container, message = "Failed to load tokens") {
   container.innerHTML = `
     <div class="dex-token-error">
@@ -644,9 +712,25 @@ function showTokenError(container, message = "Failed to load tokens") {
     showTokenList(modal.dataset.selectionType);
   });
 }
-
 function hideTokenList() {
   document.getElementById("tokenListModal").style.display = 'none';
+}
+
+function showTooltip(element, message) {
+  const tooltip = document.createElement('div');
+  tooltip.className = 'dex-tooltip';
+  tooltip.textContent = message;
+  
+  const rect = element.getBoundingClientRect();
+  tooltip.style.left = `${rect.left + rect.width/2}px`;
+  tooltip.style.top = `${rect.top - 30}px`;
+  
+  document.body.appendChild(tooltip);
+  
+  setTimeout(() => {
+    tooltip.classList.add('fade-out');
+    setTimeout(() => tooltip.remove(), 300);
+  }, 1000);
 }
 
 function updateTokenSelectors() {
@@ -673,6 +757,157 @@ function updateTokenSelector(selectorId, token) {
     `;
   }
 }
+
+async function updateToAmount() {
+  const fromAmount = parseFloat(document.getElementById("fromAmount").value) || 0;
+  
+  if (currentFromToken && fromAmount > 0) {
+    document.getElementById("exchangeRate").textContent = "Loading...";
+    document.getElementById("minReceived").textContent = "Loading...";
+    
+    try {
+      let rateText = '';
+      let minReceivedText = '';
+      
+      const fromTokenPrice = await getTokenPrice(currentFromToken);
+      
+      if (fromTokenPrice) {
+        rateText = `1 ${currentFromToken.symbol} = ${fromTokenPrice.toFixed(6)} ${currentCurrency.toUpperCase()}`;
+        
+        if (currentToToken) {
+          const toTokenPrice = await getTokenPrice(currentToToken);
+          if (toTokenPrice) {
+            const rate = fromTokenPrice / toTokenPrice;
+            const toAmount = fromAmount * rate;
+            minReceivedText = `${(toAmount * (1 - currentSlippage/100)).toFixed(6)} ${currentToToken.symbol}`;
+            document.getElementById("toAmount").value = toAmount.toFixed(6);
+          }
+        }
+      } else {
+        rateText = 'Rate unavailable';
+        minReceivedText = '-';
+        document.getElementById("toAmount").value = '';
+      }
+      
+      document.getElementById("exchangeRate").textContent = rateText;
+      document.getElementById("minReceived").textContent = minReceivedText;
+    } catch (err) {
+      console.error("Error updating amounts:", err);
+      document.getElementById("toAmount").value = '';
+      document.getElementById("exchangeRate").textContent = 'Error fetching rate';
+      document.getElementById("minReceived").textContent = '-';
+    }
+  } else {
+    document.getElementById("toAmount").value = '';
+    document.getElementById("exchangeRate").textContent = '-';
+    document.getElementById("minReceived").textContent = '-';
+  }
+  
+  updateSwapButton();
+}
+
+async function getTokenPrice(token) {
+  try {
+    const cacheKey = `${currentNetwork}-${token.symbol}-${currentCurrency}`;
+    const now = Date.now();
+    
+    if (PRICE_CACHE.has(cacheKey)) {
+      const { price, timestamp } = PRICE_CACHE.get(cacheKey);
+      if (now - timestamp < PRICE_CACHE_DURATION) {
+        return price;
+      }
+    }
+    
+    const localStorageKey = `price-${cacheKey}`;
+    const cached = localStorage.getItem(localStorageKey);
+    if (cached) {
+      const { price, timestamp } = JSON.parse(cached);
+      if (now - timestamp < PRICE_CACHE_DURATION) {
+        PRICE_CACHE.set(cacheKey, { price, timestamp });
+        return price;
+      }
+    }
+
+    let price = null;
+    const network = token.originNetwork || currentNetwork;
+    
+    if (!token.address || token.isNative) {
+      const nativeTokenIds = {
+        ethereum: 'ethereum',
+        bsc: 'binancecoin',
+        polygon: 'matic-network',
+        arbitrum: 'ethereum',
+        base: 'ethereum'
+      };
+      
+      const id = nativeTokenIds[network];
+      if (id) {
+        const response = await fetchWithTimeout(
+          `${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`,
+          { timeout: 3000 }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          price = data[id]?.[currentCurrency];
+        }
+      }
+    } else {
+      const platformIds = {
+        ethereum: 'ethereum',
+        bsc: 'binance-smart-chain',
+        polygon: 'polygon-pos',
+        arbitrum: 'arbitrum-one',
+        base: 'base'
+      };
+      
+      const platform = platformIds[network];
+      if (platform) {
+        const [contractResponse, symbolResponse] = await Promise.all([
+          fetchWithTimeout(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`, { timeout: 3000 }),
+          fetchWithTimeout(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`, { timeout: 3000 })
+        ]);
+        
+        if (contractResponse.ok) {
+          const contractData = await contractResponse.json();
+          price = contractData.market_data?.current_price?.[currentCurrency];
+        }
+        
+        if (!price && symbolResponse.ok) {
+          const symbolData = await symbolResponse.json();
+          price = symbolData[token.symbol.toLowerCase()]?.[currentCurrency];
+        }
+      }
+    }
+    
+    if (!price) {
+      const hardcodedPrices = {
+        'ETH': { usd: 1800, btc: 0.05, eth: 1 },
+        'BNB': { usd: 250, btc: 0.007, eth: 0.15 },
+        'MATIC': { usd: 0.7, btc: 0.00002, eth: 0.0004 },
+        'USDT': { usd: 1, btc: 0.00003, eth: 0.0006 },
+        'USDC': { usd: 1, btc: 0.00003, eth: 0.0006 },
+        'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
+        'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
+        'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 }
+      };
+      
+      price = hardcodedPrices[token.symbol]?.[currentCurrency];
+    }
+    
+    if (price !== null) {
+      const cacheData = { price, timestamp: now };
+      PRICE_CACHE.set(cacheKey, cacheData);
+      localStorage.setItem(localStorageKey, JSON.stringify(cacheData));
+    }
+    
+    return price;
+  } catch (err) {
+    console.error(`Error getting price for ${token.symbol}:`, err);
+    return null;
+  }
+}
+
 // =====================
 // WALLET FUNCTIONS
 // =====================
