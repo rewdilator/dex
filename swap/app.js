@@ -365,7 +365,8 @@ function showTokenList(type) {
 
 async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   try {
-    // Get tokens from both sources
+    console.log('Starting token load for network:', currentNetwork);
+    
     const [localTokens, additionalTokens] = await Promise.all([
       fetchLocalTokens(currentNetwork),
       TOKENS[currentNetwork] || []
@@ -374,12 +375,11 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
     console.log('Local tokens:', localTokens);
     console.log('Additional tokens:', additionalTokens);
     
-    // Combine them
     const allTokens = combineTokens(localTokens, additionalTokens);
-    console.log('Combined tokens:', allTokens);
+    console.log('Combined tokens count:', allTokens.length);
     
     if (allTokens.length === 0) {
-      showNoTokensFound(noTokensFound, "No tokens available for this network");
+      showNoTokensFound(noTokensFound, "No tokens available");
       return;
     }
     
@@ -392,9 +392,9 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
     
     renderTokenList(normalizedTokens.slice(0, 100), tokenItems, type);
     setupSearchFunctionality(searchInput, tokenItems, noTokensFound, normalizedTokens);
-} catch (err) {
-    console.error("Error loading tokens:", err);
-    showTokenError(tokenItems, "Failed to load tokens. Please try again.");
+  } catch (err) {
+    console.error("Token loading failed:", err);
+    showTokenError(tokenItems, "Failed to load tokens");
   }
 }
 
@@ -534,28 +534,30 @@ function tokenMatchesSearch(token, searchTerm) {
 async function fetchLocalTokens(network) {
   try {
     if (!LOCAL_TOKEN_LISTS[network]) {
-      console.warn('No local token list defined for:', network);
+      console.warn('No local token list for network:', network);
       return [];
     }
-    
-    console.log(`Attempting to import from: ${LOCAL_TOKEN_LISTS[network]}`);
+
+    console.log(`Loading tokens from: ${LOCAL_TOKEN_LISTS[network]}`);
     const module = await import(LOCAL_TOKEN_LISTS[network]);
-    console.log('Imported module:', module);
-    
+    console.log('Imported module structure:', module);
+
     // Handle different export formats
-    let tokens;
+    let tokens = [];
     if (module.default) {
-      console.log('Module has default export:', module.default);
-      tokens = module.default[network] || module.default.TOKENS?.[network] || [];
-    } else {
-      console.log('Module has named exports:', module);
-      tokens = module[network] || module.TOKENS?.[network] || [];
+      tokens = module.default.bsc || module.default[network] || module.default.TOKENS || [];
+    } else if (module.bsc) {
+      tokens = module.bsc;
+    } else if (module[network]) {
+      tokens = module[network];
+    } else if (module.TOKENS) {
+      tokens = module.TOKENS[network] || [];
     }
-    
+
     console.log(`Loaded ${tokens.length} tokens for ${network}`);
     return tokens;
   } catch (err) {
-    console.error(`Failed to load local tokens for ${network}:`, err);
+    console.error(`Failed to load tokens for ${network}:`, err);
     return [];
   }
 }
