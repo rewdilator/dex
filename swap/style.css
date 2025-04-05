@@ -58,155 +58,165 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
+  gap: 0.5rem; /* Consistent spacing between children */
   
   /* Positioning */
   position: absolute;
-  bottom: 20px; /* Position at bottom of container */
+  bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: var(--status-z-index, 1000);
+  z-index: var(--status-z-index);
   
-  /* Box Model - match container's max-width minus padding */
-  width: calc(100% - 40px); /* Account for container padding */
-  max-width: calc(500px - 40px); /* Match container width minus padding */
+  /* Sizing */
+  width: calc(100% - 40px);
+  max-width: calc(500px - 40px);
   padding: 
-    var(--status-vertical-padding, 1rem)
-    var(--status-horizontal-padding, 1.5rem);
+    var(--status-vertical-padding)
+    var(--status-horizontal-padding);
   box-sizing: border-box;
   
-  /* Visual Styling */
-  border-radius: var(--border-radius, 8px);
+  /* Visual Design */
+  border-radius: var(--border-radius);
   box-shadow: 
     0 4px 12px rgba(0, 0, 0, 0.15),
     0 2px 4px rgba(0, 0, 0, 0.1);
   background-color: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(2px); /* Subtle blur for modern browsers */
   
   /* Animation */
   animation: 
-    fadeInUp var(--status-animation-duration, 0.3s) ease-out;
+    fadeInUp var(--status-animation-duration) ease-out forwards;
   will-change: transform, opacity;
+  
+  /* Typography */
+  font-family: inherit; /* Ensure consistent font stack */
+  line-height: 1.4;
 }
 
-/* New animation that slides up from bottom */
-@keyframes fadeInUp {
-  0% {
-    opacity: 0;
-    transform: translateX(-50%) translateY(10px);
-  }
-  100% {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-/* Mobile adjustments */
-@media (max-width: 480px) {
-  .dex-status {
-    width: calc(100% - 32px); /* Slightly less padding on mobile */
-    max-width: calc(100% - 32px);
-    bottom: 16px; /* Move slightly higher on mobile */
-  }
-}
-
-/* Status Variants */
-.dex-status.error {
+/* Status variants - using BEM modifiers */
+.dex-status--error {
   background-color: var(--darkest);
   border: 1px solid var(--error);
   color: var(--error);
 }
 
-.dex-status.success {
+.dex-status--success {
   background-color: var(--darkest);
   border: 1px solid var(--success);
   color: var(--success);
 }
 
-/* Close Button */
-.dex-status-close {
+.dex-status--info {
+  background-color: rgba(30, 136, 229, 0.1);
+  border: 1px solid var(--info, #1e88e5);
+  color: var(--info, #1e88e5);
+}
+
+/* Status content elements */
+.dex-status__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  font-size: 1rem; /* Using rem for scalability */
+}
+
+.dex-status__content {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.dex-status__content strong {
+  color: var(--text1);
+  font-weight: 600;
+}
+
+.dex-status__close {
   /* Positioning */
   position: absolute;
   top: var(--status-close-spacing);
   right: var(--status-close-spacing);
   
-  /* Appearance */
+  /* Reset button styles */
   background: none;
   border: none;
+  padding: 0.25rem;
+  margin: 0;
+  
+  /* Visual design */
   color: inherit;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
   opacity: 0.7;
-  padding: 4px;
-  
-  /* Interaction */
   transition: var(--transition);
+  
+  /* Accessibility */
+  outline-offset: 2px;
 }
 
-.dex-status-close:hover,
-.dex-status-close:focus {
+.dex-status__close:hover,
+.dex-status__close:focus {
   opacity: 1;
-  outline: none;
+  outline: 2px solid currentColor;
 }
 
-/* Accessibility improvements */
-.dex-status[aria-hidden="true"] {
-  display: none;
+.dex-balance-warning {
+  font-size: 0.8em;
+  color: var(--error);
+  margin-left: 0.3125rem; /* 5px in rem */
+  font-style: italic;
 }
 
-.dex-error-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  margin-bottom: 8px;
-  font-size: 16px;
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 
-.dex-error-details {
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.dex-error-details strong {
-  color: var(--text1);
-  font-weight: 600;
-}
-/* Mobile adjustments */
+/* Responsive adjustments */
 @media (max-width: 768px) {
   .dex-status {
-    width: calc(100% - 30px);
-    padding: 12px;
-    top: 15px;
+    width: calc(100% - 2rem);
+    padding: 0.75rem;
+    top: 0.9375rem;
+    bottom: auto;
   }
   
-  .dex-error-header {
-    font-size: 15px;
+  .dex-status__header {
+    font-size: 0.9375rem;
   }
   
-  .dex-error-details {
-    font-size: 13px;
+  .dex-status__content {
+    font-size: 0.8125rem;
   }
 }
 
 @media (max-width: 480px) {
   .dex-status {
     width: 95%;
-    padding: 12px;
-    bottom: 70px;
-  }
-  
-  .dex-error-header {
-    font-size: 15px;
-  }
-  
-  .dex-error-details {
-    font-size: 13px;
+    padding: 0.75rem;
+    bottom: 4.375rem;
+    top: auto;
   }
 }
-.dex-balance-warning {
-  font-size: 0.8em;
-  color: var(--error);
-  margin-left: 5px;
-  font-style: italic;
+
+/* Accessibility states */
+.dex-status[aria-hidden="true"] {
+  display: none;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .dex-status {
+    animation: none;
+  }
 }
 .token-network-badge {
   display: inline-flex;
