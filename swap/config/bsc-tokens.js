@@ -1,6 +1,6 @@
 // config/bsc-tokens.js
-const TOKENS = [
-  {
+export const TOKENS = {
+  bsc: [
       "name": "Lithosphere", 
       "abi": "ERC20_ABI", 
       "symbol": "LITHO", 
@@ -27099,8 +27099,4 @@ const TOKENS = [
       "logo": "https://assets.coingecko.com/coins/images/15303/thumb/balance_tokens.png?1696514953", 
       "decimals": 18
     }
-];
-
-export default {
-  bsc: TOKENS
-};
+]
