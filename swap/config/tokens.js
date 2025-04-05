@@ -11,7 +11,7 @@ arbitrum: [
       abi: [],
       decimals: 18,
       isNative: true,
-      priority: 999
+      priority: 9999
     },
     {
       name: "Tether USD",
@@ -69,7 +69,7 @@ arbitrum: [
       abi: [],
       decimals: 18,
       isNative: true,
-      priority: 999
+      priority: 9999
     },
     {
       name: "USD Coin",
@@ -428,7 +428,7 @@ arbitrum: [
       abi: [],
       decimals: 18,
       isNative: true,
-      priority: 999
+      priority: 9999
     }
   ],
 
@@ -595,7 +595,7 @@ arbitrum: [
       abi: [],
       decimals: 18,
       isNative: true,
-      priority: 999
+      priority: 9999
     }
   ]
 };
