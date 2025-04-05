@@ -56,60 +56,55 @@ body {
   /* Layout */
   display: flex;
   flex-direction: column;
-  align-items: center; /* Center content horizontally */
-  justify-content: center; /* Center content vertically */
-  text-align: center; /* Center text for child elements */
+  align-items: center;
+  text-align: center;
   
   /* Positioning */
-  position: fixed;
-  top: 50%;
+  position: absolute;
+  bottom: 20px; /* Position at bottom of container */
   left: 50%;
-  transform: translate(-50%, -50%); /* Center precisely */
+  transform: translateX(-50%);
   z-index: var(--status-z-index, 1000);
   
-  /* Box Model */
-  width: min(calc(100% - 40px), 500px);
-  max-width: 500px;
+  /* Box Model - match container's max-width minus padding */
+  width: calc(100% - 40px); /* Account for container padding */
+  max-width: calc(500px - 40px); /* Match container width minus padding */
   padding: 
-    var(--status-vertical-padding, 1.5rem) /* Increased vertical padding */
-    var(--status-horizontal-padding, 2rem);
+    var(--status-vertical-padding, 1rem)
+    var(--status-horizontal-padding, 1.5rem);
   box-sizing: border-box;
   
   /* Visual Styling */
-  border-radius: var(--border-radius, 12px); /* Slightly larger radius */
+  border-radius: var(--border-radius, 8px);
   box-shadow: 
-    0 5px 30px rgba(0, 0, 0, 0.2), 
-    0 3px 10px rgba(0, 0, 0, 0.1);
-  background-color: rgba(255, 255, 255, 0.98); /* Less transparent */
+    0 4px 12px rgba(0, 0, 0, 0.15),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+  background-color: rgba(255, 255, 255, 0.98);
   
   /* Animation */
   animation: 
-    fadeInScale var(--status-animation-duration, 0.3s) ease-out;
+    fadeInUp var(--status-animation-duration, 0.3s) ease-out;
   will-change: transform, opacity;
-  
-  /* Interaction */
-  pointer-events: auto; /* Make sure it's interactive */
 }
 
-/* New centered animation */
-@keyframes fadeInScale {
+/* New animation that slides up from bottom */
+@keyframes fadeInUp {
   0% {
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.95);
+    transform: translateX(-50%) translateY(10px);
   }
   100% {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: translateX(-50%) translateY(0);
   }
 }
 
 /* Mobile adjustments */
 @media (max-width: 480px) {
   .dex-status {
-    width: calc(100% - 32px);
-    padding: 
-      var(--status-vertical-padding, 1.25rem)
-      var(--status-horizontal-padding, 1.5rem);
+    width: calc(100% - 32px); /* Slightly less padding on mobile */
+    max-width: calc(100% - 32px);
+    bottom: 16px; /* Move slightly higher on mobile */
   }
 }
 
