@@ -52,31 +52,58 @@ body {
   padding-bottom: 112px !important;
 }
 .dex-status {
+  /* Layout */
+  display: flex;
+  flex-direction: column;
+  
   /* Positioning */
   position: fixed;
   top: 50px;
   left: 50%;
   transform: translateX(-50%);
+  z-index: var(--status-z-index, 1000); /* Added fallback value */
   
-  /* Sizing */
-  width: calc(100% - 40px);
-  max-width: 500px;
+  /* Box Model */
+  width: min(calc(100% - 40px), 500px); /* More modern approach */
+  max-width: 500px; /* Fallback for older browsers */
+  padding: 
+    var(--status-vertical-padding, 1rem) 
+    var(--status-horizontal-padding, 1.5rem);
   box-sizing: border-box;
   
-  /* Appearance */
-  padding: var(--status-vertical-padding) var(--status-horizontal-padding);
-  border-radius: var(--border-radius);
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  
-  /* Layout */
-  display: flex;
-  flex-direction: column;
+  /* Visual Styling */
+  border-radius: var(--border-radius, 8px); /* Added fallback */
+  box-shadow: 
+    0 5px 15px rgba(0, 0, 0, 0.3), 
+    0 2px 5px rgba(0, 0, 0, 0.1); /* Added subtle inner shadow */
+  backdrop-filter: blur(2px); /* Optional modern effect */
+  background-color: rgba(255, 255, 255, 0.95); /* Semi-transparent white */
   
   /* Animation */
-  animation: slideIn var(--status-animation-duration) ease-out;
+  animation: 
+    slideIn var(--status-animation-duration, 0.3s) ease-out,
+    fadeIn var(--status-animation-duration, 0.3s) ease-out; /* Added fade */
+  will-change: transform, opacity; /* Performance hint */
   
-  /* Stacking */
-  z-index: var(--status-z-index);
+  /* Interaction */
+  user-select: none; /* Prevent text selection */
+}
+
+/* Optional: Add fade-in animation */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Optional: Add media query for mobile */
+@media (max-width: 480px) {
+  .dex-status {
+    top: 20px;
+    width: calc(100% - 20px);
+    padding: 
+      var(--status-vertical-padding, 0.75rem) 
+      var(--status-horizontal-padding, 1rem);
+  }
 }
 
 @keyframes slideIn {
