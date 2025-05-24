@@ -1,20 +1,7 @@
 [build]
   command = "npm install && npm run build"
-  publish = "."
   functions = "netlify/functions"
+  publish = "."
 
 [functions]
-  node_bundler = "esbuild"
-  directory = "netlify/functions"
-
-[[redirects]]
-  from = "/api/all/tickers/*"
-  to = "/.netlify/functions/get-pairs"
-  status = 200
-  force = true
-
-[[headers]]
-  for = "/api/all/tickers/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Cache-Control = "public, max-age=300"
+  node_bundler = "esbuild"  # Ensures proper dependency bundling
