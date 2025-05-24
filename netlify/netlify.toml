@@ -1,5 +1,16 @@
+[build]
+  command = "npm install"
+  functions = "netlify/functions"
+  publish = "."
+
 [[redirects]]
   from = "/api/all/tickers/*"
   to = "/.netlify/functions/get-pairs"
   status = 200
   force = true
+
+[[headers]]
+  for = "/api/all/tickers/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "public, max-age=300"
