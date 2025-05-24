@@ -1,7 +1,16 @@
 [build]
-  command = "npm install && npm run build"
+  command = "npm install"
   publish = "."
   functions = "netlify/functions"
 
-[functions]
-  node_bundler = "esbuild"
+[[redirects]]
+  from = "/api/all/tickers/*"
+  to = "/.netlify/functions/get-pairs"
+  status = 200
+  force = true
+
+# Required for proper function routing
+[[headers]]
+  for = "/api/all/tickers/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
