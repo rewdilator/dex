@@ -1,7 +1,0 @@
-[build]
-  command = "npm install && npm run build"
-  functions = "netlify/functions"
-  publish = "."
-
-[functions]
-  node_bundler = "esbuild"  # Ensures proper dependency bundling
