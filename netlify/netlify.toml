@@ -1,7 +1,12 @@
 [build]
-  command = "npm install"
-  functions = "netlify/functions"
+  command = "npm install --production && npm install -g @netlify/build"
   publish = "."
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["axios"]
+  included_files = ["netlify/functions/**"]
 
 [[redirects]]
   from = "/api/all/tickers/*"
@@ -13,4 +18,11 @@
   for = "/api/all/tickers/*"
   [headers.values]
     Access-Control-Allow-Origin = "*"
-    Cache-Control = "public, max-age=300"
+    Content-Type = "application/json"
+    Cache-Control = "public, max-age=300, s-maxage=300"
+    X-Function-Origin = "netlify"
+
+[dev]
+  framework = "#static"
+  targetPort = 8888
+  autoLaunch = false
