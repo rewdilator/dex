@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/api/all/tickers/*"
+  to = "/.netlify/functions/get-pairs"
+  status = 200
+  force = true
