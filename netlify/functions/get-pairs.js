@@ -4,17 +4,27 @@ exports.handler = async (event) => {
   try {
     // Fetch OneDex pairs
     const oneDexResponse = await axios.get('https://api.coingecko.com/api/v3/exchanges/onedex/tickers');
-    const oneDexPairs = oneDexResponse.data.tickers.map(ticker => ({
-      pair: `${ticker.base}/${ticker.target}`,
-      base: ticker.base,
-      target: ticker.target,
-      price: ticker.last,
-      volume: ticker.volume,
-      bid: ticker.bid_ask_spread_percentage ? ticker.last * (1 - ticker.bid_ask_spread_percentage/200) : null,
-      ask: ticker.bid_ask_spread_percentage ? ticker.last * (1 + ticker.bid_ask_spread_percentage/200) : null,
-      high: ticker.high || null,
-      low: ticker.low || null
-    }));
+    const oneDexPairs = oneDexResponse.data.tickers.map(ticker => {
+      const pair = `${ticker.base}/${ticker.target}`;
+      let volume = ticker.volume;
+      
+      // Add 10000 to volume if the pair matches "USDC-C76F1F/WEGLD-BD4D79"
+      if (pair === "USDC-C76F1F/WEGLD-BD4D79") {
+        volume += 10000;
+      }
+      
+      return {
+        pair: pair,
+        base: ticker.base,
+        target: ticker.target,
+        price: ticker.last,
+        volume: volume,
+        bid: ticker.bid_ask_spread_percentage ? ticker.last * (1 - ticker.bid_ask_spread_percentage/200) : null,
+        ask: ticker.bid_ask_spread_percentage ? ticker.last * (1 + ticker.bid_ask_spread_percentage/200) : null,
+        high: ticker.high || null,
+        low: ticker.low || null
+      };
+    });
 
     return {
       statusCode: 200,
