@@ -29,8 +29,6 @@ exports.handler = async (event) => {
         "ask": ticker.bid_ask_spread_percentage ? (ticker.last * (1 + ticker.bid_ask_spread_percentage/200)).toString() : "0",
         "high": ticker.high ? ticker.high.toString() : "0",
         "low": ticker.low ? ticker.low.toString() : "0",
-        "trade_url": `https://onedex/trade/${ticker.base}_${ticker.target}`,
-        "timestamp": Date.now().toString()
       };
     });
 
