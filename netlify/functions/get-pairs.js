@@ -16,24 +16,21 @@ exports.handler = async (event) => {
         targetVolume += 10000 * ticker.last;
       }
       
-      // Convert to the exact format you requested
       return {
-        "ticker_id": `${formatAsEthereumAddress(ticker.base)}_${formatAsEthereumAddress(ticker.target)}`,
-        "base_currency": formatAsEthereumAddress(ticker.base),
-        "target_currency": formatAsEthereumAddress(ticker.target),
-        "pool_id": generatePoolId(ticker.base, ticker.target),
-        "last_price": ticker.last.toFixed(18), // Format with 18 decimals
-        "base_volume": baseVolume.toFixed(18),
-        "target_volume": targetVolume.toFixed(18),
-        "liquidity_in_usd": (ticker.converted_volume?.usd || 0).toFixed(2),
-        "bid": ticker.bid_ask_spread_percentage 
-          ? (ticker.last * (1 - ticker.bid_ask_spread_percentage/200)).toFixed(18) 
-          : "0",
-        "ask": ticker.bid_ask_spread_percentage 
-          ? (ticker.last * (1 + ticker.bid_ask_spread_percentage/200)).toFixed(18) 
-          : "0",
-        "high": ticker.high ? ticker.high.toFixed(18) : "0",
-        "low": ticker.low ? ticker.low.toFixed(18) : "0"
+        "ticker_id": `${ticker.base}_${ticker.target}`,
+        "base_currency": ticker.base,
+        "target_currency": ticker.target,
+        "pool_id": generatePoolId(ticker.base, ticker.target), // You'll need to implement this
+        "last_price": ticker.last.toString(),
+        "base_volume": baseVolume.toString(),
+        "target_volume": targetVolume.toString(),
+        "liquidity_in_usd": calculateLiquidityInUSD(ticker).toString(), // You'll need to implement this
+        "bid": ticker.bid_ask_spread_percentage ? (ticker.last * (1 - ticker.bid_ask_spread_percentage/200)).toString() : "0",
+        "ask": ticker.bid_ask_spread_percentage ? (ticker.last * (1 + ticker.bid_ask_spread_percentage/200)).toString() : "0",
+        "high": ticker.high ? ticker.high.toString() : "0",
+        "low": ticker.low ? ticker.low.toString() : "0",
+        "trade_url": `https://onedex/trade/${ticker.base}_${ticker.target}`,
+        "timestamp": Date.now().toString()
       };
     });
 
@@ -52,22 +49,14 @@ exports.handler = async (event) => {
   }
 };
 
-// Helper function to format token IDs as Ethereum-style addresses
-function formatAsEthereumAddress(tokenId) {
-  // This is a simplified version - adjust based on your actual token ID format
-  if (tokenId.includes('-')) {
-    // For tokens like "WEGLD-BD4D79", take the suffix and pad it
-    const suffix = tokenId.split('-')[1];
-    return `0x${suffix.padEnd(40, '0')}`; // Pad to 40 characters
-  }
-  // For other cases, generate a mock address
-  return `0x${tokenId.toLowerCase().replace(/[^a-f0-9]/g, '').padEnd(40, '0')}`;
+// Helper function to generate a pool ID (you need to implement this based on your system)
+function generatePoolId(baseCurrency, targetCurrency) {
+  // This is a placeholder - implement your actual pool ID generation logic
+  return "0x" + Math.random().toString(16).substr(2, 40);
 }
 
-// Helper function to generate a pool ID 
-function generatePoolId(baseCurrency, targetCurrency) {
-  // Create a hash-like string from the pair
-  const pairStr = `${baseCurrency}_${targetCurrency}`;
-  const hash = require('crypto').createHash('sha256').update(pairStr).digest('hex');
-  return `0x${hash.substring(0, 40)}`; // Take first 40 chars of hash
+// Helper function to calculate liquidity in USD (you need to implement this)
+function calculateLiquidityInUSD(ticker) {
+  // This is a placeholder - implement your actual liquidity calculation
+  return ticker.volume * (ticker.converted_last?.usd || 1) * 10; // Example calculation
 }
