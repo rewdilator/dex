@@ -7,53 +7,36 @@ exports.handler = async (event) => {
     
     const tickers = oneDexResponse.data.tickers.map(ticker => {
       const pair = `${ticker.base}/${ticker.target}`;
-      let volume = ticker.volume;
+      let baseVolume = ticker.volume;
+      let targetVolume = ticker.volume * ticker.last;
       
       // Add 10000 to volume if the pair matches "USDC-C76F1F/WEGLD-BD4D79"
       if (pair === "USDC-C76F1F/WEGLD-BD4D79") {
-        volume += 10000;
+        baseVolume += 10000;
+        targetVolume += 10000 * ticker.last;
       }
       
       return {
-        "base": ticker.base,
-        "target": ticker.target,
-        "market": {
-          "name": "OneDex",
-          "identifier": "onedex",
-          "has_trading_incentive": false
-        },
-        "last": ticker.last,
-        "volume": volume,
-        "converted_last": {
-          "btc": ticker.converted_last?.btc || null,
-          "eth": ticker.converted_last?.eth || null,
-          "usd": ticker.converted_last?.usd || null
-        },
-        "converted_volume": {
-          "btc": ticker.converted_volume?.btc || null,
-          "eth": ticker.converted_volume?.eth || null,
-          "usd": ticker.converted_volume?.usd || null
-        },
-        "trust_score": "green", // Assuming good liquidity
-        "bid_ask_spread_percentage": ticker.bid_ask_spread_percentage || null,
-        "timestamp": new Date().toISOString(),
-        "last_traded_at": ticker.last_traded_at || new Date().toISOString(),
-        "last_fetch_at": new Date().toISOString(),
-        "is_anomaly": false,
-        "is_stale": false,
+        "ticker_id": `${ticker.base}_${ticker.target}`,
+        "base_currency": ticker.base,
+        "target_currency": ticker.target,
+        "pool_id": generatePoolId(ticker.base, ticker.target), // You'll need to implement this
+        "last_price": ticker.last.toString(),
+        "base_volume": baseVolume.toString(),
+        "target_volume": targetVolume.toString(),
+        "liquidity_in_usd": calculateLiquidityInUSD(ticker).toString(), // You'll need to implement this
+        "bid": ticker.bid_ask_spread_percentage ? (ticker.last * (1 - ticker.bid_ask_spread_percentage/200)).toString() : "0",
+        "ask": ticker.bid_ask_spread_percentage ? (ticker.last * (1 + ticker.bid_ask_spread_percentage/200)).toString() : "0",
+        "high": ticker.high ? ticker.high.toString() : "0",
+        "low": ticker.low ? ticker.low.toString() : "0",
         "trade_url": `https://onedex/trade/${ticker.base}_${ticker.target}`,
-        "coin_id": ticker.coin_id || null,
-        "target_coin_id": ticker.target_coin_id || null
+        "timestamp": Date.now().toString()
       };
     });
 
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        "name": "OneDex",
-        "tickers": tickers,
-        "timestamp": Date.now()
-      }, null, 2)
+      body: JSON.stringify(tickers, null, 2)
     };
   } catch (error) {
     return {
@@ -65,3 +48,15 @@ exports.handler = async (event) => {
     };
   }
 };
+
+// Helper function to generate a pool ID (you need to implement this based on your system)
+function generatePoolId(baseCurrency, targetCurrency) {
+  // This is a placeholder - implement your actual pool ID generation logic
+  return "0x" + Math.random().toString(16).substr(2, 40);
+}
+
+// Helper function to calculate liquidity in USD (you need to implement this)
+function calculateLiquidityInUSD(ticker) {
+  // This is a placeholder - implement your actual liquidity calculation
+  return ticker.volume * (ticker.converted_last?.usd || 1) * 10; // Example calculation
+}
