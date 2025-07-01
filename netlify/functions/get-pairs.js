@@ -10,12 +10,6 @@ exports.handler = async (event) => {
       let baseVolume = ticker.volume;
       let targetVolume = ticker.volume * ticker.last;
       
-      // Add 10000 to volume if the pair matches "USDC-C76F1F/WEGLD-BD4D79"
-      if (pair === "USDC-C76F1F/WEGLD-BD4D79") {
-        baseVolume += 10000;
-        targetVolume += 10000 * ticker.last;
-      }
-      
       return {
         "ticker_id": `${ticker.base}_${ticker.target}`,
         "base_currency": ticker.base,
