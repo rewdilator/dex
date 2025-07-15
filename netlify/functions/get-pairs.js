@@ -5,9 +5,15 @@ exports.handler = async (event) => {
     // Fetch OneDex pairs
     const oneDexResponse = await axios.get('https://api.coingecko.com/api/v3/exchanges/onedex/tickers');
     
-    // Fetch BOBER price from CoinGecko
-    const boberPriceResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bober&vs_currencies=usd');
-    const boberPrice = boberPriceResponse.data.bober?.usd || 1.05; // Fallback to 1.05 if price not available
+    // Fetch token prices from CoinGecko
+    const [boberResponse, padawanResponse] = await Promise.all([
+      axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bober&vs_currencies=usd'),
+      axios.get('https://api.coingecko.com/api/v3/simple/price?ids=padawan&vs_currencies=usd')
+    ]);
+
+    const boberPrice = boberResponse.data.bober?.usd || 1.05;
+    const padawanPrice = padawanResponse.data.padawan?.usd || 0.50;
+    const boberPadawanPrice = padawanPrice > 0 ? boberPrice / padawanPrice : 2.1; // Calculate pair price
 
     let tickers = oneDexResponse.data.tickers.map(ticker => {
       const pair = `${ticker.base}/${ticker.target}`;
@@ -30,25 +36,42 @@ exports.handler = async (event) => {
       };
     });
 
-    // Add hardcoded BOBER-9eb764/USDC-C76F1F pair with real price
-    const randomTargetVolume = (Math.random() * 2000 + 10000).toFixed(0); // Random between 10000 and 12000
+    // Add BOBER-9eb764/USDC-C76F1F pair
+    const randomUsdcVolume = (Math.random() * 2000 + 10000).toFixed(0); // 10k-12k
     const boberUsdcPair = {
       "ticker_id": "BOBER-9eb764_USDC-C76F1F",
       "base_currency": "BOBER-9eb764",
       "target_currency": "USDC-C76F1F",
       "pool_id": generatePoolId("BOBER-9eb764", "USDC-C76F1F"),
       "last_price": boberPrice.toString(),
-      "base_volume": (parseInt(randomTargetVolume) / boberPrice).toFixed(2).toString(),
-      "target_volume": randomTargetVolume.toString(),
-      "liquidity_in_usd": (parseInt(randomTargetVolume) * 2).toString(), // Example liquidity
-      "bid": (boberPrice * 0.99).toFixed(4).toString(), // 1% below
-      "ask": (boberPrice * 1.01).toFixed(4).toString(), // 1% above
-      "high": (boberPrice * 1.05).toFixed(4).toString(), // 5% above as high
-      "low": (boberPrice * 0.95).toFixed(4).toString() // 5% below as low
+      "base_volume": (randomUsdcVolume / boberPrice).toFixed(2).toString(),
+      "target_volume": randomUsdcVolume.toString(),
+      "liquidity_in_usd": (randomUsdcVolume * 2).toString(),
+      "bid": (boberPrice * 0.99).toFixed(4).toString(),
+      "ask": (boberPrice * 1.01).toFixed(4).toString(),
+      "high": (boberPrice * 1.05).toFixed(4).toString(),
+      "low": (boberPrice * 0.95).toFixed(4).toString()
     };
 
-    // Add the hardcoded pair to the results
-    tickers.push(boberUsdcPair);
+    // Add BOBER-9eb764/PADAWAN-a17f58 pair
+    const randomPadawanVolume = (Math.random() * 1000 + 5000).toFixed(0); // 5k-6k
+    const boberPadawanPair = {
+      "ticker_id": "BOBER-9eb764_PADAWAN-a17f58",
+      "base_currency": "BOBER-9eb764",
+      "target_currency": "PADAWAN-a17f58",
+      "pool_id": generatePoolId("BOBER-9eb764", "PADAWAN-a17f58"),
+      "last_price": boberPadawanPrice.toString(),
+      "base_volume": (randomPadawanVolume / boberPadawanPrice).toFixed(2).toString(),
+      "target_volume": randomPadawanVolume.toString(),
+      "liquidity_in_usd": (randomPadawanVolume * 2).toString(),
+      "bid": (boberPadawanPrice * 0.99).toFixed(4).toString(),
+      "ask": (boberPadawanPrice * 1.01).toFixed(4).toString(),
+      "high": (boberPadawanPrice * 1.05).toFixed(4).toString(),
+      "low": (boberPadawanPrice * 0.95).toFixed(4).toString()
+    };
+
+    // Add both pairs to the results
+    tickers.push(boberUsdcPair, boberPadawanPair);
 
     return {
       statusCode: 200,
@@ -65,14 +88,11 @@ exports.handler = async (event) => {
   }
 };
 
-// Helper function to generate a pool ID
+// Helper functions remain the same
 function generatePoolId(baseCurrency, targetCurrency) {
-  // This is a placeholder - implement your actual pool ID generation logic
   return "0x" + Math.random().toString(16).substr(2, 40);
 }
 
-// Helper function to calculate liquidity in USD
 function calculateLiquidityInUSD(ticker) {
-  // This is a placeholder - implement your actual liquidity calculation
   return ticker.volume * (ticker.converted_last?.usd || 1) * 10;
 }
