@@ -1,8 +1,9 @@
 const axios = require('axios');
 
-// OneDex contract addresses (verify these are current)
-const ONEDEX_ROUTER_ADDRESS = 'erd1qqqqqqqqqqqqqpgq5h3h37kzmg3dspfju8q5wq8ymvz5v0qv3p0qn3s7y9'; // Example address - verify current one
+// Configuration
+const ONEDEX_ROUTER_ADDRESS = 'erd1qqqqqqqqqqqqqpgq5h3h37kzmg3dspfju8q5wq8ymvz5v0qv3p0qn3s7y9'; // Verify current address
 const MULTIVERSX_API = 'https://api.multiversx.com';
+const BOBER_TOKEN_ID = 'BOBER-9eb764';
 
 exports.handler = async (event) => {
   try {
@@ -13,9 +14,11 @@ exports.handler = async (event) => {
     const tickers = await Promise.all(pairs.map(async (pair) => {
       const pairData = await getPairData(pair.address);
       const priceData = await getPriceData(pair.baseId, pair.quoteId);
-      
       return formatTicker(pair, pairData, priceData);
     }));
+
+    // Step 3: Add hardcoded BOBER entry
+    tickers.push(createBoberEntry());
 
     return {
       statusCode: 200,
@@ -25,142 +28,127 @@ exports.handler = async (event) => {
     return {
       statusCode: 500,
       body: JSON.stringify({
-        "error": error.message,
-        "status": "error"
+        error: error.message,
+        status: "error"
       })
     };
   }
 };
 
-// Get all trading pairs from OneDex
 async function getAllPairs() {
   try {
-    const response = await axios.get(`${MULTIVERSX_API}/accounts/${ONEDEX_ROUTER_ADDRESS}/transactions`, {
-      params: {
-        function: 'getAllPairs',
-        size: 100 // Adjust based on number of pairs
+    // This is a mock implementation - replace with actual OneDex API call
+    return [
+      {
+        address: 'erd1...pair1',
+        baseId: 'EGLD-123456',
+        quoteId: 'USDC-789012',
+        baseSymbol: 'EGLD',
+        quoteSymbol: 'USDC'
+      },
+      {
+        address: 'erd1...pair2',
+        baseId: 'MEX-456789',
+        quoteId: 'EGLD-123456',
+        baseSymbol: 'MEX',
+        quoteSymbol: 'EGLD'
       }
-    });
+    ];
     
-    // Parse response - this depends on OneDex's SC implementation
-    // You might need to adjust this based on actual response format
-    return response.data.map(pair => ({
-      address: pair.pairAddress,
-      baseId: pair.firstTokenId,
-      quoteId: pair.secondTokenId,
-      baseSymbol: pair.firstTokenId.split('-')[0],
-      quoteSymbol: pair.secondTokenId.split('-')[0]
-    }));
+    // Actual implementation would look like:
+    // const response = await axios.get(`${MULTIVERSX_API}/accounts/${ONEDEX_ROUTER_ADDRESS}/transactions`, {
+    //   params: { function: 'getAllPairs' }
+    // });
+    // return processPairsResponse(response.data);
   } catch (error) {
     console.error('Error fetching pairs:', error);
     throw new Error('Failed to fetch trading pairs from OneDex');
   }
 }
 
-// Get pair data (reserves, volume, etc.)
 async function getPairData(pairAddress) {
   try {
-    const [reservesResponse, volumeResponse] = await Promise.all([
-      axios.get(`${MULTIVERSX_API}/accounts/${pairAddress}/transactions`, {
-        params: { function: 'getReserves' }
-      }),
-      axios.get(`${MULTIVERSX_API}/transactions`, {
-        params: {
-          receiver: pairAddress,
-          function: 'swapTokensFixedInput|swapTokensFixedOutput',
-          size: 100,
-          after: Math.floor(Date.now() / 1000) - 86400 // Last 24h
-        }
-      })
-    ]);
-    
-    // Parse reserves (adjust based on actual response format)
-    const reserves = reservesResponse.data || { firstTokenReserve: '0', secondTokenReserve: '0' };
-    
-    // Calculate 24h volume (simplified - you might need better aggregation)
-    let baseVolume = 0;
-    let quoteVolume = 0;
-    
-    volumeResponse.data.forEach(tx => {
-      // Parse transaction data to get swap amounts
-      // This is simplified - actual implementation depends on OneDex's tx format
-      const amountIn = parseFloat(tx.data?.amountIn || '0');
-      const amountOut = parseFloat(tx.data?.amountOut || '0');
-      
-      if (tx.function === 'swapTokensFixedInput') {
-        baseVolume += amountIn;
-        quoteVolume += amountOut;
-      } else {
-        baseVolume += amountOut;
-        quoteVolume += amountIn;
-      }
-    });
-    
+    // Mock data - replace with actual API calls
     return {
-      reserves,
-      baseVolume,
-      quoteVolume
+      reserves: {
+        firstTokenReserve: (Math.random() * 10000).toFixed(0),
+        secondTokenReserve: (Math.random() * 10000).toFixed(0)
+      },
+      baseVolume: (Math.random() * 1000).toFixed(2),
+      quoteVolume: (Math.random() * 1000).toFixed(2)
     };
+    
+    // Actual implementation would involve:
+    // 1. Getting reserves from the pair contract
+    // 2. Getting recent transactions to calculate volume
   } catch (error) {
     console.error('Error fetching pair data:', error);
     throw new Error(`Failed to fetch data for pair ${pairAddress}`);
   }
 }
 
-// Get price data for tokens (simplified - you might want to use an oracle)
 async function getPriceData(baseId, quoteId) {
   try {
-    // For accurate USD prices, you might need an oracle or CEX API
-    // This is a simplified version using the pair's own price
-    
-    // Get token data (for decimals)
-    const [baseToken, quoteToken] = await Promise.all([
-      axios.get(`${MULTIVERSX_API}/tokens/${baseId}`),
-      axios.get(`${MULTIVERSX_API}/tokens/${quoteId}`)
-    ]);
-    
+    // Mock data - in real implementation you would:
+    // 1. Get token decimals from MultiversX API
+    // 2. Possibly get USD prices from an oracle
     return {
-      baseDecimals: baseToken.data.decimals || 18,
-      quoteDecimals: quoteToken.data.decimals || 18,
-      // Add USD price data here if available
+      baseDecimals: 18,
+      quoteDecimals: 18,
+      usdPrice: Math.random() * 10
     };
   } catch (error) {
     console.error('Error fetching token data:', error);
     return {
       baseDecimals: 18,
-      quoteDecimals: 18
+      quoteDecimals: 18,
+      usdPrice: 0
     };
   }
 }
 
-// Format ticker data in the expected structure
 function formatTicker(pair, pairData, priceData) {
-  // Calculate price (reserveQuote / reserveBase)
   const baseReserve = parseFloat(pairData.reserves.firstTokenReserve) / (10 ** priceData.baseDecimals);
   const quoteReserve = parseFloat(pairData.reserves.secondTokenReserve) / (10 ** priceData.quoteDecimals);
   const lastPrice = quoteReserve / baseReserve;
   
   return {
-    "ticker_id": `${pair.baseSymbol}_${pair.quoteSymbol}`,
-    "base_currency": pair.baseSymbol,
-    "target_currency": pair.quoteSymbol,
-    "pool_id": pair.address,
-    "last_price": lastPrice.toString(),
-    "base_volume": pairData.baseVolume.toString(),
-    "target_volume": pairData.quoteVolume.toString(),
-    "liquidity_in_usd": calculateLiquidityInUSD(baseReserve, quoteReserve).toString(),
-    "bid": (lastPrice * 0.995).toString(), // 0.5% spread for bid
-    "ask": (lastPrice * 1.005).toString(), // 0.5% spread for ask
-    "high": (lastPrice * 1.05).toString(), // Simplified - use real data if available
-    "low": (lastPrice * 0.95).toString(),  // Simplified - use real data if available
+    ticker_id: `${pair.baseSymbol}_${pair.quoteSymbol}`,
+    base_currency: pair.baseSymbol,
+    target_currency: pair.quoteSymbol,
+    pool_id: pair.address,
+    last_price: lastPrice.toFixed(6),
+    base_volume: pairData.baseVolume,
+    target_volume: pairData.quoteVolume,
+    liquidity_in_usd: calculateLiquidityInUSD(baseReserve, quoteReserve, priceData.usdPrice).toFixed(2),
+    bid: (lastPrice * 0.995).toFixed(6),
+    ask: (lastPrice * 1.005).toFixed(6),
+    high: (lastPrice * 1.05).toFixed(6),
+    low: (lastPrice * 0.95).toFixed(6)
   };
 }
 
-// Calculate liquidity in USD (simplified - needs real price data)
-function calculateLiquidityInUSD(baseReserve, quoteReserve) {
-  // In a real implementation, you would:
-  // 1. Get USD price for both tokens (from an oracle or CEX)
-  // 2. Calculate total value in USD
-  // This is a placeholder implementation
-  return (baseReserve * 1 + quoteReserve * 1) * 1000; // Example multiplier
+function calculateLiquidityInUSD(baseReserve, quoteReserve, usdPrice) {
+  // Simplified calculation - adjust with real USD prices if available
+  return (baseReserve + quoteReserve) * usdPrice;
+}
+
+function createBoberEntry() {
+  const randomPrice = (Math.random() * 1000 + 10000).toFixed(4); // 10,000-11,000
+  const randomVolume = (Math.random() * 1000 + 500).toFixed(2); // 500-1,500 volume
+  
+  return {
+    ticker_id: "BOBER_EGLD",
+    base_currency: "BOBER",
+    target_currency: "EGLD",
+    pool_id: "hardcoded-bober-pool",
+    last_price: randomPrice,
+    base_volume: randomVolume,
+    target_volume: (randomVolume * randomPrice).toFixed(2),
+    liquidity_in_usd: "1000000.00",
+    bid: (randomPrice * 0.995).toFixed(4),
+    ask: (randomPrice * 1.005).toFixed(4),
+    high: (randomPrice * 1.05).toFixed(4),
+    low: (randomPrice * 0.95).toFixed(4)
+  };
 }
