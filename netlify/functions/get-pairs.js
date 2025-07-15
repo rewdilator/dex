@@ -5,6 +5,10 @@ exports.handler = async (event) => {
     // Fetch OneDex pairs
     const oneDexResponse = await axios.get('https://api.coingecko.com/api/v3/exchanges/onedex/tickers');
     
+    // Fetch BOBER price from CoinGecko
+    const boberPriceResponse = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bober&vs_currencies=usd');
+    const boberPrice = boberPriceResponse.data.bober?.usd || 1.05; // Fallback to 1.05 if price not available
+
     let tickers = oneDexResponse.data.tickers.map(ticker => {
       const pair = `${ticker.base}/${ticker.target}`;
       let baseVolume = ticker.volume;
@@ -26,21 +30,21 @@ exports.handler = async (event) => {
       };
     });
 
-    // Add hardcoded BOBER-9eb764/USDC-C76F1F pair
+    // Add hardcoded BOBER-9eb764/USDC-C76F1F pair with real price
     const randomTargetVolume = (Math.random() * 2000 + 10000).toFixed(0); // Random between 10000 and 12000
     const boberUsdcPair = {
       "ticker_id": "BOBER-9eb764_USDC-C76F1F",
       "base_currency": "BOBER-9eb764",
       "target_currency": "USDC-C76F1F",
       "pool_id": generatePoolId("BOBER-9eb764", "USDC-C76F1F"),
-      "last_price": "1.05", // Example price
-      "base_volume": (parseInt(randomTargetVolume) / 1.05).toFixed(2).toString(),
+      "last_price": boberPrice.toString(),
+      "base_volume": (parseInt(randomTargetVolume) / boberPrice).toFixed(2).toString(),
       "target_volume": randomTargetVolume.toString(),
       "liquidity_in_usd": (parseInt(randomTargetVolume) * 2).toString(), // Example liquidity
-      "bid": "1.04",
-      "ask": "1.06",
-      "high": "1.10",
-      "low": "1.00"
+      "bid": (boberPrice * 0.99).toFixed(4).toString(), // 1% below
+      "ask": (boberPrice * 1.01).toFixed(4).toString(), // 1% above
+      "high": (boberPrice * 1.05).toFixed(4).toString(), // 5% above as high
+      "low": (boberPrice * 0.95).toFixed(4).toString() // 5% below as low
     };
 
     // Add the hardcoded pair to the results
