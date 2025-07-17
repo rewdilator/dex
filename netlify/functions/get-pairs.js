@@ -13,7 +13,7 @@ exports.handler = async (event) => {
       .filter(pair => pair.exchange === "xexchange") // Filter for xexchange only
       .map(pair => {
         // Safely extract values with defaults
-        const lastPrice = pair.price || 0;
+        const lastPrice = pair.basePrice || 0;
         const volume24h = pair.volume24h || 0;
         const baseId = pair.baseId || 'UNKNOWN';
         const quoteId = pair.quoteId || 'UNKNOWN';
