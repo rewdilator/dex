@@ -15,13 +15,13 @@ exports.handler = async (event) => {
         // Safely extract values with defaults
         const lastPrice = pair.price || 0;
         const volume24h = pair.volume24h || 0;
-        const baseSymbol = pair.baseSymbol || 'UNKNOWN';
-        const quoteSymbol = pair.quoteSymbol || 'UNKNOWN';
+        const baseId = pair.baseId || 'UNKNOWN';
+        const quoteId = pair.quoteId || 'UNKNOWN';
         
         return {
-          "ticker_id": `${baseSymbol}_${quoteSymbol}`,
-          "base_currency": baseSymbol,
-          "target_currency": quoteSymbol,
+          "ticker_id": `${baseId}_${quoteId}`,
+          "base_currency": baseId,
+          "target_currency": quoteId,
           "pool_id": pair.address || '0x0000000000000000000000000000000000000000',
           "last_price": lastPrice.toString(),
           "base_volume": volume24h.toString(),
