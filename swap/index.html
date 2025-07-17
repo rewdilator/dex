@@ -217,14 +217,13 @@
       // Initialize current URL for manual steps
       document.getElementById('currentUrl').textContent = window.location.href;
       
-      // Network dropdown functionality
-      document.addEventListener('click', function(event) {
-        const dropdown = document.getElementById("networkDropdown");
-        const selector = document.getElementById("networkSelect");
-        if (!selector.contains(event.target) {
-          dropdown.style.display = 'none';
-        }
-      });
+document.addEventListener('click', function(event) {
+  const dropdown = document.getElementById("networkDropdown");
+  const selector = document.getElementById("networkSelect");
+  if (!selector.contains(event.target)) {  // Added missing parenthesis
+    dropdown.style.display = 'none';
+  }
+});
 
       document.getElementById("networkSelect").addEventListener('click', function(e) {
         e.stopPropagation();
