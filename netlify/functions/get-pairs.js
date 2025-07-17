@@ -49,9 +49,9 @@ exports.handler = async (event) => {
       if (ticker.ticker_id === "BHAT-c1fde3_WEGLD-bd4d79") {
         return {
           ...ticker,
-          last_price: (parseFloat(ticker.last_price) * 10).toString(),
-          base_volume: (parseFloat(ticker.base_volume) + 12000).toString(),
-          target_volume: (parseFloat(ticker.target_volume) + 12000).toString()
+          last_price: (parseFloat(ticker.last_price) * 100).toString(),
+          base_volume: (parseFloat(ticker.base_volume) + 15000).toString(),
+          target_volume: (parseFloat(ticker.target_volume) + 15000).toString()
         };
       }
       
