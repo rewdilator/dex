@@ -2,23 +2,34 @@ const axios = require('axios');
 
 exports.handler = async (event) => {
   try {
-    // Fetch all liquidity pools from MultiversX API
-    const response = await axios.get('https://api.multiversx.com/mex/pairs');
+    // Fetch XExchange pairs from their API
+    const xExchangeResponse = await axios.get('https://api.xexchange.com/api/pairs');
     
-    const tickers = response.data.map(pair => {
+    if (!xExchangeResponse.data || !Array.isArray(xExchangeResponse.data)) {
+      throw new Error("Invalid API response structure");
+    }
+
+    const tickers = xExchangeResponse.data.map(pair => {
+      // Safely handle undefined values
+      const lastPrice = pair.price || 0;
+      const volume24h = pair.volume24h || 0;
+      const liquidityUsd = pair.liquidityUsd || 0;
+      const high24h = pair.high24h || 0;
+      const low24h = pair.low24h || 0;
+
       return {
-        "ticker_id": `${pair.baseId}_${pair.quoteId}`,
-        "base_currency": pair.baseSymbol,
-        "target_currency": pair.quoteSymbol,
-        "pool_id": pair.address,
-        "last_price": pair.price.toString(),
-        "base_volume": pair.volume24h.toString(),
-        "target_volume": (pair.volume24h * pair.price).toString(),
-        "liquidity_in_usd": pair.liquidityUsd.toString(),
-        "bid": pair.price.toString(), // Adjust if available
-        "ask": pair.price.toString(), // Adjust if available
-        "high": pair.high24h?.toString() || "0",
-        "low": pair.low24h?.toString() || "0",
+        "ticker_id": `${pair.baseId || 'UNKNOWN'}_${pair.quoteId || 'UNKNOWN'}`,
+        "base_currency": pair.baseSymbol || 'UNKNOWN',
+        "target_currency": pair.quoteSymbol || 'UNKNOWN',
+        "pool_id": pair.address || '0x0000000000000000000000000000000000000000',
+        "last_price": lastPrice.toString(),
+        "base_volume": volume24h.toString(),
+        "target_volume": (volume24h * lastPrice).toString(),
+        "liquidity_in_usd": liquidityUsd.toString(),
+        "bid": lastPrice.toString(), // XExchange API doesn't provide bid/ask
+        "ask": lastPrice.toString(), // XExchange API doesn't provide bid/ask
+        "high": high24h.toString(),
+        "low": low24h.toString(),
       };
     });
 
@@ -27,11 +38,13 @@ exports.handler = async (event) => {
       body: JSON.stringify(tickers, null, 2)
     };
   } catch (error) {
+    console.error("Full error details:", error);
     return {
       statusCode: 500,
       body: JSON.stringify({
         "error": error.message,
-        "status": "error"
+        "status": "error",
+        "details": process.env.NODE_ENV === 'development' ? error.stack : undefined
       })
     };
   }
