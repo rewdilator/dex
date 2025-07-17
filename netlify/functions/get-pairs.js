@@ -109,7 +109,7 @@ exports.handler = async (event) => {
         "base_volume": baseVolume.toString(),
         "target_volume": targetVolume.toString(),
         "liquidity_in_usd": calculateLiquidityInUSD(xExchangeTicker || ticker).toString(),
-        "bid": xExchangeTicker?.bid || (ticker.bid_ask_spread_percentage ? (lastPrice * (1 - ticker.bid_ask_spread_percentage/200)).toString() : "0",
+        "bid": xExchangeTicker?.bid || (ticker.bid_ask_spread_percentage ? (lastPrice * (1 - ticker.bid_ask_spread_percentage/200)).toString() : "0"),
         "ask": xExchangeTicker?.ask || (ticker.bid_ask_spread_percentage ? (lastPrice * (1 + ticker.bid_ask_spread_percentage/200)).toString() : "0"),
         "high": xExchangeTicker?.high || (ticker.high ? ticker.high.toString() : "0"),
         "low": xExchangeTicker?.low || (ticker.low ? ticker.low.toString() : "0")
