@@ -10,7 +10,7 @@ exports.handler = async (event) => {
     // Try to fetch fresh data from the API
     let oneDexResponse;
     try {
-      oneDexResponse = await axios.get('https://api.coingecko.com/api/v3/exchanges/xexchange/tickers');
+      oneDexResponse = await axios.get('https://api.coingecko.com/api/v3/exchanges/onedex/tickers');
       
       // Process and save the data if successful
       const tickers = processTickers(oneDexResponse.data.tickers);
