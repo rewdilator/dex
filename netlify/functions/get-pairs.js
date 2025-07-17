@@ -64,6 +64,18 @@ exports.handler = async (event) => {
       timeout: 3000
     }).catch(() => ({ data: { tickers: [] } })); // Fallback if OneDex API fails
     
+    // Fetch xExchange pairs
+    const xExchangeResponse = await axios.get('https://api.coingecko.com/api/v3/exchanges/xexchange/tickers', {
+      timeout: 3000
+    }).catch(() => ({ data: { tickers: [] } })); // Fallback if xExchange API fails
+    
+    // Create a map of xExchange tickers for easy lookup
+    const xExchangeTickersMap = {};
+    xExchangeResponse.data.tickers.forEach(ticker => {
+      const tickerId = `${ticker.base}_${ticker.target}`;
+      xExchangeTickersMap[tickerId] = ticker;
+    });
+
     // Fetch token prices with proper error handling
     const [boberData, padawanData] = await Promise.all([
       safeCoinGeckoRequest('/simple/price?ids=bober&vs_currencies=usd'),
@@ -78,22 +90,29 @@ exports.handler = async (event) => {
     // Process original tickers
     let tickers = oneDexResponse.data.tickers.map(ticker => {
       const pair = `${ticker.base}/${ticker.target}`;
-      let baseVolume = ticker.volume;
-      let targetVolume = ticker.volume * ticker.last;
+      const tickerId = `${ticker.base}_${ticker.target}`;
+      
+      // Check if this pair exists in xExchange
+      const xExchangeTicker = xExchangeTickersMap[tickerId];
+      
+      // Use xExchange data if available, otherwise use OneDex data
+      const lastPrice = xExchangeTicker?.last || ticker.last;
+      const baseVolume = xExchangeTicker?.volume || ticker.volume;
+      const targetVolume = xExchangeTicker ? (xExchangeTicker.volume * xExchangeTicker.last) : (ticker.volume * ticker.last);
       
       return {
-        "ticker_id": `${ticker.base}_${ticker.target}`,
+        "ticker_id": tickerId,
         "base_currency": ticker.base,
         "target_currency": ticker.target,
         "pool_id": generatePoolId(ticker.base, ticker.target),
-        "last_price": ticker.last.toString(),
+        "last_price": lastPrice.toString(),
         "base_volume": baseVolume.toString(),
         "target_volume": targetVolume.toString(),
-        "liquidity_in_usd": calculateLiquidityInUSD(ticker).toString(),
-        "bid": ticker.bid_ask_spread_percentage ? (ticker.last * (1 - ticker.bid_ask_spread_percentage/200)).toString() : "0",
-        "ask": ticker.bid_ask_spread_percentage ? (ticker.last * (1 + ticker.bid_ask_spread_percentage/200)).toString() : "0",
-        "high": ticker.high ? ticker.high.toString() : "0",
-        "low": ticker.low ? ticker.low.toString() : "0",
+        "liquidity_in_usd": calculateLiquidityInUSD(xExchangeTicker || ticker).toString(),
+        "bid": xExchangeTicker?.bid || (ticker.bid_ask_spread_percentage ? (lastPrice * (1 - ticker.bid_ask_spread_percentage/200)).toString() : "0",
+        "ask": xExchangeTicker?.ask || (ticker.bid_ask_spread_percentage ? (lastPrice * (1 + ticker.bid_ask_spread_percentage/200)).toString() : "0",
+        "high": xExchangeTicker?.high || (ticker.high ? ticker.high.toString() : "0"),
+        "low": xExchangeTicker?.low || (ticker.low ? ticker.low.toString() : "0"),
       };
     });
 
