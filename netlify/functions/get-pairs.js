@@ -39,8 +39,8 @@ exports.handler = async (event) => {
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
         return {
           ...ticker,
-          base_volume: (parseFloat(ticker.base_volume) * 10000).toString(),
-          target_volume: (parseFloat(ticker.target_volume) * 10000).toString()
+          base_volume: (parseFloat(ticker.base_volume) * 50000).toString(),
+          target_volume: (parseFloat(ticker.target_volume) * 50000).toString()
         };
       }
       return ticker;
