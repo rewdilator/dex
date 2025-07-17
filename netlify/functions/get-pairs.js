@@ -34,6 +34,24 @@ exports.handler = async (event) => {
         };
       });
 
+    // Add BOBER-9eb764_USDC-c76f1f pair with 50% more volume
+    const boberPair = {
+      "ticker_id": "BOBER-9eb764_USDC-c76f1f",
+      "base_currency": "BOBER-9eb764",
+      "target_currency": "USDC-c76f1f",
+      "pool_id": "erd1qqqqqqqqqqqqqpgqzjctu8xrgn8jmfp503tajjvzz2zq60v92jpsslkh5a",
+      "last_price": "0.00019891577600299144",
+      "base_volume": (136.81941497524983 * 1.5).toString(), // 50% more volume
+      "target_volume": (0.027215540102077128 * 1.5).toString(), // 50% more volume
+      "liquidity_in_usd": "1309.927927296884",
+      "bid": "0.00019891577600299144",
+      "ask": "16.486666813645517",
+      "high": "0.0002650745796462067",
+      "low": "16.256416618165755"
+    };
+    
+    tickers.push(boberPair);
+
     return {
       statusCode: 200,
       body: JSON.stringify(tickers, null, 2)
