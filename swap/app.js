@@ -244,13 +244,13 @@ function isMobile() {
 }
 
 function updateNetworkLogo(network) {
-  const logoMap = {
-    ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
-    bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
-    polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
-    arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
-    base: "https://cryptologos.cc/logos/base-logo.png"
-  };
+const logoMap = {
+  ethereum: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
+  bsc: "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
+  polygon: "https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png",
+  arbitrum: "https://assets.coingecko.com/coins/images/16547/large/photo_2023-03-29_21.47.00.jpeg",
+  base: "https://assets.coingecko.com/coins/images/27645/large/base.jpeg"
+};
   
   const logoElement = document.querySelector(".dex-nav-logo img");
   if (logoMap[network]) {
@@ -661,7 +661,7 @@ function createTokenElement(token, selectionType) {
   
   element.innerHTML = `
     <img src="${escapeHtml(getTokenLogo(token))}" 
-         onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'" 
+         onerror="this.src='https://assets.coingecko.com/coins/images/279/large/ethereum.png'" 
          alt="${escapeHtml(token.symbol)}">
     <div class="token-info">
       <div class="dex-token-name">
@@ -700,7 +700,7 @@ element.addEventListener('click', () => {
 function getTokenLogo(token) {
   if (token.logo) return token.logo;
   if (token.logoURI) return token.logoURI;
-  return `https://cryptologos.cc/logos/${token.symbol.toLowerCase()}-${token.symbol.toLowerCase()}-logo.png`;
+  return `https://www.coingecko.com/coins/${token.id}/logo`;
 }
 
 function getChainBadge(chain) {
@@ -798,7 +798,7 @@ function updateTokenSelector(selectorId, token) {
   if (token) {
     element.innerHTML = `
       <img src="${getTokenLogo(token)}" 
-           onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'">
+           onerror="this.src='https://assets.coingecko.com/coins/images/279/large/ethereum.png'">
       <span>${token.symbol}</span>
       <i class="fas fa-chevron-down"></i>
     `;

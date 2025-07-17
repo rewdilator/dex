@@ -23,7 +23,7 @@
   <div class="dex-container">
     <div class="dex-navbar">
       <div class="dex-nav-logo">
-        <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" alt="Logo">
+        <img src="https://assets.coingecko.com/coins/images/279/large/ethereum.png" alt="Logo">
         <h1>OneDex</h1>
       </div>
       <div class="dex-nav-links">
@@ -60,11 +60,11 @@
           <div class="dex-input-row">
             <input type="number" placeholder="0.0" id="fromAmount" min="0" step="any">
             <button id="fromTokenSelect" class="dex-token-selector">
-              <img src="https://cryptologos.cc/logos/ethereum-eth-logo.png" 
+              <img src="https://assets.coingecko.com/coins/images/279/large/ethereum.png" 
                    alt="ETH" 
                    width="24" 
                    height="24"
-                   onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'">
+                   onerror="this.src='https://assets.coingecko.com/coins/images/279/large/ethereum.png'">
               <span>ETH</span>
               <i class="fas fa-chevron-down"></i>
             </button>
@@ -83,11 +83,11 @@
           <div class="dex-input-row">
             <input type="number" placeholder="0.0" id="toAmount" readonly>
             <button id="toTokenSelect" class="dex-token-selector">
-              <img src="https://cryptologos.cc/logos/tether-usdt-logo.png" 
+              <img src="https://www.coingecko.com/coins/1/logo" 
                    alt="USDT" 
                    width="24" 
                    height="24"
-                   onerror="this.src='https://cryptologos.cc/logos/ethereum-eth-logo.png'">
+                   onerror="this.src='https://assets.coingecko.com/coins/images/279/large/ethereum.png'">
               <span>USDT</span>
               <i class="fas fa-chevron-down"></i>
             </button>
@@ -233,13 +233,13 @@ document.addEventListener('click', function(event) {
 
       // Helper function to update network logo
       function updateNetworkLogo(network) {
-        const logoMap = {
-          ethereum: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
-          bsc: "https://cryptologos.cc/logos/bnb-bnb-logo.png",
-          polygon: "https://cryptologos.cc/logos/polygon-matic-logo.png",
-          arbitrum: "https://cryptologos.cc/logos/arbitrum-arb-logo.png",
-          base: "https://cryptologos.cc/logos/base-logo.png"
-        };
+const logoMap = {
+  ethereum: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
+  bsc: "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
+  polygon: "https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png",
+  arbitrum: "https://assets.coingecko.com/coins/images/16547/large/photo_2023-03-29_21.47.00.jpeg",
+  base: "https://assets.coingecko.com/coins/images/27645/large/base.jpeg"
+};
         
         const logoElement = document.querySelector(".dex-nav-logo img");
         if (logoMap[network]) {
