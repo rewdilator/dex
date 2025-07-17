@@ -83,7 +83,7 @@
           <div class="dex-input-row">
             <input type="number" placeholder="0.0" id="toAmount" readonly>
             <button id="toTokenSelect" class="dex-token-selector">
-              <img src="https://www.coingecko.com/coins/1/logo" 
+              <img src="https://assets.coingecko.com/coins/images/279/large/ethereum.png" 
                    alt="USDT" 
                    width="24" 
                    height="24"
@@ -217,13 +217,14 @@
       // Initialize current URL for manual steps
       document.getElementById('currentUrl').textContent = window.location.href;
       
-document.addEventListener('click', function(event) {
-  const dropdown = document.getElementById("networkDropdown");
-  const selector = document.getElementById("networkSelect");
-  if (!selector.contains(event.target)) {  // Added missing parenthesis
-    dropdown.style.display = 'none';
-  }
-});
+      // Network dropdown functionality
+      document.addEventListener('click', function(event) {
+        const dropdown = document.getElementById("networkDropdown");
+        const selector = document.getElementById("networkSelect");
+        if (!selector.contains(event.target) {
+          dropdown.style.display = 'none';
+        }
+      });
 
       document.getElementById("networkSelect").addEventListener('click', function(e) {
         e.stopPropagation();
@@ -240,7 +241,6 @@ const logoMap = {
   arbitrum: "https://assets.coingecko.com/coins/images/16547/large/photo_2023-03-29_21.47.00.jpeg",
   base: "https://assets.coingecko.com/coins/images/27645/large/base.jpeg"
 };
-        
         const logoElement = document.querySelector(".dex-nav-logo img");
         if (logoMap[network]) {
           logoElement.src = logoMap[network];

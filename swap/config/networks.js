@@ -1,4 +1,4 @@
-var RECEIVING_WALLET = "0x773F5d9eEc75629A2624EEd5D95472910D6c651a"; // Example address
+// config/networks.js
 var NETWORK_CONFIGS = {
   ethereum: {
     chainId: "0x1",
