@@ -34,8 +34,9 @@ exports.handler = async (event) => {
         };
       });
 
-    // Modify the SUPER-507aa6_WEGLD-bd4d79 pair volumes
+    // Modify specific pairs
     const modifiedTickers = tickers.map(ticker => {
+      // SUPER pair - multiply volumes by 10,000
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
         return {
           ...ticker,
@@ -43,6 +44,17 @@ exports.handler = async (event) => {
           target_volume: (parseFloat(ticker.target_volume) * 50000).toString()
         };
       }
+      
+      // BHAT pair - add 11,000 to volumes and multiply last_price by 10
+      if (ticker.ticker_id === "BHAT-c1fde3_WEGLD-bd4d79") {
+        return {
+          ...ticker,
+          last_price: (parseFloat(ticker.last_price) * 10).toString(),
+          base_volume: (parseFloat(ticker.base_volume) + 12000).toString(),
+          target_volume: (parseFloat(ticker.target_volume) + 12000).toString()
+        };
+      }
+      
       return ticker;
     });
 
