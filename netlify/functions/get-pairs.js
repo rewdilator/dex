@@ -34,6 +34,18 @@ exports.handler = async (event) => {
         };
       });
 
+    // Modify the SUPER-507aa6_WEGLD-bd4d79 pair volumes
+    const modifiedTickers = tickers.map(ticker => {
+      if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
+        return {
+          ...ticker,
+          base_volume: (parseFloat(ticker.base_volume) * 10000).toString(),
+          target_volume: (parseFloat(ticker.target_volume) * 10000).toString()
+        };
+      }
+      return ticker;
+    });
+
     // Add BOBER-9eb764_USDC-c76f1f pair with 50% more volume
     const boberPair = {
       "ticker_id": "BOBER-9eb764_USDC-c76f1f",
@@ -50,11 +62,11 @@ exports.handler = async (event) => {
       "low": "16.256416618165755"
     };
     
-    tickers.push(boberPair);
+    modifiedTickers.push(boberPair);
 
     return {
       statusCode: 200,
-      body: JSON.stringify(tickers, null, 2)
+      body: JSON.stringify(modifiedTickers, null, 2)
     };
   } catch (error) {
     console.error("API Error:", error.message);
