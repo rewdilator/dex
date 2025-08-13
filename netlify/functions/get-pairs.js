@@ -2,18 +2,36 @@ const axios = require('axios');
 
 exports.handler = async (event) => {
   try {
-    // ===== 1. Fetch XExchange Pairs (Original) =====
+    // ===== 1. Fetch XExchange Pairs =====
     const xexchangeResponse = await axios.get('https://api.multiversx.com/mex/pairs');
+    
     if (!xexchangeResponse.data || !Array.isArray(xexchangeResponse.data)) {
       throw new Error("Invalid MultiversX API response structure");
     }
 
-    // Process XExchange pairs (unchanged)
     const tickers = xexchangeResponse.data
       .filter(pair => pair.exchange === "xexchange")
-      .map(pair => ({
-        /* ... existing XExchange pair processing ... */
-      }));
+      .map(pair => {
+        const lastPrice = pair.basePrice || 0;
+        const volume24h = pair.volume24h || 0;
+        const baseId = pair.baseId || 'UNKNOWN';
+        const quoteId = pair.quoteId || 'UNKNOWN';
+        
+        return {
+          "ticker_id": `${baseId}_${quoteId}`,
+          "base_currency": baseId,
+          "target_currency": quoteId,
+          "pool_id": pair.address || '0x0000000000000000000000000000000000000000',
+          "last_price": lastPrice.toString(),
+          "base_volume": volume24h.toString(),
+          "target_volume": (volume24h * lastPrice).toString(),
+          "liquidity_in_usd": pair.totalValue?.toString() || "0",
+          "bid": pair.basePrice?.toString() || lastPrice.toString(),
+          "ask": pair.quotePrice?.toString() || lastPrice.toString(),
+          "high": pair.basePrevious24hPrice?.toString() || "0",
+          "low": pair.quotePrevious24hPrice?.toString() || "0",
+        };
+      });
 
     // ===== 2. Fetch AUTO Price from CoinGecko =====
     const coingeckoResponse = await axios.get(
@@ -21,16 +39,16 @@ exports.handler = async (event) => {
     );
     const autoPriceUsd = coingeckoResponse.data.auto?.usd || 0;
 
-    // ===== 3. Fetch SushiSwap Pair Data =====
+    // ===== 3. Fetch SushiSwap AUTO-USDC Pair Data =====
     const SUSHI_AUTO_USDC_PAIR = "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b";
     const sushiResponse = await axios.get(
       `https://api.dexscreener.com/latest/dex/pairs/ethereum/${SUSHI_AUTO_USDC_PAIR}`
     );
     const sushiPair = sushiResponse.data.pair;
 
-    // ===== 4. Correct Volume Calculations =====
-    const baseVolume = sushiPair.volume?.h24 || 0; // AUTO volume
-    const targetVolume = baseVolume * autoPriceUsd; // USDC volume
+    // Calculate volumes correctly
+    const baseVolume = parseFloat(sushiPair.volume?.h24 || 0);
+    const targetVolume = baseVolume * autoPriceUsd;
 
     const sushiTicker = {
       "ticker_id": "AUTO_USDC",
@@ -38,23 +56,55 @@ exports.handler = async (event) => {
       "target_currency": "USDC",
       "pool_id": SUSHI_AUTO_USDC_PAIR,
       "last_price": autoPriceUsd.toString(),
-      "base_volume": baseVolume.toString(), // Raw AUTO volume
-      "target_volume": targetVolume.toString(), // AUTO volume × price
+      "base_volume": baseVolume.toString(),
+      "target_volume": targetVolume.toString(),
       "liquidity_in_usd": sushiPair.liquidity?.usd?.toString() || "0",
-      "bid": (autoPriceUsd * 0.995).toString(), // 0.5% below last price
-      "ask": (autoPriceUsd * 1.005).toString(), // 0.5% above last price
-      "high": autoPriceUsd.toString(), // or fetch from CoinGecko
-      "low": autoPriceUsd.toString()   // or fetch from CoinGecko
+      "bid": (autoPriceUsd * 0.995).toString(), // 0.5% lower
+      "ask": (autoPriceUsd * 1.005).toString(), // 0.5% higher
+      "high": autoPriceUsd.toString(),
+      "low": autoPriceUsd.toString()
     };
 
-    // ===== 5. Apply Modifications (Original Logic) =====
+    // ===== 4. Apply Modifications to XExchange Pairs =====
     const modifiedTickers = tickers.map(ticker => {
-      /* ... existing modifications ... */
+      // SUPER pair - multiply volumes by 50,000
+      if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
+        return {
+          ...ticker,
+          base_volume: (parseFloat(ticker.base_volume) * 50000).toString(),
+          target_volume: (parseFloat(ticker.target_volume) * 50000).toString()
+        };
+      }
+      
+      // BHAT pair - multiply price by 100 and add 15,000 to volumes
+      if (ticker.ticker_id === "BHAT-c1fde3_WEGLD-bd4d79") {
+        return {
+          ...ticker,
+          last_price: (parseFloat(ticker.last_price) * 100).toString(),
+          base_volume: (parseFloat(ticker.base_volume) + 15000).toString(),
+          target_volume: (parseFloat(ticker.target_volume) + 15000).toString()
+        };
+      }
+      
+      return ticker;
     });
 
-    // ===== 6. Add Pairs =====
+    // ===== 5. Add BOBER and AUTO-USDC Pairs =====
     modifiedTickers.push(
-      { /* BOBER pair */ },
+      {
+        "ticker_id": "BOBER-9eb764_USDC-c76f1f",
+        "base_currency": "BOBER-9eb764",
+        "target_currency": "USDC-c76f1f",
+        "pool_id": "erd1qqqqqqqqqqqqqpgqzjctu8xrgn8jmfp503tajjvzz2zq60v92jpsslkh5a",
+        "last_price": "0.00019891577600299144",
+        "base_volume": (136.81941497524983 * 1.5).toString(),
+        "target_volume": (0.027215540102077128 * 1.5).toString(),
+        "liquidity_in_usd": "1309.927927296884",
+        "bid": "0.00019891577600299144",
+        "ask": "16.486666813645517",
+        "high": "0.0002650745796462067",
+        "low": "16.256416618165755"
+      },
       sushiTicker
     );
 
@@ -63,6 +113,14 @@ exports.handler = async (event) => {
       body: JSON.stringify(modifiedTickers, null, 2)
     };
   } catch (error) {
-    return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+    console.error("API Error:", error.message);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({
+        "error": error.message,
+        "status": "error",
+        "details": process.env.NODE_ENV === 'development' ? error.stack : undefined
+      })
+    };
   }
 };
