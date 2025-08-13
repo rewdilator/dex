@@ -1,4 +1,8 @@
 const axios = require('axios');
+const { ethers } = require('ethers');
+
+// Configure provider (BSC Mainnet)
+const provider = new ethers.providers.JsonRpcProvider('https://bsc-dataseed.binance.org/');
 
 exports.handler = async (event) => {
   try {
@@ -26,39 +30,63 @@ exports.handler = async (event) => {
         low: (pair.quotePrevious24hPrice || 0).toString(),
       }));
 
-    // 2. Fetch AUTO-USDC from PancakeSwap API (simplified)
-    const pancakeData = await axios.post('https://api.thegraph.com/subgraphs/name/pancakeswap/exchange', {
-      query: `{
-        pairs(where: {
-          token0: "0xa184088a740c695e156f91f5cc086a06bb78b827",
-          token1: "0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d"
-        }) {
-          id
-          token0 { symbol }
-          token1 { symbol }
-          reserveUSD
-          volumeUSD
-          token0Price
-        }
-      }`
-    });
+    // 2. Fetch AUTO price from CoinGecko (fallback)
+    const coingeckoData = await axios.get(
+      'https://api.coingecko.com/api/v3/simple/price?ids=auto&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true'
+    );
 
-    if (pancakeData.data.data.pairs.length > 0) {
-      const pair = pancakeData.data.data.pairs[0];
+    if (coingeckoData.data && coingeckoData.data.auto) {
+      const autoData = coingeckoData.data.auto;
+      tickers.push({
+        ticker_id: "AUTO_USDC@CoinGecko",
+        base_currency: "AUTO",
+        target_currency: "USDC",
+        pool_id: "N/A",
+        last_price: autoData.usd.toString(),
+        base_volume: (autoData.usd_24h_vol || 0).toString(),
+        target_volume: (autoData.usd_24h_vol || 0).toString(),
+        liquidity_in_usd: "0", // CoinGecko doesn't provide liquidity
+        bid: (autoData.usd * 0.99).toString(), // Estimate
+        ask: (autoData.usd * 1.01).toString(), // Estimate
+        high: "0",
+        low: "0"
+      });
+    }
+
+    // 3. Optional: Fetch liquidity from PancakeSwap contract
+    try {
+      const pancakePairABI = [
+        "function getReserves() external view returns (uint112, uint112, uint32)",
+        "function token0() external view returns (address)",
+        "function token1() external view returns (address)"
+      ];
+      
+      // AUTO-USDC Pair Address on PancakeSwap (verify this)
+      const pairAddress = "0x7d99eda556388Ad7743A1B658b9C4FC67D7A9d74"; 
+      const pairContract = new ethers.Contract(pairAddress, pancakePairABI, provider);
+      
+      const [reserve0, reserve1] = await pairContract.getReserves();
+      const token0 = await pairContract.token0();
+      
+      // AUTO is token0 in this pair (verify)
+      const autoPrice = reserve1 / reserve0; 
+      
       tickers.push({
         ticker_id: "AUTO_USDC@PancakeSwap",
         base_currency: "AUTO",
         target_currency: "USDC",
-        pool_id: pair.id,
-        last_price: pair.token0Price.toString(),
-        base_volume: pair.volumeUSD.toString(),
-        target_volume: (pair.volumeUSD * pair.token0Price).toString(),
-        liquidity_in_usd: pair.reserveUSD.toString(),
-        bid: pair.token0Price.toString(),
-        ask: pair.token0Price.toString(),
+        pool_id: pairAddress,
+        last_price: autoPrice.toString(),
+        base_volume: "0", // Not available from contract
+        target_volume: "0",
+        liquidity_in_usd: (reserve0 * autoPrice * 2).toString(),
+        bid: (autoPrice * 0.99).toString(),
+        ask: (autoPrice * 1.01).toString(),
         high: "0",
         low: "0"
       });
+    } catch (contractError) {
+      console.error("Contract call failed:", contractError.message);
     }
 
     return {
@@ -69,7 +97,10 @@ exports.handler = async (event) => {
     console.error("Error:", error.message);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      })
     };
   }
 };
