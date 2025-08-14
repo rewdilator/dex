@@ -28,35 +28,11 @@ const fetchWithRetry = async (url, retries = 3, delay = 1000) => {
   }
 };
 
-// Main function to fetch prices from CoinGecko
-const fetchPrices = async () => {
-  try {
-    const response = await fetchWithRetry(
-      "https://api.coingecko.com/api/v3/simple/price?ids=auto,ryujin&vs_currencies=usd"
-    );
-    priceCache.data = response.data;
-    priceCache.lastUpdated = Date.now();
-    return response.data;
-  } catch (error) {
-    console.error("CoinGecko API Error:", error.message);
-    // Fallback to cache if available
-    if (priceCache.lastUpdated > 0) {
-      console.log("Using cached prices due to API error");
-      return priceCache.data;
-    }
-    throw error;
-  }
-};
-
 exports.handler = async (event) => {
   try {
-    // ===== 1. Get Prices (with cache) =====
-    const shouldRefresh = Date.now() - priceCache.lastUpdated > priceCache.ttl;
-    const prices = shouldRefresh ? await fetchPrices() : priceCache.data;
-    
-    // Generate random AUTO price between $9.21 and $9.51
-    const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.3 + 9.21);
-    const ryujinPriceUsd = prices.ryujin?.usd || 0;
+    // ===== 1. Generate Random AUTO Price =====
+    const autoPriceUsd = Math.random() * 0.3 + 9.21; // Always between 9.21 and 9.51
+    const ryujinPriceUsd = 0; // Default value for RYUJIN
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -91,8 +67,8 @@ exports.handler = async (event) => {
 
     // ===== 3. Create AUTO Pairs =====
     const baseVolume = 685390.00;
-    const targetVolume = baseVolume * autoPriceUsd;
-    const liquidityInUsd = 8115.01; // Fixed liquidity value as shown in example
+    const targetVolume = (baseVolume * autoPriceUsd).toFixed(2);
+    const liquidityInUsd = "8115.01"; // Fixed value as per your example
     
     // AUTO-USDC Pair
     const sushiAutoUsdcTicker = {
@@ -102,8 +78,8 @@ exports.handler = async (event) => {
       "pool_id": "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b",
       "last_price": autoPriceUsd.toFixed(2),
       "base_volume": baseVolume.toFixed(2),
-      "target_volume": targetVolume.toFixed(2),
-      "liquidity_in_usd": liquidityInUsd.toFixed(2),
+      "target_volume": targetVolume,
+      "liquidity_in_usd": liquidityInUsd,
       "bid": (autoPriceUsd * 0.995).toFixed(5),
       "ask": (autoPriceUsd * 1.005).toFixed(5),
       "high": autoPriceUsd.toFixed(2),
@@ -118,8 +94,8 @@ exports.handler = async (event) => {
       "pool_id": "0x1234567890123456789012345678901234567890",
       "last_price": autoPriceUsd.toFixed(2),
       "base_volume": baseVolume.toFixed(2),
-      "target_volume": targetVolume.toFixed(2),
-      "liquidity_in_usd": liquidityInUsd.toFixed(2),
+      "target_volume": targetVolume,
+      "liquidity_in_usd": liquidityInUsd,
       "bid": (autoPriceUsd * 0.995).toFixed(5),
       "ask": (autoPriceUsd * 1.005).toFixed(5),
       "high": autoPriceUsd.toFixed(2),
@@ -129,7 +105,7 @@ exports.handler = async (event) => {
     // AUTO-BNB Pair
     const bnbPriceUsd = 350; // Example BNB price
     const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
-    const autoBnbTargetVolume = baseVolume * autoBnbPrice;
+    const autoBnbTargetVolume = (baseVolume * autoBnbPrice).toFixed(8);
     
     const pancakeAutoBnbTicker = {
       "ticker_id": "AUTO_BNB",
@@ -138,8 +114,8 @@ exports.handler = async (event) => {
       "pool_id": "0x1234567890123456789012345678901234567890",
       "last_price": autoBnbPrice.toFixed(8),
       "base_volume": baseVolume.toFixed(2),
-      "target_volume": autoBnbTargetVolume.toFixed(8),
-      "liquidity_in_usd": liquidityInUsd.toFixed(2),
+      "target_volume": autoBnbTargetVolume,
+      "liquidity_in_usd": liquidityInUsd,
       "bid": (autoBnbPrice * 0.995).toFixed(8),
       "ask": (autoBnbPrice * 1.005).toFixed(8),
       "high": autoBnbPrice.toFixed(8),
