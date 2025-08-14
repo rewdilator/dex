@@ -28,11 +28,24 @@ const fetchWithRetry = async (url, retries = 3, delay = 1000) => {
   }
 };
 
+// Function to fetch RYUJIN price from CoinGecko
+const fetchRyujinPrice = async () => {
+  try {
+    const response = await fetchWithRetry(
+      "https://api.coingecko.com/api/v3/simple/price?ids=ryujin&vs_currencies=usd"
+    );
+    return response.data.ryujin?.usd || 0;
+  } catch (error) {
+    console.error("Failed to fetch RYUJIN price:", error.message);
+    return 0;
+  }
+};
+
 exports.handler = async (event) => {
   try {
     // ===== 1. Generate Random AUTO Price =====
     const autoPriceUsd = Math.random() * 0.3 + 9.21; // Always between 9.21 and 9.51
-    const ryujinPriceUsd = 0; // Fixed at 0 as per requirements
+    const ryujinPriceUsd = await fetchRyujinPrice(); // Fetch RYUJIN price from CoinGecko
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -163,19 +176,22 @@ exports.handler = async (event) => {
     });
 
     // ===== 7. Create RYUJIN-USDC Ticker =====
+    const ryujinBaseVolume = Math.random() * 5000 + 50000; // $50k-$55k random volume
+    const ryujinTargetVolume = (ryujinBaseVolume * ryujinPriceUsd).toFixed(2);
+    
     const ryujinTicker = {
       "ticker_id": "RYUJIN_USDC",
       "base_currency": "RYUJIN",
       "target_currency": "USDC",
       "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": "0",
-      "base_volume": "1000",
-      "target_volume": "0",
+      "last_price": ryujinPriceUsd.toString(),
+      "base_volume": ryujinBaseVolume.toFixed(2),
+      "target_volume": ryujinTargetVolume,
       "liquidity_in_usd": "50000",
-      "bid": "0",
-      "ask": "0",
-      "high": "0",
-      "low": "0"
+      "bid": (ryujinPriceUsd * 0.99).toFixed(5),
+      "ask": (ryujinPriceUsd * 1.01).toFixed(5),
+      "high": ryujinPriceUsd.toString(),
+      "low": ryujinPriceUsd.toString()
     };
 
     // ===== 8. Add All Additional Pairs =====
