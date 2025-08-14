@@ -54,7 +54,8 @@ exports.handler = async (event) => {
     const shouldRefresh = Date.now() - priceCache.lastUpdated > priceCache.ttl;
     const prices = shouldRefresh ? await fetchPrices() : priceCache.data;
     
-    const autoPriceUsd = prices.auto?.usd || 0;
+    // Generate random AUTO price between $9.21 and $9.51
+    const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.3 + 9.21);
     const ryujinPriceUsd = prices.ryujin?.usd || 0;
 
     // ===== 2. Fetch XExchange Pairs =====
@@ -102,8 +103,8 @@ exports.handler = async (event) => {
       // Continue with default values if API fails
     }
 
-    // Calculate volumes correctly
-    const baseVolume = parseFloat(sushiPair.volume?.h24 || 0);
+    // Calculate volumes with 100x multiplier
+    const baseVolume = parseFloat(sushiPair.volume?.h24 || 0) * 100;
     const targetVolume = baseVolume * autoPriceUsd;
 
     const sushiTicker = {
