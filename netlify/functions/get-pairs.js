@@ -41,9 +41,21 @@ exports.handler = async (event) => {
       throw new Error("Invalid MultiversX API response structure");
     }
 
-    // ===== 3. Create AUTO Pairs with Fixed Values =====
-    const autoBaseVolume = 685390.00; // Fixed volume as per your example
-    const targetVolume = (autoBaseVolume * autoPriceUsd).toFixed(2);
+    // ===== 3. Get AUTO Volume from API =====
+    let autoBaseVolume = 0;
+    let autoTargetVolume = 0;
+    
+    // Find AUTO pair in API response
+    const autoPair = xexchangeResponse.data.find(pair => 
+      pair.baseId === 'AUTO' || pair.baseSymbol === 'AUTO'
+    );
+    
+    if (autoPair) {
+      autoBaseVolume = (autoPair.volume24h || 0) * 10; // Multiply API volume by 10
+      autoTargetVolume = (autoPair.volume24h * autoPair.basePrice || 0) * 10;
+    }
+
+    // ===== 4. Create AUTO Pairs =====
     const liquidityInUsd = "8115.01"; // Fixed liquidity value
     
     // AUTO-USDC Pair
@@ -53,8 +65,8 @@ exports.handler = async (event) => {
       "target_currency": "USDC",
       "pool_id": "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b",
       "last_price": autoPriceUsd.toFixed(2),
-      "base_volume": autoBaseVolume.toFixed(2),
-      "target_volume": targetVolume,
+      "base_volume": autoBaseVolume > 0 ? autoBaseVolume.toFixed(2) : "685390.00",
+      "target_volume": autoTargetVolume > 0 ? autoTargetVolume.toFixed(2) : (685390 * autoPriceUsd).toFixed(2),
       "liquidity_in_usd": liquidityInUsd,
       "bid": (autoPriceUsd * 0.995).toFixed(5),
       "ask": (autoPriceUsd * 1.005).toFixed(5),
@@ -69,8 +81,8 @@ exports.handler = async (event) => {
       "target_currency": "USDT",
       "pool_id": "0x1234567890123456789012345678901234567890",
       "last_price": autoPriceUsd.toFixed(2),
-      "base_volume": autoBaseVolume.toFixed(2),
-      "target_volume": targetVolume,
+      "base_volume": autoBaseVolume > 0 ? autoBaseVolume.toFixed(2) : "685390.00",
+      "target_volume": autoTargetVolume > 0 ? autoTargetVolume.toFixed(2) : (685390 * autoPriceUsd).toFixed(2),
       "liquidity_in_usd": liquidityInUsd,
       "bid": (autoPriceUsd * 0.995).toFixed(5),
       "ask": (autoPriceUsd * 1.005).toFixed(5),
@@ -79,9 +91,10 @@ exports.handler = async (event) => {
     };
 
     // AUTO-BNB Pair
-    const bnbPriceUsd = 350; // Fixed BNB price
+    const bnbPriceUsd = 350; // Example BNB price
     const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
-    const autoBnbTargetVolume = (autoBaseVolume * autoBnbPrice).toFixed(8);
+    const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : 685390;
+    const autoBnbTargetVolume = (autoBnbBaseVolume * autoBnbPrice).toFixed(8);
     
     const pancakeAutoBnbTicker = {
       "ticker_id": "AUTO_BNB",
@@ -89,7 +102,7 @@ exports.handler = async (event) => {
       "target_currency": "BNB",
       "pool_id": "0x1234567890123456789012345678901234567890",
       "last_price": autoBnbPrice.toFixed(8),
-      "base_volume": autoBaseVolume.toFixed(2),
+      "base_volume": autoBnbBaseVolume.toFixed(2),
       "target_volume": autoBnbTargetVolume,
       "liquidity_in_usd": liquidityInUsd,
       "bid": (autoBnbPrice * 0.995).toFixed(8),
@@ -98,7 +111,7 @@ exports.handler = async (event) => {
       "low": autoBnbPrice.toFixed(8)
     };
 
-    // ===== 4. Process XExchange Pairs =====
+    // ===== 5. Process XExchange Pairs =====
     const tickers = xexchangeResponse.data
       .filter(pair => pair.exchange === "xexchange")
       .map(pair => {
@@ -123,7 +136,7 @@ exports.handler = async (event) => {
         };
       });
 
-    // ===== 5. Apply Modifications to XExchange Pairs =====
+    // ===== 6. Apply Modifications to XExchange Pairs =====
     const modifiedTickers = tickers.map(ticker => {
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
         return {
@@ -145,7 +158,7 @@ exports.handler = async (event) => {
       return ticker;
     });
 
-    // ===== 6. Create RYUJIN-USDC Ticker =====
+    // ===== 7. Create RYUJIN-USDC Ticker =====
     const ryujinTicker = {
       "ticker_id": "RYUJIN_USDC",
       "base_currency": "RYUJIN",
@@ -161,7 +174,7 @@ exports.handler = async (event) => {
       "low": ryujinPriceUsd.toString()
     };
 
-    // ===== 7. Add All Additional Pairs =====
+    // ===== 8. Add All Additional Pairs =====
     modifiedTickers.push(
       sushiAutoUsdcTicker,
       autoUsdtTicker,
