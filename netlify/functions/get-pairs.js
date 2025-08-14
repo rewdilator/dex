@@ -55,9 +55,15 @@ exports.handler = async (event) => {
       autoTargetVolume = (autoPair.volume24h * autoPair.basePrice || 0) * 10;
     }
 
-    // ===== 4. Create AUTO Pairs =====
+    // ===== 4. Create AUTO Pairs with Custom Fallback Volumes =====
     const liquidityInUsd = "8115.01"; // Fixed liquidity value
+    const bnbPriceUsd = 350; // Fixed BNB price
     
+    // Generate random fallback volumes
+    const autoUsdcBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 25000 + 200000;
+    const autoUsdtBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 25000 + 150000;
+    const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 12000 + 50000;
+
     // AUTO-USDC Pair
     const sushiAutoUsdcTicker = {
       "ticker_id": "AUTO_USDC",
@@ -65,8 +71,8 @@ exports.handler = async (event) => {
       "target_currency": "USDC",
       "pool_id": "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b",
       "last_price": autoPriceUsd.toFixed(2),
-      "base_volume": autoBaseVolume > 0 ? autoBaseVolume.toFixed(2) : "685390.00",
-      "target_volume": autoTargetVolume > 0 ? autoTargetVolume.toFixed(2) : (685390 * autoPriceUsd).toFixed(2),
+      "base_volume": autoUsdcBaseVolume.toFixed(2),
+      "target_volume": (autoUsdcBaseVolume * autoPriceUsd).toFixed(2),
       "liquidity_in_usd": liquidityInUsd,
       "bid": (autoPriceUsd * 0.995).toFixed(5),
       "ask": (autoPriceUsd * 1.005).toFixed(5),
@@ -81,8 +87,8 @@ exports.handler = async (event) => {
       "target_currency": "USDT",
       "pool_id": "0x1234567890123456789012345678901234567890",
       "last_price": autoPriceUsd.toFixed(2),
-      "base_volume": autoBaseVolume > 0 ? autoBaseVolume.toFixed(2) : "685390.00",
-      "target_volume": autoTargetVolume > 0 ? autoTargetVolume.toFixed(2) : (685390 * autoPriceUsd).toFixed(2),
+      "base_volume": autoUsdtBaseVolume.toFixed(2),
+      "target_volume": (autoUsdtBaseVolume * autoPriceUsd).toFixed(2),
       "liquidity_in_usd": liquidityInUsd,
       "bid": (autoPriceUsd * 0.995).toFixed(5),
       "ask": (autoPriceUsd * 1.005).toFixed(5),
@@ -91,9 +97,7 @@ exports.handler = async (event) => {
     };
 
     // AUTO-BNB Pair
-    const bnbPriceUsd = 350; // Example BNB price
     const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
-    const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : 685390;
     const autoBnbTargetVolume = (autoBnbBaseVolume * autoBnbPrice).toFixed(8);
     
     const pancakeAutoBnbTicker = {
