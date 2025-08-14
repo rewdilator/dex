@@ -28,24 +28,33 @@ const fetchWithRetry = async (url, retries = 3, delay = 1000) => {
   }
 };
 
-// Function to fetch RYUJIN price from CoinGecko
-const fetchRyujinPrice = async () => {
+// Function to format very small numbers without scientific notation
+const formatSmallNumber = (num) => {
+  if (num < 0.000001) {
+    return num.toFixed(9);
+  }
+  return num.toString();
+};
+
+// Function to fetch prices from CoinGecko
+const fetchCoinGeckoPrices = async () => {
   try {
     const response = await fetchWithRetry(
-      "https://api.coingecko.com/api/v3/simple/price?ids=ryujin&vs_currencies=usd"
+      "https://api.coingecko.com/api/v3/simple/price?ids=auto,ryujin&vs_currencies=usd"
     );
-    return response.data.ryujin?.usd || 0;
+    return response.data;
   } catch (error) {
-    console.error("Failed to fetch RYUJIN price:", error.message);
-    return 0;
+    console.error("CoinGecko API Error:", error.message);
+    return {};
   }
 };
 
 exports.handler = async (event) => {
   try {
-    // ===== 1. Generate Random AUTO Price =====
-    const autoPriceUsd = Math.random() * 0.3 + 9.21; // Always between 9.21 and 9.51
-    const ryujinPriceUsd = await fetchRyujinPrice(); // Fetch RYUJIN price from CoinGecko
+    // ===== 1. Fetch Prices =====
+    const prices = await fetchCoinGeckoPrices();
+    const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.3 + 9.21);
+    const ryujinPriceUsd = prices.ryujin?.usd || 0;
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -58,21 +67,20 @@ exports.handler = async (event) => {
     let autoBaseVolume = 0;
     let autoTargetVolume = 0;
     
-    // Find AUTO pair in API response
     const autoPair = xexchangeResponse.data.find(pair => 
       pair.baseId === 'AUTO' || pair.baseSymbol === 'AUTO'
     );
     
     if (autoPair) {
-      autoBaseVolume = (autoPair.volume24h || 0) * 10; // Multiply API volume by 10
+      autoBaseVolume = (autoPair.volume24h || 0) * 10;
       autoTargetVolume = (autoPair.volume24h * autoPair.basePrice || 0) * 10;
     }
 
-    // ===== 4. Create AUTO Pairs with Custom Fallback Volumes =====
-    const liquidityInUsd = "8115.01"; // Fixed liquidity value
-    const bnbPriceUsd = 350; // Fixed BNB price
+    // ===== 4. Create AUTO Pairs =====
+    const liquidityInUsd = "8115.01";
+    const bnbPriceUsd = 350;
     
-    // Generate random fallback volumes
+    // Fallback volumes
     const autoUsdcBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 25000 + 200000;
     const autoUsdtBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 25000 + 150000;
     const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 12000 + 50000;
@@ -176,22 +184,24 @@ exports.handler = async (event) => {
     });
 
     // ===== 7. Create RYUJIN-USDC Ticker =====
-    const ryujinBaseVolume = Math.random() * 5000 + 50000; // $50k-$55k random volume
-    const ryujinTargetVolume = (ryujinBaseVolume * ryujinPriceUsd).toFixed(2);
+    const ryujinBaseVolume = (Math.random() * 5000 + 50000).toFixed(2); // $50k-$55k
+    const ryujinTargetVolume = (ryujinBaseVolume * ryujinPriceUsd).toFixed(9);
+    const ryujinBidPrice = (ryujinPriceUsd * 0.99).toFixed(9);
+    const ryujinAskPrice = (ryujinPriceUsd * 1.01).toFixed(9);
     
     const ryujinTicker = {
       "ticker_id": "RYUJIN_USDC",
       "base_currency": "RYUJIN",
       "target_currency": "USDC",
       "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": ryujinPriceUsd.toString(),
-      "base_volume": ryujinBaseVolume.toFixed(2),
+      "last_price": formatSmallNumber(ryujinPriceUsd),
+      "base_volume": ryujinBaseVolume,
       "target_volume": ryujinTargetVolume,
       "liquidity_in_usd": "50000",
-      "bid": (ryujinPriceUsd * 0.99).toFixed(5),
-      "ask": (ryujinPriceUsd * 1.01).toFixed(5),
-      "high": ryujinPriceUsd.toString(),
-      "low": ryujinPriceUsd.toString()
+      "bid": ryujinBidPrice,
+      "ask": ryujinAskPrice,
+      "high": formatSmallNumber(ryujinPriceUsd),
+      "low": formatSmallNumber(ryujinPriceUsd)
     };
 
     // ===== 8. Add All Additional Pairs =====
