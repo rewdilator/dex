@@ -33,11 +33,12 @@ exports.handler = async (event) => {
         };
       });
 
-    // ===== 2. Fetch AUTO Price from CoinGecko =====
+    // ===== 2. Fetch AUTO and RYUJIN Prices from CoinGecko =====
     const coingeckoResponse = await axios.get(
-      "https://api.coingecko.com/api/v3/simple/price?ids=auto&vs_currencies=usd"
+      "https://api.coingecko.com/api/v3/simple/price?ids=auto,ryujin&vs_currencies=usd"
     );
     const autoPriceUsd = coingeckoResponse.data.auto?.usd || 0;
+    const ryujinPriceUsd = coingeckoResponse.data.ryujin?.usd || 0;
 
     // ===== 3. Fetch SushiSwap AUTO-USDC Pair Data =====
     const SUSHI_AUTO_USDC_PAIR = "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b";
@@ -65,7 +66,23 @@ exports.handler = async (event) => {
       "low": autoPriceUsd.toString()
     };
 
-    // ===== 4. Apply Modifications to XExchange Pairs =====
+    // ===== 4. Create RYUJIN-USDC Ticker =====
+    const ryujinTicker = {
+      "ticker_id": "RYUJIN_USDC",
+      "base_currency": "RYUJIN",
+      "target_currency": "USDC",
+      "pool_id": "0x0000000000000000000000000000000000000000", // Replace with actual pool ID if available
+      "last_price": ryujinPriceUsd.toString(),
+      "base_volume": "1000", // Example volume, adjust as needed
+      "target_volume": (1000 * ryujinPriceUsd).toString(),
+      "liquidity_in_usd": "50000", // Example liquidity, adjust as needed
+      "bid": (ryujinPriceUsd * 0.99).toString(), // 1% lower
+      "ask": (ryujinPriceUsd * 1.01).toString(), // 1% higher
+      "high": ryujinPriceUsd.toString(),
+      "low": ryujinPriceUsd.toString()
+    };
+
+    // ===== 5. Apply Modifications to XExchange Pairs =====
     const modifiedTickers = tickers.map(ticker => {
       // SUPER pair - multiply volumes by 50,000
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
@@ -89,7 +106,7 @@ exports.handler = async (event) => {
       return ticker;
     });
 
-    // ===== 5. Add BOBER and AUTO-USDC Pairs =====
+    // ===== 6. Add BOBER, AUTO-USDC and RYUJIN-USDC Pairs =====
     modifiedTickers.push(
       {
         "ticker_id": "BOBER-9eb764_USDC-c76f1f",
@@ -105,7 +122,8 @@ exports.handler = async (event) => {
         "high": "0.0002650745796462067",
         "low": "16.256416618165755"
       },
-      sushiTicker
+      sushiTicker,
+      ryujinTicker
     );
 
     return {
