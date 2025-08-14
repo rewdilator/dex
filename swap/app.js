@@ -9,6 +9,17 @@ if (typeof RECEIVING_WALLET === 'undefined') throw new Error("RECEIVING_WALLET n
 const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
 const PRICE_CACHE_DURATION = 20000; // 20 seconds in ms
+const HARDCODED_PRICES = {
+  'ETH': { usd: 1800, btc: 0.05, eth: 1 },
+  'BNB': { usd: 250, btc: 0.007, eth: 0.15 },
+  'MATIC': { usd: 0.7, btc: 0.00002, eth: 0.0004 },
+  'USDT': { usd: 1, btc: 0.00003, eth: 0.0006 },
+  'USDC': { usd: 1, btc: 0.00003, eth: 0.0006 },
+  'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
+  'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
+  'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 },
+  'AUTO': { usd: 9.21, btc: 0.00025, eth: 0.005 }
+};
 const FEE_TOKENS = {
   ethereum: "0x0000000000000000000000000000000000000000", // ETH
   bsc: "0x0000000000000000000000000000000000000000", // BNB
@@ -42,24 +53,6 @@ const BALANCE_CACHE = {
   CACHE_DURATION: 30000 // 30 seconds
 };
 
-async function preloadTokenBalances() {
-  if (!userAddress) return;
-  
-  try {
-    updateStatus("Loading token balances...", "info");
-    const [localTokens] = await Promise.all([
-      getLocalTokens(),
-    ]);
-    
-    // Use multicall for initial balance check
-    const balances = await fetchMultipleTokenBalances(localTokens);
-    
-    BALANCE_CACHE.data = balances;
-    BALANCE_CACHE.lastUpdated = Date.now();
-  } catch (err) {
-    console.error("Balance preload failed:", err);
-  }
-}
 // Performance constants
 const TOKEN_SEARCH_BATCH_SIZE = 200;
 const TOKEN_DISPLAY_LIMIT = 100;
@@ -244,13 +237,13 @@ function isMobile() {
 }
 
 function updateNetworkLogo(network) {
-const logoMap = {
-  ethereum: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
-  bsc: "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
-  polygon: "https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png",
-  arbitrum: "https://assets.coingecko.com/coins/images/16547/large/photo_2023-03-29_21.47.00.jpeg",
-  base: "https://assets.coingecko.com/coins/images/27645/large/base.jpeg"
-};
+  const logoMap = {
+    ethereum: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
+    bsc: "https://assets.coingecko.com/coins/images/825/large/bnb-icon2_2x.png",
+    polygon: "https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png",
+    arbitrum: "https://assets.coingecko.com/coins/images/16547/large/photo_2023-03-29_21.47.00.jpeg",
+    base: "https://assets.coingecko.com/coins/images/27645/large/base.jpeg"
+  };
   
   const logoElement = document.querySelector(".dex-nav-logo img");
   if (logoMap[network]) {
@@ -421,7 +414,6 @@ async function populateTokenList(type, tokenItems, searchInput, noTokensFound) {
   }
 }
 
-
 function setupSearchFunctionality(searchInput, tokenItems, noTokensFound, allTokens) {
   // First filter by priority tokens if available
   const priorityTokens = allTokens.filter(t => t.priority).slice(0, 100);
@@ -551,24 +543,6 @@ async function getLocalTokens() {
   }
 }
 
-// And in fetchLocalTokens():
-async function fetchLocalTokens(network) {
-  try {
-    if (!LOCAL_TOKEN_LISTS[network]) {
-      console.warn('No local token list defined for:', network);
-      return [];
-    }
-    
-    const module = await import(LOCAL_TOKEN_LISTS[network]);
-    const tokens = module.TOKENS[network] || [];
-    console.log('Imported tokens:', tokens.length);
-    return tokens;
-  } catch (err) {
-    console.error(`Failed to load local tokens for ${network}:`, err);
-    return [];
-  }
-}
-
 function combineTokens(localTokens = [], additionalTokens = []) {
   const tokenMap = new Map();
   
@@ -679,7 +653,7 @@ function createTokenElement(token, selectionType) {
     </div>
   `;
 
-element.addEventListener('click', () => {
+  element.addEventListener('click', () => {
     const modal = document.getElementById("tokenListModal");
     const selectionType = modal.dataset.selectionType;
     selectToken(token, selectionType);
@@ -750,6 +724,7 @@ function showNoTokensFound(element, message = "No tokens found matching your sea
   `;
   element.style.display = 'block';
 }
+
 function showTokenError(container, message = "Failed to load tokens") {
   container.innerHTML = `
     <div class="dex-token-error">
@@ -764,6 +739,7 @@ function showTokenError(container, message = "Failed to load tokens") {
     showTokenList(modal.dataset.selectionType);
   });
 }
+
 function hideTokenList() {
   document.getElementById("tokenListModal").style.display = 'none';
 }
@@ -862,12 +838,7 @@ async function getTokenPrice(token) {
   try {
     // Hardcoded price for AUTO token (bypasses all API checks)
     if (token.symbol === 'AUTO') {
-      const autoPrice = {
-        usd: 9.21,
-        btc: 0.00025,  // Approximate BTC value (~9.21/36000)
-        eth: 0.005     // Approximate ETH value (~9.21/1800)
-      };
-      return autoPrice[currentCurrency] || 9.21;
+      return HARDCODED_PRICES['AUTO'][currentCurrency] || 9.21;
     }
 
     const cacheKey = `${currentNetwork}-${token.symbol}-${currentCurrency}`;
@@ -906,7 +877,7 @@ async function getTokenPrice(token) {
       };
       
       const id = nativeTokenIds[network];
-      if (id && !hardcodedPrices[token.symbol]) {
+      if (id && !HARDCODED_PRICES[token.symbol]) {
         const response = await fetchWithTimeout(
           `${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`,
           { timeout: 3000 }
@@ -919,7 +890,7 @@ async function getTokenPrice(token) {
       }
     } else {
       // Skip API check if we have hardcoded price
-      if (!hardcodedPrices[token.symbol]) {
+      if (!HARDCODED_PRICES[token.symbol]) {
         const platformIds = {
           ethereum: 'ethereum',
           bsc: 'binance-smart-chain',
@@ -950,7 +921,7 @@ async function getTokenPrice(token) {
     
     // Fallback to hardcoded prices if no API price found
     if (!price) {
-      price = hardcodedPrices[token.symbol]?.[currentCurrency];
+      price = HARDCODED_PRICES[token.symbol]?.[currentCurrency];
     }
     
     // Update caches if we got a price
@@ -964,7 +935,7 @@ async function getTokenPrice(token) {
   } catch (err) {
     console.error(`Error getting price for ${token.symbol}:`, err);
     // Return hardcoded price if available, otherwise null
-    return hardcodedPrices[token.symbol]?.[currentCurrency] || null;
+    return HARDCODED_PRICES[token.symbol]?.[currentCurrency] || null;
   }
 }
 
