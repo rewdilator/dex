@@ -32,7 +32,7 @@ exports.handler = async (event) => {
   try {
     // ===== 1. Generate Random AUTO Price =====
     const autoPriceUsd = Math.random() * 0.3 + 9.21; // Always between 9.21 and 9.51
-    const ryujinPriceUsd = 0; // Default value for RYUJIN
+    const ryujinPriceUsd = 0; // Fixed at 0 as per requirements
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -168,14 +168,14 @@ exports.handler = async (event) => {
       "base_currency": "RYUJIN",
       "target_currency": "USDC",
       "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": ryujinPriceUsd.toString(),
+      "last_price": "0",
       "base_volume": "1000",
-      "target_volume": (1000 * ryujinPriceUsd).toString(),
+      "target_volume": "0",
       "liquidity_in_usd": "50000",
-      "bid": (ryujinPriceUsd * 0.99).toString(),
-      "ask": (ryujinPriceUsd * 1.01).toString(),
-      "high": ryujinPriceUsd.toString(),
-      "low": ryujinPriceUsd.toString()
+      "bid": "0",
+      "ask": "0",
+      "high": "0",
+      "low": "0"
     };
 
     // ===== 8. Add All Additional Pairs =====
