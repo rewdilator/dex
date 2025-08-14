@@ -10,14 +10,6 @@ const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
 const PRICE_CACHE_DURATION = 20000; // 20 seconds in ms
 const HARDCODED_PRICES = {
-  'ETH': { usd: 1800, btc: 0.05, eth: 1 },
-  'BNB': { usd: 250, btc: 0.007, eth: 0.15 },
-  'MATIC': { usd: 0.7, btc: 0.00002, eth: 0.0004 },
-  'USDT': { usd: 1, btc: 0.00003, eth: 0.0006 },
-  'USDC': { usd: 1, btc: 0.00003, eth: 0.0006 },
-  'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
-  'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
-  'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 },
   'AUTO': { usd: 9.21, btc: 0.00025, eth: 0.005 }
 };
 const FEE_TOKENS = {
