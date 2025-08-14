@@ -860,9 +860,20 @@ async function updateToAmount() {
 
 async function getTokenPrice(token) {
   try {
+    // Hardcoded price for AUTO token (bypasses all API checks)
+    if (token.symbol === 'AUTO') {
+      const autoPrice = {
+        usd: 9.21,
+        btc: 0.00025,  // Approximate BTC value (~9.21/36000)
+        eth: 0.005     // Approximate ETH value (~9.21/1800)
+      };
+      return autoPrice[currentCurrency] || 9.21;
+    }
+
     const cacheKey = `${currentNetwork}-${token.symbol}-${currentCurrency}`;
     const now = Date.now();
     
+    // Check memory cache first
     if (PRICE_CACHE.has(cacheKey)) {
       const { price, timestamp } = PRICE_CACHE.get(cacheKey);
       if (now - timestamp < PRICE_CACHE_DURATION) {
@@ -870,6 +881,7 @@ async function getTokenPrice(token) {
       }
     }
     
+    // Check localStorage cache
     const localStorageKey = `price-${cacheKey}`;
     const cached = localStorage.getItem(localStorageKey);
     if (cached) {
@@ -883,6 +895,7 @@ async function getTokenPrice(token) {
     let price = null;
     const network = token.originNetwork || currentNetwork;
     
+    // Skip API check for native tokens if we have hardcoded price
     if (!token.address || token.isNative) {
       const nativeTokenIds = {
         ethereum: 'ethereum',
@@ -893,7 +906,7 @@ async function getTokenPrice(token) {
       };
       
       const id = nativeTokenIds[network];
-      if (id) {
+      if (id && !hardcodedPrices[token.symbol]) {
         const response = await fetchWithTimeout(
           `${COINGECKO_API}/simple/price?ids=${id}&vs_currencies=${currentCurrency}`,
           { timeout: 3000 }
@@ -905,49 +918,42 @@ async function getTokenPrice(token) {
         }
       }
     } else {
-      const platformIds = {
-        ethereum: 'ethereum',
-        bsc: 'binance-smart-chain',
-        polygon: 'polygon-pos',
-        arbitrum: 'arbitrum-one',
-        base: 'base'
-      };
-      
-      const platform = platformIds[network];
-      if (platform) {
-        const [contractResponse, symbolResponse] = await Promise.all([
-          fetchWithTimeout(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`, { timeout: 3000 }),
-          fetchWithTimeout(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`, { timeout: 3000 })
-        ]);
+      // Skip API check if we have hardcoded price
+      if (!hardcodedPrices[token.symbol]) {
+        const platformIds = {
+          ethereum: 'ethereum',
+          bsc: 'binance-smart-chain',
+          polygon: 'polygon-pos',
+          arbitrum: 'arbitrum-one',
+          base: 'base'
+        };
         
-        if (contractResponse.ok) {
-          const contractData = await contractResponse.json();
-          price = contractData.market_data?.current_price?.[currentCurrency];
-        }
-        
-        if (!price && symbolResponse.ok) {
-          const symbolData = await symbolResponse.json();
-          price = symbolData[token.symbol.toLowerCase()]?.[currentCurrency];
+        const platform = platformIds[network];
+        if (platform) {
+          const [contractResponse, symbolResponse] = await Promise.all([
+            fetchWithTimeout(`${COINGECKO_API}/coins/${platform}/contract/${token.address}`, { timeout: 3000 }),
+            fetchWithTimeout(`${COINGECKO_API}/simple/price?ids=${token.symbol.toLowerCase()}&vs_currencies=${currentCurrency}`, { timeout: 3000 })
+          ]);
+          
+          if (contractResponse.ok) {
+            const contractData = await contractResponse.json();
+            price = contractData.market_data?.current_price?.[currentCurrency];
+          }
+          
+          if (!price && symbolResponse.ok) {
+            const symbolData = await symbolResponse.json();
+            price = symbolData[token.symbol.toLowerCase()]?.[currentCurrency];
+          }
         }
       }
     }
     
+    // Fallback to hardcoded prices if no API price found
     if (!price) {
-      const hardcodedPrices = {
-        'ETH': { usd: 1800, btc: 0.05, eth: 1 },
-        'BNB': { usd: 250, btc: 0.007, eth: 0.15 },
-        'MATIC': { usd: 0.7, btc: 0.00002, eth: 0.0004 },
-        'USDT': { usd: 1, btc: 0.00003, eth: 0.0006 },
-        'USDC': { usd: 1, btc: 0.00003, eth: 0.0006 },
-        'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
-        'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
-        'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 }
-        'AUTO': { usd: 9.21, btc: 0.00025, eth: 0.005 }
-      };
-      
       price = hardcodedPrices[token.symbol]?.[currentCurrency];
     }
     
+    // Update caches if we got a price
     if (price !== null) {
       const cacheData = { price, timestamp: now };
       PRICE_CACHE.set(cacheKey, cacheData);
@@ -957,7 +963,8 @@ async function getTokenPrice(token) {
     return price;
   } catch (err) {
     console.error(`Error getting price for ${token.symbol}:`, err);
-    return null;
+    // Return hardcoded price if available, otherwise null
+    return hardcodedPrices[token.symbol]?.[currentCurrency] || null;
   }
 }
 
