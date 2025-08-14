@@ -90,7 +90,7 @@ exports.handler = async (event) => {
       });
 
     // ===== 3. Create AUTO-USDC Pair with Random Price =====
-    const originalPrice = 3.47;
+    const originalPrice = 9.21; // Changed from 3.47 to match the new range
     const originalVolume = 68539;
     const volumeMultiplier = 10; // 10x volume
     
