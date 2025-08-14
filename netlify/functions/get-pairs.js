@@ -89,72 +89,52 @@ exports.handler = async (event) => {
         };
       });
 
-    // ===== 3. Fetch SushiSwap AUTO-USDC Pair Data =====
-    const SUSHI_AUTO_USDC_PAIR = "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b";
-    let sushiAutoUsdcPair = {};
+    // ===== 3. Create AUTO-USDC Pair with Random Price =====
+    // Calculate volume multiplier based on the new random price
+    const originalPrice = 3.47;
+    const originalVolume = 68539;
+    const priceMultiplier = autoPriceUsd / originalPrice;
+    const volumeMultiplier = 100; // 100x volume as requested
     
-    try {
-      const sushiResponse = await fetchWithRetry(
-        `https://api.dexscreener.com/latest/dex/pairs/ethereum/${SUSHI_AUTO_USDC_PAIR}`
-      );
-      sushiAutoUsdcPair = sushiResponse.data.pair || {};
-    } catch (error) {
-      console.error("DexScreener API Error (AUTO-USDC):", error.message);
-    }
-
-    // Calculate volumes with 100x multiplier for AUTO-USDC
-    const autoUsdcBaseVolume = parseFloat(sushiAutoUsdcPair.volume?.h24 || 0) * 100;
-    const autoUsdcTargetVolume = autoUsdcBaseVolume * autoPriceUsd;
-
+    const autoUsdcBaseVolume = (originalVolume * volumeMultiplier).toFixed(2);
+    const autoUsdcTargetVolume = (autoUsdcBaseVolume * autoPriceUsd).toFixed(2);
+    
     const sushiAutoUsdcTicker = {
       "ticker_id": "AUTO_USDC",
       "base_currency": "AUTO",
       "target_currency": "USDC",
-      "pool_id": SUSHI_AUTO_USDC_PAIR,
-      "last_price": autoPriceUsd.toString(),
-      "base_volume": autoUsdcBaseVolume.toString(),
-      "target_volume": autoUsdcTargetVolume.toString(),
-      "liquidity_in_usd": sushiAutoUsdcPair.liquidity?.usd?.toString() || "0",
-      "bid": (autoPriceUsd * 0.995).toString(), // 0.5% lower
-      "ask": (autoPriceUsd * 1.005).toString(), // 0.5% higher
-      "high": autoPriceUsd.toString(),
-      "low": autoPriceUsd.toString()
+      "pool_id": "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b",
+      "last_price": autoPriceUsd.toFixed(2),
+      "base_volume": autoUsdcBaseVolume,
+      "target_volume": autoUsdcTargetVolume,
+      "liquidity_in_usd": (21538.68 * priceMultiplier).toFixed(2), // Adjust liquidity proportionally
+      "bid": (autoPriceUsd * 0.995).toFixed(5), // 0.5% lower
+      "ask": (autoPriceUsd * 1.005).toFixed(5), // 0.5% higher
+      "high": autoPriceUsd.toFixed(2),
+      "low": autoPriceUsd.toFixed(2)
     };
 
-    // ===== 4. Fetch PancakeSwap AUTO-BNB Pair Data =====
-    const PANCAKE_AUTO_BNB_PAIR = "0x0d7a824e4d8e81c9a2a5f3d9a5f4a1e9e1a2b3c4"; // Replace with actual AUTO-BNB pair address
-    let pancakeAutoBnbPair = {};
-    
-    try {
-      const pancakeResponse = await fetchWithRetry(
-        `https://api.dexscreener.com/latest/dex/pairs/bsc/${PANCAKE_AUTO_BNB_PAIR}`
-      );
-      pancakeAutoBnbPair = pancakeResponse.data.pair || {};
-    } catch (error) {
-      console.error("DexScreener API Error (AUTO-BNB):", error.message);
-    }
-
-    // Get BNB price (simplified - in production you'd fetch this from an API)
+    // ===== 4. Create AUTO-BNB Pair with Proportional Values =====
     const bnbPriceUsd = 350; // Example BNB price, should be fetched from API
-    const autoBnbPrice = pancakeAutoBnbPair.priceUsd ? (pancakeAutoBnbPair.priceUsd / bnbPriceUsd) : (autoPriceUsd / bnbPriceUsd);
-
+    const autoBnbPrice = (autoPriceUsd / bnbPriceUsd).toFixed(8);
+    
     // Calculate volumes with 100x multiplier for AUTO-BNB
-    const autoBnbBaseVolume = parseFloat(pancakeAutoBnbPair.volume?.h24 || 0) * 100;
-    const autoBnbTargetVolume = autoBnbBaseVolume * autoBnbPrice;
-
+    const autoBnbBaseVolume = (originalVolume * volumeMultiplier).toFixed(2);
+    const autoBnbTargetVolume = (autoBnbBaseVolume * autoBnbPrice).toFixed(8);
+    
     const pancakeAutoBnbTicker = {
       "ticker_id": "AUTO_BNB",
       "base_currency": "AUTO",
       "target_currency": "BNB",
-      "pool_id": PANCAKE_AUTO_BNB_PAIR,
-      "last_price": autoBnbPrice.toString(),
-      "base_volume": autoBnbBaseVolume.toString(),
-      "target_volume": autoBnbTargetVolume.toString(),
-      "liquidity_in_usd": pancakeAutoBnbPair.liquidity?.usd?.toString() || "0",
-      "bid": (autoBnbPrice * 0.995).toString(), // 0.5% lower
-      "ask": (autoBnbPrice * 1.005).toString(), // 0.5% higher
-      "high": autoBnbPrice.toString(),
-      "low": autoBnbPrice.toString()
+      "pool_id": "0x1234567890123456789012345678901234567890", // Replace with actual pool ID
+      "last_price": autoBnbPrice,
+      "base_volume": autoBnbBaseVolume,
+      "target_volume": autoBnbTargetVolume,
+      "liquidity_in_usd": (21538.68 * priceMultiplier).toFixed(2), // Adjust liquidity proportionally
+      "bid": (autoBnbPrice * 0.995).toFixed(8), // 0.5% lower
+      "ask": (autoBnbPrice * 1.005).toFixed(8), // 0.5% higher
+      "high": autoBnbPrice,
+      "low": autoBnbPrice
     };
 
     // ===== 5. Create RYUJIN-USDC Ticker =====
