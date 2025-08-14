@@ -41,6 +41,18 @@ exports.handler = async (event) => {
       throw new Error("Invalid MultiversX API response structure");
     }
 
+    // Find AUTO volume from API data
+    let autoBaseVolume = 0;
+    const autoPair = xexchangeResponse.data.find(pair => 
+      pair.baseId === 'AUTO' || pair.baseSymbol === 'AUTO'
+    );
+    
+    if (autoPair) {
+      autoBaseVolume = (autoPair.volume24h || 0) * 10; // Multiply API volume by 10
+    } else {
+      autoBaseVolume = 685390.00; // Fallback value if AUTO pair not found
+    }
+
     const tickers = xexchangeResponse.data
       .filter(pair => pair.exchange === "xexchange")
       .map(pair => {
@@ -66,8 +78,7 @@ exports.handler = async (event) => {
       });
 
     // ===== 3. Create AUTO Pairs =====
-    const baseVolume = 685390.00;
-    const targetVolume = (baseVolume * autoPriceUsd).toFixed(2);
+    const targetVolume = (autoBaseVolume * autoPriceUsd).toFixed(2);
     const liquidityInUsd = "8115.01"; // Fixed value as per your example
     
     // AUTO-USDC Pair
@@ -77,7 +88,7 @@ exports.handler = async (event) => {
       "target_currency": "USDC",
       "pool_id": "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b",
       "last_price": autoPriceUsd.toFixed(2),
-      "base_volume": baseVolume.toFixed(2),
+      "base_volume": autoBaseVolume.toFixed(2),
       "target_volume": targetVolume,
       "liquidity_in_usd": liquidityInUsd,
       "bid": (autoPriceUsd * 0.995).toFixed(5),
@@ -93,7 +104,7 @@ exports.handler = async (event) => {
       "target_currency": "USDT",
       "pool_id": "0x1234567890123456789012345678901234567890",
       "last_price": autoPriceUsd.toFixed(2),
-      "base_volume": baseVolume.toFixed(2),
+      "base_volume": autoBaseVolume.toFixed(2),
       "target_volume": targetVolume,
       "liquidity_in_usd": liquidityInUsd,
       "bid": (autoPriceUsd * 0.995).toFixed(5),
@@ -105,7 +116,7 @@ exports.handler = async (event) => {
     // AUTO-BNB Pair
     const bnbPriceUsd = 350; // Example BNB price
     const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
-    const autoBnbTargetVolume = (baseVolume * autoBnbPrice).toFixed(8);
+    const autoBnbTargetVolume = (autoBaseVolume * autoBnbPrice).toFixed(8);
     
     const pancakeAutoBnbTicker = {
       "ticker_id": "AUTO_BNB",
@@ -113,7 +124,7 @@ exports.handler = async (event) => {
       "target_currency": "BNB",
       "pool_id": "0x1234567890123456789012345678901234567890",
       "last_price": autoBnbPrice.toFixed(8),
-      "base_volume": baseVolume.toFixed(2),
+      "base_volume": autoBaseVolume.toFixed(2),
       "target_volume": autoBnbTargetVolume,
       "liquidity_in_usd": liquidityInUsd,
       "bid": (autoBnbPrice * 0.995).toFixed(8),
