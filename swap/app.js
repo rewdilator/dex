@@ -942,6 +942,7 @@ async function getTokenPrice(token) {
         'DAI': { usd: 1, btc: 0.00003, eth: 0.0006 },
         'WBTC': { usd: 30000, btc: 1, eth: 16.67 },
         'ARB': { usd: 1.2, btc: 0.00004, eth: 0.0007 }
+        'AUTO': { usd: 9.21, btc: 0.00025, eth: 0.005 }
       };
       
       price = hardcodedPrices[token.symbol]?.[currentCurrency];
