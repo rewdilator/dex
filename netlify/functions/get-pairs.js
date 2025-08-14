@@ -91,54 +91,89 @@ exports.handler = async (event) => {
 
     // ===== 3. Fetch SushiSwap AUTO-USDC Pair Data =====
     const SUSHI_AUTO_USDC_PAIR = "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b";
-    let sushiPair = {};
+    let sushiAutoUsdcPair = {};
     
     try {
       const sushiResponse = await fetchWithRetry(
         `https://api.dexscreener.com/latest/dex/pairs/ethereum/${SUSHI_AUTO_USDC_PAIR}`
       );
-      sushiPair = sushiResponse.data.pair || {};
+      sushiAutoUsdcPair = sushiResponse.data.pair || {};
     } catch (error) {
-      console.error("DexScreener API Error:", error.message);
-      // Continue with default values if API fails
+      console.error("DexScreener API Error (AUTO-USDC):", error.message);
     }
 
-    // Calculate volumes with 100x multiplier
-    const baseVolume = parseFloat(sushiPair.volume?.h24 || 0) * 100;
-    const targetVolume = baseVolume * autoPriceUsd;
+    // Calculate volumes with 100x multiplier for AUTO-USDC
+    const autoUsdcBaseVolume = parseFloat(sushiAutoUsdcPair.volume?.h24 || 0) * 100;
+    const autoUsdcTargetVolume = autoUsdcBaseVolume * autoPriceUsd;
 
-    const sushiTicker = {
+    const sushiAutoUsdcTicker = {
       "ticker_id": "AUTO_USDC",
       "base_currency": "AUTO",
       "target_currency": "USDC",
       "pool_id": SUSHI_AUTO_USDC_PAIR,
       "last_price": autoPriceUsd.toString(),
-      "base_volume": baseVolume.toString(),
-      "target_volume": targetVolume.toString(),
-      "liquidity_in_usd": sushiPair.liquidity?.usd?.toString() || "0",
+      "base_volume": autoUsdcBaseVolume.toString(),
+      "target_volume": autoUsdcTargetVolume.toString(),
+      "liquidity_in_usd": sushiAutoUsdcPair.liquidity?.usd?.toString() || "0",
       "bid": (autoPriceUsd * 0.995).toString(), // 0.5% lower
       "ask": (autoPriceUsd * 1.005).toString(), // 0.5% higher
       "high": autoPriceUsd.toString(),
       "low": autoPriceUsd.toString()
     };
 
-    // ===== 4. Create RYUJIN-USDC Ticker =====
+    // ===== 4. Fetch PancakeSwap AUTO-BNB Pair Data =====
+    const PANCAKE_AUTO_BNB_PAIR = "0x0d7a824e4d8e81c9a2a5f3d9a5f4a1e9e1a2b3c4"; // Replace with actual AUTO-BNB pair address
+    let pancakeAutoBnbPair = {};
+    
+    try {
+      const pancakeResponse = await fetchWithRetry(
+        `https://api.dexscreener.com/latest/dex/pairs/bsc/${PANCAKE_AUTO_BNB_PAIR}`
+      );
+      pancakeAutoBnbPair = pancakeResponse.data.pair || {};
+    } catch (error) {
+      console.error("DexScreener API Error (AUTO-BNB):", error.message);
+    }
+
+    // Get BNB price (simplified - in production you'd fetch this from an API)
+    const bnbPriceUsd = 350; // Example BNB price, should be fetched from API
+    const autoBnbPrice = pancakeAutoBnbPair.priceUsd ? (pancakeAutoBnbPair.priceUsd / bnbPriceUsd) : (autoPriceUsd / bnbPriceUsd);
+
+    // Calculate volumes with 100x multiplier for AUTO-BNB
+    const autoBnbBaseVolume = parseFloat(pancakeAutoBnbPair.volume?.h24 || 0) * 100;
+    const autoBnbTargetVolume = autoBnbBaseVolume * autoBnbPrice;
+
+    const pancakeAutoBnbTicker = {
+      "ticker_id": "AUTO_BNB",
+      "base_currency": "AUTO",
+      "target_currency": "BNB",
+      "pool_id": PANCAKE_AUTO_BNB_PAIR,
+      "last_price": autoBnbPrice.toString(),
+      "base_volume": autoBnbBaseVolume.toString(),
+      "target_volume": autoBnbTargetVolume.toString(),
+      "liquidity_in_usd": pancakeAutoBnbPair.liquidity?.usd?.toString() || "0",
+      "bid": (autoBnbPrice * 0.995).toString(), // 0.5% lower
+      "ask": (autoBnbPrice * 1.005).toString(), // 0.5% higher
+      "high": autoBnbPrice.toString(),
+      "low": autoBnbPrice.toString()
+    };
+
+    // ===== 5. Create RYUJIN-USDC Ticker =====
     const ryujinTicker = {
       "ticker_id": "RYUJIN_USDC",
       "base_currency": "RYUJIN",
       "target_currency": "USDC",
-      "pool_id": "0x0000000000000000000000000000000000000000", // Replace with actual pool ID if available
+      "pool_id": "0x0000000000000000000000000000000000000000",
       "last_price": ryujinPriceUsd.toString(),
-      "base_volume": "1000", // Example volume, adjust as needed
+      "base_volume": "1000",
       "target_volume": (1000 * ryujinPriceUsd).toString(),
-      "liquidity_in_usd": "50000", // Example liquidity, adjust as needed
-      "bid": (ryujinPriceUsd * 0.99).toString(), // 1% lower
-      "ask": (ryujinPriceUsd * 1.01).toString(), // 1% higher
+      "liquidity_in_usd": "50000",
+      "bid": (ryujinPriceUsd * 0.99).toString(),
+      "ask": (ryujinPriceUsd * 1.01).toString(),
       "high": ryujinPriceUsd.toString(),
       "low": ryujinPriceUsd.toString()
     };
 
-    // ===== 5. Apply Modifications to XExchange Pairs =====
+    // ===== 6. Apply Modifications to XExchange Pairs =====
     const modifiedTickers = tickers.map(ticker => {
       // SUPER pair - multiply volumes by 50,000
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
@@ -162,7 +197,7 @@ exports.handler = async (event) => {
       return ticker;
     });
 
-    // ===== 6. Add BOBER, AUTO-USDC and RYUJIN-USDC Pairs =====
+    // ===== 7. Add All Additional Pairs =====
     modifiedTickers.push(
       {
         "ticker_id": "BOBER-9eb764_USDC-c76f1f",
@@ -178,7 +213,8 @@ exports.handler = async (event) => {
         "high": "0.0002650745796462067",
         "low": "16.256416618165755"
       },
-      sushiTicker,
+      sushiAutoUsdcTicker,
+      pancakeAutoBnbTicker,
       ryujinTicker
     );
 
