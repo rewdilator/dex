@@ -90,11 +90,9 @@ exports.handler = async (event) => {
       });
 
     // ===== 3. Create AUTO-USDC Pair with Random Price =====
-    // Calculate volume multiplier based on the new random price
     const originalPrice = 3.47;
     const originalVolume = 68539;
-    const priceMultiplier = autoPriceUsd / originalPrice;
-    const volumeMultiplier = 100; // 100x volume as requested
+    const volumeMultiplier = 10; // 10x volume
     
     const autoUsdcBaseVolume = (originalVolume * volumeMultiplier).toFixed(2);
     const autoUsdcTargetVolume = (autoUsdcBaseVolume * autoPriceUsd).toFixed(2);
@@ -107,18 +105,35 @@ exports.handler = async (event) => {
       "last_price": autoPriceUsd.toFixed(2),
       "base_volume": autoUsdcBaseVolume,
       "target_volume": autoUsdcTargetVolume,
-      "liquidity_in_usd": (21538.68 * priceMultiplier).toFixed(2), // Adjust liquidity proportionally
-      "bid": (autoPriceUsd * 0.995).toFixed(5), // 0.5% lower
-      "ask": (autoPriceUsd * 1.005).toFixed(5), // 0.5% higher
+      "liquidity_in_usd": (21538.68 * (autoPriceUsd / originalPrice)).toFixed(2),
+      "bid": (autoPriceUsd * 0.995).toFixed(5),
+      "ask": (autoPriceUsd * 1.005).toFixed(5),
       "high": autoPriceUsd.toFixed(2),
       "low": autoPriceUsd.toFixed(2)
     };
 
-    // ===== 4. Create AUTO-BNB Pair with Proportional Values =====
-    const bnbPriceUsd = 350; // Example BNB price, should be fetched from API
-    const autoBnbPrice = (autoPriceUsd / bnbPriceUsd).toFixed(8);
+    // ===== 4. Create AUTO-USDT Pair =====
+    const autoUsdtBaseVolume = (originalVolume * volumeMultiplier).toFixed(2);
+    const autoUsdtTargetVolume = (autoUsdtBaseVolume * autoPriceUsd).toFixed(2);
     
-    // Calculate volumes with 100x multiplier for AUTO-BNB
+    const autoUsdtTicker = {
+      "ticker_id": "AUTO_USDT",
+      "base_currency": "AUTO",
+      "target_currency": "USDT",
+      "pool_id": "0x1234567890123456789012345678901234567890", // Replace with actual USDT pool address
+      "last_price": autoPriceUsd.toFixed(2),
+      "base_volume": autoUsdtBaseVolume,
+      "target_volume": autoUsdtTargetVolume,
+      "liquidity_in_usd": (21538.68 * (autoPriceUsd / originalPrice)).toFixed(2),
+      "bid": (autoPriceUsd * 0.995).toFixed(5),
+      "ask": (autoPriceUsd * 1.005).toFixed(5),
+      "high": autoPriceUsd.toFixed(2),
+      "low": autoPriceUsd.toFixed(2)
+    };
+
+    // ===== 5. Create AUTO-BNB Pair =====
+    const bnbPriceUsd = 350; // Example BNB price
+    const autoBnbPrice = (autoPriceUsd / bnbPriceUsd).toFixed(8);
     const autoBnbBaseVolume = (originalVolume * volumeMultiplier).toFixed(2);
     const autoBnbTargetVolume = (autoBnbBaseVolume * autoBnbPrice).toFixed(8);
     
@@ -130,14 +145,14 @@ exports.handler = async (event) => {
       "last_price": autoBnbPrice,
       "base_volume": autoBnbBaseVolume,
       "target_volume": autoBnbTargetVolume,
-      "liquidity_in_usd": (21538.68 * priceMultiplier).toFixed(2), // Adjust liquidity proportionally
-      "bid": (autoBnbPrice * 0.995).toFixed(8), // 0.5% lower
-      "ask": (autoBnbPrice * 1.005).toFixed(8), // 0.5% higher
+      "liquidity_in_usd": (21538.68 * (autoPriceUsd / originalPrice)).toFixed(2),
+      "bid": (autoBnbPrice * 0.995).toFixed(8),
+      "ask": (autoBnbPrice * 1.005).toFixed(8),
       "high": autoBnbPrice,
       "low": autoBnbPrice
     };
 
-    // ===== 5. Create RYUJIN-USDC Ticker =====
+    // ===== 6. Create RYUJIN-USDC Ticker =====
     const ryujinTicker = {
       "ticker_id": "RYUJIN_USDC",
       "base_currency": "RYUJIN",
@@ -153,9 +168,8 @@ exports.handler = async (event) => {
       "low": ryujinPriceUsd.toString()
     };
 
-    // ===== 6. Apply Modifications to XExchange Pairs =====
+    // ===== 7. Apply Modifications to XExchange Pairs =====
     const modifiedTickers = tickers.map(ticker => {
-      // SUPER pair - multiply volumes by 50,000
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
         return {
           ...ticker,
@@ -164,7 +178,6 @@ exports.handler = async (event) => {
         };
       }
       
-      // BHAT pair - multiply price by 100 and add 15,000 to volumes
       if (ticker.ticker_id === "BHAT-c1fde3_WEGLD-bd4d79") {
         return {
           ...ticker,
@@ -177,23 +190,10 @@ exports.handler = async (event) => {
       return ticker;
     });
 
-    // ===== 7. Add All Additional Pairs =====
+    // ===== 8. Add All Additional Pairs =====
     modifiedTickers.push(
-      {
-        "ticker_id": "BOBER-9eb764_USDC-c76f1f",
-        "base_currency": "BOBER-9eb764",
-        "target_currency": "USDC-c76f1f",
-        "pool_id": "erd1qqqqqqqqqqqqqpgqzjctu8xrgn8jmfp503tajjvzz2zq60v92jpsslkh5a",
-        "last_price": "0.00019891577600299144",
-        "base_volume": (136.81941497524983 * 1.5).toString(),
-        "target_volume": (0.027215540102077128 * 1.5).toString(),
-        "liquidity_in_usd": "1309.927927296884",
-        "bid": "0.00019891577600299144",
-        "ask": "16.486666813645517",
-        "high": "0.0002650745796462067",
-        "low": "16.256416618165755"
-      },
       sushiAutoUsdcTicker,
+      autoUsdtTicker,
       pancakeAutoBnbTicker,
       ryujinTicker
     );
@@ -202,7 +202,7 @@ exports.handler = async (event) => {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300' // 5 minutes cache
+        'Cache-Control': 'public, max-age=300'
       },
       body: JSON.stringify(modifiedTickers, null, 2)
     };
