@@ -138,8 +138,8 @@ exports.handler = async (event) => {
     };
 
     // ===== 5. Create RYUJIN-USDC Ticker =====
-    const ryujinBaseVolume = (Math.random() * 5000 + 50000).toFixed(2); // $50k-$55k
-    const ryujinTargetVolume = (parseFloat(ryujinBaseVolume) * ryujinPriceUsd).toFixed(9);
+    const ryujinTargetVolume = (Math.random() * 5000 + 50000).toFixed(2); // $50k-$55k
+    const ryujinBaseVolume = (ryujinTargetVolume / ryujinPriceUsd).toFixed(2);
     const ryujinBidPrice = (ryujinPriceUsd * 0.99).toFixed(9);
     const ryujinAskPrice = (ryujinPriceUsd * 1.01).toFixed(9);
     
