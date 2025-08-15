@@ -40,7 +40,7 @@ const formatSmallNumber = (num) => {
 const fetchCoinGeckoPrices = async () => {
   try {
     const response = await fetchWithRetry(
-      "https://api.coingecko.com/api/v3/simple/price?ids=auto,ryujin,tor&vs_currencies=usd"
+      "https://api.coingecko.com/api/v3/simple/price?ids=auto,tor&vs_currencies=usd"
     );
     return response.data;
   } catch (error) {
@@ -54,8 +54,8 @@ exports.handler = async (event) => {
     // ===== 1. Fetch Prices =====
     const prices = await fetchCoinGeckoPrices();
     const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.3 + 9.21);
-    const ryujinPriceUsd = prices.ryujin?.usd || 0;
     const torPriceUsd = prices.tor?.usd || 0;
+    const ryujinPriceUsd = Math.random() * 0.000002 + 0.00001; // Random between 0.00001 and 0.000012
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -139,7 +139,7 @@ exports.handler = async (event) => {
 
     // ===== 5. Create RYUJIN-USDC Ticker =====
     const ryujinBaseVolume = (Math.random() * 5000 + 50000).toFixed(2); // $50k-$55k
-    const ryujinTargetVolume = (ryujinBaseVolume * ryujinPriceUsd).toFixed(9);
+    const ryujinTargetVolume = (parseFloat(ryujinBaseVolume) * ryujinPriceUsd).toFixed(9);
     const ryujinBidPrice = (ryujinPriceUsd * 0.99).toFixed(9);
     const ryujinAskPrice = (ryujinPriceUsd * 1.01).toFixed(9);
     
@@ -258,4 +258,3 @@ exports.handler = async (event) => {
     };
   }
 };
-
