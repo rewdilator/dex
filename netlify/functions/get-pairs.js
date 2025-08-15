@@ -55,7 +55,7 @@ exports.handler = async (event) => {
     const prices = await fetchCoinGeckoPrices();
     const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.3 + 9.21);
     const torPriceUsd = prices.tor?.usd || 0;
-    const ryujinPriceUsd = Math.random() * 0.000000002 + 0.00000001; // Random between 0.00001 and 0.000012
+    const ryujinPriceUsd = Math.random() * 0.000000005 + 0.000000012; // Random between 0.00001 and 0.000012
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -138,7 +138,7 @@ exports.handler = async (event) => {
     };
 
     // ===== 5. Create RYUJIN-USDC Ticker =====
-    const ryujinTargetVolume = (Math.random() * 5000 + 50000).toFixed(2); // $50k-$55k
+    const ryujinTargetVolume = (Math.random() * 5000 + 150000).toFixed(2); // $50k-$55k
     const ryujinBaseVolume = (ryujinTargetVolume / ryujinPriceUsd).toFixed(2);
     const ryujinBidPrice = (ryujinPriceUsd * 0.99).toFixed(9);
     const ryujinAskPrice = (ryujinPriceUsd * 1.01).toFixed(9);
@@ -258,5 +258,6 @@ exports.handler = async (event) => {
     };
   }
 };
+
 
 
