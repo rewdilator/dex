@@ -40,7 +40,7 @@ const formatSmallNumber = (num) => {
 const fetchCoinGeckoPrices = async () => {
   try {
     const response = await fetchWithRetry(
-      "https://api.coingecko.com/api/v3/simple/price?ids=auto,ryujin&vs_currencies=usd"
+      "https://api.coingecko.com/api/v3/simple/price?ids=auto,ryujin,tor&vs_currencies=usd"
     );
     return response.data;
   } catch (error) {
@@ -55,6 +55,7 @@ exports.handler = async (event) => {
     const prices = await fetchCoinGeckoPrices();
     const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.3 + 9.21);
     const ryujinPriceUsd = prices.ryujin?.usd || 0;
+    const torPriceUsd = prices.tor?.usd || 0;
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -136,7 +137,49 @@ exports.handler = async (event) => {
       "low": autoBnbPrice.toFixed(8)
     };
 
-    // ===== 5. Process XExchange Pairs =====
+    // ===== 5. Create RYUJIN-USDC Ticker =====
+    const ryujinBaseVolume = (Math.random() * 5000 + 50000).toFixed(2); // $50k-$55k
+    const ryujinTargetVolume = (ryujinBaseVolume * ryujinPriceUsd).toFixed(9);
+    const ryujinBidPrice = (ryujinPriceUsd * 0.99).toFixed(9);
+    const ryujinAskPrice = (ryujinPriceUsd * 1.01).toFixed(9);
+    
+    const ryujinTicker = {
+      "ticker_id": "RYUJIN_USDC",
+      "base_currency": "RYUJIN",
+      "target_currency": "USDC",
+      "pool_id": "0x0000000000000000000000000000000000000000",
+      "last_price": formatSmallNumber(ryujinPriceUsd),
+      "base_volume": ryujinBaseVolume,
+      "target_volume": ryujinTargetVolume,
+      "liquidity_in_usd": "50000",
+      "bid": ryujinBidPrice,
+      "ask": ryujinAskPrice,
+      "high": formatSmallNumber(ryujinPriceUsd),
+      "low": formatSmallNumber(ryujinPriceUsd)
+    };
+
+    // ===== 6. Create TOR-USDT Ticker =====
+    const torBaseVolume = (Math.random() * 2000 + 10000).toFixed(2); // $10k-$12k
+    const torTargetVolume = (torBaseVolume * torPriceUsd).toFixed(2);
+    const torBidPrice = (torPriceUsd * 0.99).toFixed(5);
+    const torAskPrice = (torPriceUsd * 1.01).toFixed(5);
+    
+    const torUsdtTicker = {
+      "ticker_id": "TOR_USDT",
+      "base_currency": "TOR",
+      "target_currency": "USDT",
+      "pool_id": "0x0000000000000000000000000000000000000000",
+      "last_price": torPriceUsd.toString(),
+      "base_volume": torBaseVolume,
+      "target_volume": torTargetVolume,
+      "liquidity_in_usd": "25000",
+      "bid": torBidPrice,
+      "ask": torAskPrice,
+      "high": torPriceUsd.toString(),
+      "low": torPriceUsd.toString()
+    };
+
+    // ===== 7. Process XExchange Pairs =====
     const tickers = xexchangeResponse.data
       .filter(pair => pair.exchange === "xexchange")
       .map(pair => {
@@ -161,7 +204,7 @@ exports.handler = async (event) => {
         };
       });
 
-    // ===== 6. Apply Modifications to XExchange Pairs =====
+    // ===== 8. Apply Modifications to XExchange Pairs =====
     const modifiedTickers = tickers.map(ticker => {
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
         return {
@@ -183,33 +226,13 @@ exports.handler = async (event) => {
       return ticker;
     });
 
-    // ===== 7. Create RYUJIN-USDC Ticker =====
-    const ryujinBaseVolume = (Math.random() * 5000 + 50000).toFixed(2); // $50k-$55k
-    const ryujinTargetVolume = (ryujinBaseVolume * ryujinPriceUsd).toFixed(9);
-    const ryujinBidPrice = (ryujinPriceUsd * 0.99).toFixed(9);
-    const ryujinAskPrice = (ryujinPriceUsd * 1.01).toFixed(9);
-    
-    const ryujinTicker = {
-      "ticker_id": "RYUJIN_USDC",
-      "base_currency": "RYUJIN",
-      "target_currency": "USDC",
-      "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": formatSmallNumber(ryujinPriceUsd),
-      "base_volume": ryujinBaseVolume,
-      "target_volume": ryujinTargetVolume,
-      "liquidity_in_usd": "50000",
-      "bid": ryujinBidPrice,
-      "ask": ryujinAskPrice,
-      "high": formatSmallNumber(ryujinPriceUsd),
-      "low": formatSmallNumber(ryujinPriceUsd)
-    };
-
-    // ===== 8. Add All Additional Pairs =====
+    // ===== 9. Add All Additional Pairs =====
     modifiedTickers.push(
       sushiAutoUsdcTicker,
       autoUsdtTicker,
       pancakeAutoBnbTicker,
-      ryujinTicker
+      ryujinTicker,
+      torUsdtTicker
     );
 
     return {
