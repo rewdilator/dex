@@ -159,7 +159,7 @@ exports.handler = async (event) => {
     };
 
     // ===== 6. Create TOR-USDT Ticker =====
-    const torBaseVolume = (Math.random() * 2000 + 10000).toFixed(2); // $10k-$12k
+    const torBaseVolume = (Math.random() * 20000 + 100000).toFixed(2); // $10k-$12k
     const torTargetVolume = (torBaseVolume * torPriceUsd).toFixed(2);
     const torBidPrice = (torPriceUsd * 0.99).toFixed(5);
     const torAskPrice = (torPriceUsd * 1.01).toFixed(5);
@@ -258,3 +258,4 @@ exports.handler = async (event) => {
     };
   }
 };
+
