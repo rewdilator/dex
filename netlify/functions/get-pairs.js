@@ -55,7 +55,7 @@ exports.handler = async (event) => {
     const prices = await fetchCoinGeckoPrices();
     const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.3 + 9.21);
     const torPriceUsd = prices.tor?.usd || 0;
-    const ryujinPriceUsd = Math.random() * 0.000000007 + 0.000000015; // Random between 0.00001 and 0.000012
+    const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000002; // Random between 0.00001 and 0.000012
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -258,6 +258,7 @@ exports.handler = async (event) => {
     };
   }
 };
+
 
 
 
