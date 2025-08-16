@@ -51,13 +51,24 @@ const fetchCoinGeckoPrices = async () => {
 
 // Function to ensure AUTO price stays within range
 const getAutoPrice = (externalPrice) => {
-  const minPrice = 6.40;
-  const maxPrice = 6.55;
+  const minPrice = 6.69;
+  const maxPrice = 6.75;
   
   if (externalPrice && externalPrice >= minPrice && externalPrice <= maxPrice) {
     return externalPrice;
   }
-  return Math.random() * 0.15 + minPrice; // Random between 4.20 and 4.35
+  return Math.random() * 0.15 + minPrice;
+};
+
+// Function to ensure TOR price stays within range
+const getTorPrice = (externalPrice) => {
+  const minPrice = 0.30;
+  const maxPrice = 0.35;
+  
+  if (externalPrice && externalPrice >= minPrice && externalPrice <= maxPrice) {
+    return externalPrice;
+  }
+  return Math.random() * 0.05 + minPrice;
 };
 
 exports.handler = async (event) => {
@@ -65,7 +76,7 @@ exports.handler = async (event) => {
     // ===== 1. Fetch Prices =====
     const prices = await fetchCoinGeckoPrices();
     const autoPriceUsd = getAutoPrice(prices.auto?.usd);
-    const torPriceUsd = prices.tor?.usd || 0;
+    const torPriceUsd = getTorPrice(prices.tor?.usd);
     const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006;
 
     // ===== 2. Fetch XExchange Pairs =====
@@ -90,16 +101,13 @@ exports.handler = async (event) => {
 
     // ===== 4. Create AUTO Pairs =====
     const liquidityInUsd = "8115.01";
-    const bnbPriceUsd = 800;
+    const bnbPriceUsd = 350;
     
     // Fallback volumes
     const autoUsdcBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 25000 + 200000;
     const autoUsdtBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 25000 + 150000;
     const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 12000 + 50000;
 
-    // Calculate AUTO-BNB price ensuring it respects the AUTO USD range
-    const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
-    
     // AUTO-USDC Pair
     const sushiAutoUsdcTicker = {
       "ticker_id": "AUTO_USDC",
@@ -133,6 +141,7 @@ exports.handler = async (event) => {
     };
 
     // AUTO-BNB Pair
+    const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
     const autoBnbTargetVolume = (autoBnbBaseVolume * autoBnbPrice).toFixed(8);
     
     const pancakeAutoBnbTicker = {
@@ -150,7 +159,6 @@ exports.handler = async (event) => {
       "low": autoBnbPrice.toFixed(8)
     };
 
-    // [Rest of your code remains exactly the same...]
     // ===== 5. Create RYUJIN-USDC Ticker =====
     const ryujinTargetVolume = (Math.random() * 5000 + 190000).toFixed(2);
     const ryujinBaseVolume = (ryujinTargetVolume / ryujinPriceUsd).toFixed(2);
@@ -175,22 +183,20 @@ exports.handler = async (event) => {
     // ===== 6. Create TOR-USDT Ticker =====
     const torBaseVolume = (Math.random() * 20000 + 100000).toFixed(2);
     const torTargetVolume = (torBaseVolume * torPriceUsd).toFixed(2);
-    const torBidPrice = (torPriceUsd * 0.99).toFixed(5);
-    const torAskPrice = (torPriceUsd * 1.01).toFixed(5);
     
     const torUsdtTicker = {
       "ticker_id": "TOR_USDT",
       "base_currency": "TOR",
       "target_currency": "USDT",
       "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": torPriceUsd.toString(),
+      "last_price": torPriceUsd.toFixed(2),
       "base_volume": torBaseVolume,
       "target_volume": torTargetVolume,
       "liquidity_in_usd": "25000",
-      "bid": torBidPrice,
-      "ask": torAskPrice,
-      "high": torPriceUsd.toString(),
-      "low": torPriceUsd.toString()
+      "bid": Math.max(0.30, torPriceUsd * 0.995).toFixed(5),
+      "ask": Math.min(0.35, torPriceUsd * 1.005).toFixed(5),
+      "high": torPriceUsd.toFixed(2),
+      "low": torPriceUsd.toFixed(2)
     };
 
     // ===== 7. Process XExchange Pairs =====
@@ -272,8 +278,3 @@ exports.handler = async (event) => {
     };
   }
 };
-
-
-
-
-
