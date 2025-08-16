@@ -53,7 +53,7 @@ exports.handler = async (event) => {
   try {
     // ===== 1. Fetch Prices =====
     const prices = await fetchCoinGeckoPrices();
-    const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.3 + 9.21);
+    const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.15 + 4.20); // Random between 4.20 and 4.35
     const torPriceUsd = prices.tor?.usd || 0;
     const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006; // Random between 0.00001 and 0.000012
 
@@ -258,15 +258,3 @@ exports.handler = async (event) => {
     };
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
