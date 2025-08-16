@@ -49,13 +49,24 @@ const fetchCoinGeckoPrices = async () => {
   }
 };
 
+// Function to ensure AUTO price stays within range
+const getAutoPrice = (externalPrice) => {
+  const minPrice = 4.20;
+  const maxPrice = 4.35;
+  
+  if (externalPrice && externalPrice >= minPrice && externalPrice <= maxPrice) {
+    return externalPrice;
+  }
+  return Math.random() * 0.15 + minPrice; // Random between 4.20 and 4.35
+};
+
 exports.handler = async (event) => {
   try {
     // ===== 1. Fetch Prices =====
     const prices = await fetchCoinGeckoPrices();
-    const autoPriceUsd = prices.auto?.usd || (Math.random() * 0.15 + 4.20); // Random between 4.20 and 4.35
+    const autoPriceUsd = getAutoPrice(prices.auto?.usd);
     const torPriceUsd = prices.tor?.usd || 0;
-    const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006; // Random between 0.00001 and 0.000012
+    const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006;
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -86,6 +97,9 @@ exports.handler = async (event) => {
     const autoUsdtBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 25000 + 150000;
     const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 12000 + 50000;
 
+    // Calculate AUTO-BNB price ensuring it respects the AUTO USD range
+    const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
+    
     // AUTO-USDC Pair
     const sushiAutoUsdcTicker = {
       "ticker_id": "AUTO_USDC",
@@ -96,8 +110,8 @@ exports.handler = async (event) => {
       "base_volume": autoUsdcBaseVolume.toFixed(2),
       "target_volume": (autoUsdcBaseVolume * autoPriceUsd).toFixed(2),
       "liquidity_in_usd": liquidityInUsd,
-      "bid": (autoPriceUsd * 0.995).toFixed(5),
-      "ask": (autoPriceUsd * 1.005).toFixed(5),
+      "bid": Math.max(4.20, autoPriceUsd * 0.995).toFixed(5),
+      "ask": Math.min(4.35, autoPriceUsd * 1.005).toFixed(5),
       "high": autoPriceUsd.toFixed(2),
       "low": autoPriceUsd.toFixed(2)
     };
@@ -112,14 +126,13 @@ exports.handler = async (event) => {
       "base_volume": autoUsdtBaseVolume.toFixed(2),
       "target_volume": (autoUsdtBaseVolume * autoPriceUsd).toFixed(2),
       "liquidity_in_usd": liquidityInUsd,
-      "bid": (autoPriceUsd * 0.995).toFixed(5),
-      "ask": (autoPriceUsd * 1.005).toFixed(5),
+      "bid": Math.max(4.20, autoPriceUsd * 0.995).toFixed(5),
+      "ask": Math.min(4.35, autoPriceUsd * 1.005).toFixed(5),
       "high": autoPriceUsd.toFixed(2),
       "low": autoPriceUsd.toFixed(2)
     };
 
     // AUTO-BNB Pair
-    const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
     const autoBnbTargetVolume = (autoBnbBaseVolume * autoBnbPrice).toFixed(8);
     
     const pancakeAutoBnbTicker = {
@@ -137,8 +150,9 @@ exports.handler = async (event) => {
       "low": autoBnbPrice.toFixed(8)
     };
 
+    // [Rest of your code remains exactly the same...]
     // ===== 5. Create RYUJIN-USDC Ticker =====
-    const ryujinTargetVolume = (Math.random() * 5000 + 190000).toFixed(2); // $50k-$55k
+    const ryujinTargetVolume = (Math.random() * 5000 + 190000).toFixed(2);
     const ryujinBaseVolume = (ryujinTargetVolume / ryujinPriceUsd).toFixed(2);
     const ryujinBidPrice = (ryujinPriceUsd * 0.99).toFixed(9);
     const ryujinAskPrice = (ryujinPriceUsd * 1.01).toFixed(9);
@@ -159,7 +173,7 @@ exports.handler = async (event) => {
     };
 
     // ===== 6. Create TOR-USDT Ticker =====
-    const torBaseVolume = (Math.random() * 20000 + 100000).toFixed(2); // $10k-$12k
+    const torBaseVolume = (Math.random() * 20000 + 100000).toFixed(2);
     const torTargetVolume = (torBaseVolume * torPriceUsd).toFixed(2);
     const torBidPrice = (torPriceUsd * 0.99).toFixed(5);
     const torAskPrice = (torPriceUsd * 1.01).toFixed(5);
