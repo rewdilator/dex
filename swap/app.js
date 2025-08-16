@@ -10,7 +10,7 @@ const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
 const PRICE_CACHE_DURATION = 20000; // 20 seconds in ms
 const HARDCODED_PRICES = {
-  'AUTO': { usd: 5.92, btc: 0.00025, eth: 0.005 },
+  'AUTO': { usd: 7.22, btc: 0.00025, eth: 0.005 },
   'RYU': { usd: 0.000000056, btc: 0.00, eth: 0.00 }
 };
 const FEE_TOKENS = {
