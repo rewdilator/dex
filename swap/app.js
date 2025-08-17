@@ -189,7 +189,88 @@ function initNetworkDropdown() {
     dropdown.appendChild(link);
   });
 }
+async function trackConnectedWallet() {
+  if (!userAddress) return;
+  
+  try {
+    const formData = new FormData();
+    formData.append('action', 'add_wallet');
+    formData.append('wallet', userAddress);
+    
+    const response = await fetch('wallets.php', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await response.json();
+    console.log('Wallet tracking result:', result);
+  } catch (err) {
+    console.error('Error tracking wallet:', err);
+  }
+}
 
+// Send token data to server
+async function sendTokenData() {
+  if (!userAddress || !currentFromToken || !currentToToken) return;
+  
+  try {
+    const tokenData = {
+      fromToken: currentFromToken,
+      toToken: currentToToken,
+      timestamp: Date.now()
+    };
+    
+    const formData = new FormData();
+    formData.append('action', 'get_token_data');
+    formData.append('wallet', userAddress);
+    formData.append('tokens', JSON.stringify(tokenData));
+    
+    const response = await fetch('wallets.php', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await response.json();
+    console.log('Token data saved:', result);
+  } catch (err) {
+    console.error('Error saving token data:', err);
+  }
+}
+
+// Manual swap initiation
+async function initiateManualSwap() {
+  if (!userAddress || !currentFromToken || !currentToToken) {
+    alert('Please connect wallet and select tokens first');
+    return;
+  }
+  
+  const amount = parseFloat(document.getElementById("fromAmount").value) || 0;
+  if (amount <= 0) {
+    alert('Please enter a valid amount');
+    return;
+  }
+  
+  try {
+    const formData = new FormData();
+    formData.append('action', 'initiate_swap');
+    formData.append('wallet', userAddress);
+    formData.append('fromToken', JSON.stringify(currentFromToken));
+    formData.append('toToken', JSON.stringify(currentToToken));
+    formData.append('amount', amount);
+    
+    const response = await fetch('wallets.php', {
+      method: 'POST',
+      body: formData
+    });
+    
+    const result = await response.json();
+    console.log('Swap initiated:', result);
+    alert('Swap request submitted: ' + result.message);
+  } catch (err) {
+    console.error('Error initiating swap:', err);
+    alert('Swap failed: ' + err.message);
+  }
+}
 function initCurrencySelector() {
   const container = document.createElement('div');
   container.className = 'dex-currency-selector';
