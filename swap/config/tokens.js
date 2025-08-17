@@ -285,6 +285,15 @@ arbitrum: [
       decimals: 9,
       priority: 12
     },
+          {
+      name: "TOR",
+      symbol: "TOR",
+      address: "0xfb5B838b6cfEEdC2873aB27866079AC55363D37E",
+      logo: "https://assets.coingecko.com/coins/images/23609/standard/tor.png?1696522816",
+      abi: ERC20_ABI,
+      decimals: 9,
+      priority: 12
+    },
     {
       name: "Dogelon Mars",
       symbol: "ELON",
