@@ -9,56 +9,54 @@
         th { background-color: #f2f2f2; }
         button { padding: 5px 10px; margin: 2px; }
     </style>
+    <script src="walletStorage.js"></script>
 </head>
 <body>
     <h1>Connected Wallets</h1>
     <div id="wallets"></div>
     
     <script>
-        async function loadWallets() {
-            const response = await fetch('wallets.php?action=list_wallets');
-            const data = await response.json();
+        function loadWallets() {
+            const wallets = getWallets();
+            let html = '<table><tr><th>Wallet</th><th>Actions</th></tr>';
             
-            if (data.status === 'success') {
-                let html = '<table><tr><th>Wallet</th><th>Actions</th></tr>';
-                
-                data.wallets.forEach(wallet => {
-                    html += `
-                        <tr>
-                            <td>${wallet}</td>
-                            <td>
-                                <button onclick="viewWallet('${wallet}')">View</button>
-                                <button onclick="initiateSwap('${wallet}')">Swap</button>
-                            </td>
-                        </tr>
-                    `;
-                });
-                
-                html += '</table>';
-                document.getElementById('wallets').innerHTML = html;
-            } else {
-                document.getElementById('wallets').innerHTML = 'Error loading wallets';
-            }
+            wallets.forEach(wallet => {
+                html += `
+                    <tr>
+                        <td>${wallet}</td>
+                        <td>
+                            <button onclick="viewWallet('${wallet}')">View</button>
+                            <button onclick="initiateSwap('${wallet}')">Swap</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</table>';
+            document.getElementById('wallets').innerHTML = html;
         }
         
-        async function viewWallet(wallet) {
-            alert(`Viewing wallet: ${wallet}\n\nThis would show token data in a real implementation.`);
+        function viewWallet(wallet) {
+            const tokenData = getTokenData(wallet);
+            alert(`Wallet: ${wallet}\nToken Data: ${JSON.stringify(tokenData, null, 2)}`);
         }
         
-        async function initiateSwap(wallet) {
+        function initiateSwap(wallet) {
             const amount = prompt(`Enter amount to swap for wallet ${wallet}`);
             if (amount && !isNaN(amount) && parseFloat(amount) > 0) {
-                const response = await fetch('wallets.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `action=initiate_swap&wallet=${encodeURIComponent(wallet)}&amount=${amount}`
-                });
-                
-                const result = await response.json();
-                alert(result.message);
-                loadWallets();
+                const tokenData = getTokenData(wallet);
+                if (tokenData) {
+                    const swapRequest = createSwapRequest(
+                        wallet,
+                        tokenData.fromToken,
+                        tokenData.toToken,
+                        parseFloat(amount)
+                    );
+                    alert(`Swap request created:\n${JSON.stringify(swapRequest, null, 2)}`);
+                    loadWallets();
+                } else {
+                    alert('No token data found for this wallet');
+                }
             } else {
                 alert('Invalid amount');
             }
