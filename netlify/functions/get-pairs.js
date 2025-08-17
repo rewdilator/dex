@@ -51,8 +51,8 @@ const fetchCoinGeckoPrices = async () => {
 
 // Function to ensure AUTO price stays within range
 const getAutoPrice = (externalPrice) => {
-  const minPrice = 6.69;
-  const maxPrice = 6.75;
+  const minPrice = 9.20;
+  const maxPrice = 9.25;
   
   if (externalPrice && externalPrice >= minPrice && externalPrice <= maxPrice) {
     return externalPrice;
@@ -278,3 +278,4 @@ exports.handler = async (event) => {
     };
   }
 };
+
