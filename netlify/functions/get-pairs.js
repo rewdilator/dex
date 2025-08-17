@@ -100,8 +100,8 @@ exports.handler = async (event) => {
     }
 
     // ===== 4. Create AUTO Pairs =====
-    const liquidityInUsd = "8115.01";
-    const bnbPriceUsd = 800;
+    const liquidityInUsd = "58115.01";
+    const bnbPriceUsd = 857;
     
     // Fallback volumes
     const autoUsdcBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 250 + 2000;
@@ -278,6 +278,7 @@ exports.handler = async (event) => {
     };
   }
 };
+
 
 
 
