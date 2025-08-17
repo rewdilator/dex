@@ -104,9 +104,9 @@ exports.handler = async (event) => {
     const bnbPriceUsd = 800;
     
     // Fallback volumes
-    const autoUsdcBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 2500 + 20000;
-    const autoUsdtBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 2500 + 15000;
-    const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 1200 + 5000;
+    const autoUsdcBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 250 + 2000;
+    const autoUsdtBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 250 + 1500;
+    const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 120 + 500;
 
     // AUTO-USDC Pair
     const sushiAutoUsdcTicker = {
@@ -278,6 +278,7 @@ exports.handler = async (event) => {
     };
   }
 };
+
 
 
 
