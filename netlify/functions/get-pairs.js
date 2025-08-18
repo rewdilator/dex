@@ -40,7 +40,7 @@ const formatSmallNumber = (num) => {
 const fetchCoinGeckoPrices = async () => {
   try {
     const response = await fetchWithRetry(
-      "https://api.coingecko.com/api/v3/simple/price?ids=auto,tor&vs_currencies=usd"
+      "https://api.coingecko.com/api/v3/simple/price?ids=auto,tor,mux-protocol,uncx-network,frok-ai,session-token,reental,lush-ai&vs_currencies=usd"
     );
     return response.data;
   } catch (error) {
@@ -79,6 +79,14 @@ exports.handler = async (event) => {
     const torPriceUsd = getTorPrice(prices.tor?.usd);
     const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006;
     const omikamiPriceUsd = Math.random() * 0.02 + 0.022; // Random price between 0.45 and 0.50
+    
+    // New token prices from CoinGecko with fallback
+    const muxPriceUsd = prices['mux-protocol']?.usd || Math.random() * 0.5 + 1.5;
+    const uncxPriceUsd = prices['uncx-network']?.usd || Math.random() * 20 + 80;
+    const frokPriceUsd = prices['frok-ai']?.usd || Math.random() * 0.00001 + 0.00005;
+    const sessionPriceUsd = prices['session-token']?.usd || Math.random() * 0.002 + 0.005;
+    const reentalPriceUsd = prices['reental']?.usd || Math.random() * 0.02 + 0.03;
+    const lushPriceUsd = prices['lush-ai']?.usd || Math.random() * 0.0005 + 0.001;
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -235,7 +243,36 @@ exports.handler = async (event) => {
       "low": omikamiPriceUsd.toFixed(6)
     };
 
-    // ===== 8. Process XExchange Pairs =====
+    // ===== 8. Create New Token Pairs with $50-$75 Volume =====
+    const generateNewTokenPair = (tokenName, tokenPrice, targetCurrency = 'USDT') => {
+      const targetVolume = Math.random() * 25 + 50; // $50-$75 volume
+      const baseVolume = (targetVolume / tokenPrice).toFixed(2);
+      
+      return {
+        "ticker_id": `${tokenName}_${targetCurrency}`,
+        "base_currency": tokenName,
+        "target_currency": targetCurrency,
+        "pool_id": "0x0000000000000000000000000000000000000000",
+        "last_price": tokenPrice.toString(),
+        "base_volume": baseVolume,
+        "target_volume": targetVolume.toFixed(2),
+        "liquidity_in_usd": "10000",
+        "bid": (tokenPrice * 0.99).toString(),
+        "ask": (tokenPrice * 1.01).toString(),
+        "high": tokenPrice.toString(),
+        "low": tokenPrice.toString()
+      };
+    };
+
+    // Create pairs for new tokens
+    const muxUsdtTicker = generateNewTokenPair("MUX", muxPriceUsd);
+    const uncxUsdtTicker = generateNewTokenPair("UNCX", uncxPriceUsd);
+    const frokUsdtTicker = generateNewTokenPair("FROK", frokPriceUsd);
+    const sessionUsdtTicker = generateNewTokenPair("SESSION", sessionPriceUsd);
+    const reentalUsdtTicker = generateNewTokenPair("REENTAL", reentalPriceUsd);
+    const lushUsdtTicker = generateNewTokenPair("LUSH", lushPriceUsd);
+
+    // ===== 9. Process XExchange Pairs =====
     const tickers = xexchangeResponse.data
       .filter(pair => pair.exchange === "xexchange")
       .map(pair => {
@@ -260,7 +297,7 @@ exports.handler = async (event) => {
         };
       });
 
-    // ===== 9. Apply Modifications to XExchange Pairs =====
+    // ===== 10. Apply Modifications to XExchange Pairs =====
     const modifiedTickers = tickers.map(ticker => {
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
         return {
@@ -282,7 +319,7 @@ exports.handler = async (event) => {
       return ticker;
     });
 
-    // ===== 10. Add All Additional Pairs =====
+    // ===== 11. Add All Additional Pairs =====
     modifiedTickers.push(
       sushiAutoUsdcTicker,
       autoUsdtTicker,
@@ -290,7 +327,13 @@ exports.handler = async (event) => {
       ryujinTicker,
       torUsdtTicker,
       omikamiUsdcTicker,
-      omikamiUsdtTicker
+      omikamiUsdtTicker,
+      muxUsdtTicker,
+      uncxUsdtTicker,
+      frokUsdtTicker,
+      sessionUsdtTicker,
+      reentalUsdtTicker,
+      lushUsdtTicker
     );
 
     return {
@@ -316,5 +359,3 @@ exports.handler = async (event) => {
     };
   }
 };
-
-
