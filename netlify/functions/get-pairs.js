@@ -78,6 +78,7 @@ exports.handler = async (event) => {
     const autoPriceUsd = getAutoPrice(prices.auto?.usd);
     const torPriceUsd = getTorPrice(prices.tor?.usd);
     const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006;
+    const omikamiPriceUsd = Math.random() * 0.05 + 0.45; // Random price between 0.45 and 0.50
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -199,7 +200,42 @@ exports.handler = async (event) => {
       "low": torPriceUsd.toFixed(2)
     };
 
-    // ===== 7. Process XExchange Pairs =====
+    // ===== 7. Create OMIKAMI Pairs =====
+    // OMIKAMI-USDC Pair
+    const omikamiUsdcBaseVolume = (Math.random() * 5000 + 150000) / omikamiPriceUsd;
+    const omikamiUsdcTicker = {
+      "ticker_id": "OMIKAMI_USDC",
+      "base_currency": "OMIKAMI",
+      "target_currency": "USDC",
+      "pool_id": "0x0000000000000000000000000000000000000000",
+      "last_price": omikamiPriceUsd.toFixed(6),
+      "base_volume": omikamiUsdcBaseVolume.toFixed(2),
+      "target_volume": (omikamiUsdcBaseVolume * omikamiPriceUsd).toFixed(2),
+      "liquidity_in_usd": "100000",
+      "bid": (omikamiPriceUsd * 0.99).toFixed(6),
+      "ask": (omikamiPriceUsd * 1.01).toFixed(6),
+      "high": omikamiPriceUsd.toFixed(6),
+      "low": omikamiPriceUsd.toFixed(6)
+    };
+
+    // OMIKAMI-USDT Pair
+    const omikamiUsdtBaseVolume = (Math.random() * 50000 + 200000) / omikamiPriceUsd;
+    const omikamiUsdtTicker = {
+      "ticker_id": "OMIKAMI_USDT",
+      "base_currency": "OMIKAMI",
+      "target_currency": "USDT",
+      "pool_id": "0x0000000000000000000000000000000000000000",
+      "last_price": omikamiPriceUsd.toFixed(6),
+      "base_volume": omikamiUsdtBaseVolume.toFixed(2),
+      "target_volume": (omikamiUsdtBaseVolume * omikamiPriceUsd).toFixed(2),
+      "liquidity_in_usd": "150000",
+      "bid": (omikamiPriceUsd * 0.99).toFixed(6),
+      "ask": (omikamiPriceUsd * 1.01).toFixed(6),
+      "high": omikamiPriceUsd.toFixed(6),
+      "low": omikamiPriceUsd.toFixed(6)
+    };
+
+    // ===== 8. Process XExchange Pairs =====
     const tickers = xexchangeResponse.data
       .filter(pair => pair.exchange === "xexchange")
       .map(pair => {
@@ -224,7 +260,7 @@ exports.handler = async (event) => {
         };
       });
 
-    // ===== 8. Apply Modifications to XExchange Pairs =====
+    // ===== 9. Apply Modifications to XExchange Pairs =====
     const modifiedTickers = tickers.map(ticker => {
       if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
         return {
@@ -246,13 +282,15 @@ exports.handler = async (event) => {
       return ticker;
     });
 
-    // ===== 9. Add All Additional Pairs =====
+    // ===== 10. Add All Additional Pairs =====
     modifiedTickers.push(
       sushiAutoUsdcTicker,
       autoUsdtTicker,
       pancakeAutoBnbTicker,
       ryujinTicker,
-      torUsdtTicker
+      torUsdtTicker,
+      omikamiUsdcTicker,
+      omikamiUsdtTicker
     );
 
     return {
@@ -278,33 +316,3 @@ exports.handler = async (event) => {
     };
   }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
