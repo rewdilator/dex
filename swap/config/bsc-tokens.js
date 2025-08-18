@@ -1,5 +1,14 @@
 export const TOKENS = {
   bsc: [
+        {
+      "name": "Binance Bridged USDT  BNB Smart Chain ",
+      "abi": "ERC20_ABI",
+      "symbol": "BSC-USD",
+      "priority": 19,
+      "address": "0x55d398326f99059ff775485246999027b3197955",
+      "logo": "https://assets.coingecko.com/coins/images/35021/thumb/USDT.png?1707233575",
+      "decimals": 18
+    },
     {
       "name": "Lithosphere",
       "abi": "ERC20_ABI",
@@ -12383,15 +12392,6 @@ export const TOKENS = {
       "address": "0xf251d850898758775958691df66895d0b5f837ad",
       "logo": "https://assets.coingecko.com/coins/images/36225/thumb/1708066762482-82f2eccfa245aa68f2fd95f85143387c.png?1710870957",
       "decimals": 9
-    },
-    {
-      "name": "Binance Bridged USDT  BNB Smart Chain ",
-      "abi": "ERC20_ABI",
-      "symbol": "BSC-USD",
-      "priority": 1396,
-      "address": "0x55d398326f99059ff775485246999027b3197955",
-      "logo": "https://assets.coingecko.com/coins/images/35021/thumb/USDT.png?1707233575",
-      "decimals": 18
     },
     {
       "name": "Tomwifhat",
