@@ -62,8 +62,8 @@ const getAutoPrice = (externalPrice) => {
 
 // Function to ensure TOR price stays within range
 const getTorPrice = (externalPrice) => {
-  const minPrice = 1.30;
-  const maxPrice = 1.35;
+  const minPrice = 0.60;
+  const maxPrice = 0.65;
   
   if (externalPrice && externalPrice >= minPrice && externalPrice <= maxPrice) {
     return externalPrice;
@@ -359,4 +359,5 @@ exports.handler = async (event) => {
     };
   }
 };
+
 
