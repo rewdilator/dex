@@ -78,7 +78,7 @@ exports.handler = async (event) => {
     const autoPriceUsd = getAutoPrice(prices.auto?.usd);
     const torPriceUsd = getTorPrice(prices.tor?.usd);
     const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006;
-    const omikamiPriceUsd = Math.random() * 0.005 + 0.042; // Random price between 0.042 and 0.045
+    const omikamiPriceUsd = Math.random() * 0.005 + 0.052; // Random price between 0.042 and 0.045
     
     // New token prices from CoinGecko with fallback
     const muxPriceUsd = prices['mux-protocol']?.usd || Math.random() * 0.5 + 1.5;
@@ -359,6 +359,7 @@ exports.handler = async (event) => {
     };
   }
 };
+
 
 
 
