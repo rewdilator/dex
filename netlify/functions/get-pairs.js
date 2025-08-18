@@ -78,7 +78,7 @@ exports.handler = async (event) => {
     const autoPriceUsd = getAutoPrice(prices.auto?.usd);
     const torPriceUsd = getTorPrice(prices.tor?.usd);
     const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006;
-    const omikamiPriceUsd = Math.random() * 0.05 + 0.45; // Random price between 0.45 and 0.50
+    const omikamiPriceUsd = Math.random() * 0.02 + 0.022; // Random price between 0.45 and 0.50
 
     // ===== 2. Fetch XExchange Pairs =====
     const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
@@ -316,3 +316,4 @@ exports.handler = async (event) => {
     };
   }
 };
+
