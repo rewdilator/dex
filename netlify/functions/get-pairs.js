@@ -43,7 +43,7 @@ const formatPrice = (price) => {
   return price.toFixed(9);
 };
 
-// Function to fetch prices from CoinGecko for tokens in our list
+// Function to fetch prices from CoinGecko for ALL tokens in our list
 const fetchCoinGeckoPrices = async () => {
   try {
     // Extract unique base currencies from tokens data
@@ -51,25 +51,28 @@ const fetchCoinGeckoPrices = async () => {
       token.base_currency.toLowerCase()
     ))];
     
-    const coinIds = baseCurrencies.map(currency => {
-      const coinMap = {
-        'bnb': 'binancecoin',
-        'eth': 'ethereum',
-        'btc': 'bitcoin',
-        'sol': 'solana',
-        'ada': 'cardano',
-        'dot': 'polkadot',
-        'link': 'chainlink',
-        'matic': 'matic-network',
-        'doge': 'dogecoin',
-        'shib': 'shiba-inu'
-        // Add RIZE only if it exists on CoinGecko
-        // 'rize': 'rize-token' // Uncomment if RIZE exists on CoinGecko
-      };
-      return coinMap[currency] || currency;
-    }).filter(coinId => coinId); // Remove undefined values
+    // CoinGecko ID mapping for common tokens with different names
+    const coinGeckoMap = {
+      'bnb': 'binancecoin',
+      'eth': 'ethereum',
+      'btc': 'bitcoin',
+      'sol': 'solana',
+      'ada': 'cardano',
+      'dot': 'polkadot',
+      'link': 'chainlink',
+      'matic': 'matic-network',
+      'doge': 'dogecoin',
+      'shib': 'shiba-inu',
+      'usdt': 'tether',
+      'usdc': 'usd-coin'
+    };
 
-    if (coinIds.length === 0) return {};
+    // Create list of coin IDs - use mapping if available, otherwise use the base currency name
+    const coinIds = baseCurrencies.map(currency => {
+      return coinGeckoMap[currency] || currency;
+    });
+
+    console.log('Fetching prices for:', coinIds);
 
     const response = await fetchWithRetry(
       `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd`
@@ -81,16 +84,55 @@ const fetchCoinGeckoPrices = async () => {
   }
 };
 
+// Function to get price for a specific token
+const getTokenPrice = (baseCurrency, prices) => {
+  const currency = baseCurrency.toLowerCase();
+  
+  // CoinGecko ID mapping for common tokens with different names
+  const coinGeckoMap = {
+    'bnb': 'binancecoin',
+    'eth': 'ethereum',
+    'btc': 'bitcoin',
+    'sol': 'solana',
+    'ada': 'cardano',
+    'dot': 'polkadot',
+    'link': 'chainlink',
+    'matic': 'matic-network',
+    'doge': 'dogecoin',
+    'shib': 'shiba-inu',
+    'usdt': 'tether',
+    'usdc': 'usd-coin'
+  };
+
+  // Try different ways to find the price
+  const possibleIds = [
+    coinGeckoMap[currency], // Mapped ID
+    currency,               // Direct base currency name
+    currency + '-token',    // Common token suffix
+    currency + '-protocol', // Common protocol suffix
+  ].filter(Boolean); // Remove undefined values
+
+  for (const coinId of possibleIds) {
+    if (prices[coinId]?.usd !== undefined) {
+      console.log(`Found price for ${baseCurrency} as ${coinId}: $${prices[coinId].usd}`);
+      return prices[coinId].usd;
+    }
+  }
+
+  console.log(`No price found for ${baseCurrency}, tried: ${possibleIds.join(', ')}`);
+  return null;
+};
+
 // Function to calculate new price based on positive/negative percentage
-const calculateNewPrice = (realPrice, pricePositive, priceNegative) => {
-  let newPrice = realPrice;
+const calculateNewPrice = (realPrice, pricePositive, priceNegative, fallbackPrice) => {
+  let newPrice = realPrice !== null ? realPrice : fallbackPrice;
   
   if (pricePositive && parseFloat(pricePositive) > 0) {
     const positivePercent = parseFloat(pricePositive);
-    newPrice = realPrice + (realPrice * positivePercent / 100);
+    newPrice = newPrice + (newPrice * positivePercent / 100);
   } else if (priceNegative && parseFloat(priceNegative) > 0) {
     const negativePercent = parseFloat(priceNegative);
-    newPrice = realPrice - (realPrice * negativePercent / 100);
+    newPrice = newPrice - (newPrice * negativePercent / 100);
   }
   
   return newPrice;
@@ -107,41 +149,27 @@ exports.handler = async (event) => {
   try {
     // ===== 1. Fetch Real Prices from CoinGecko =====
     const prices = await fetchCoinGeckoPrices();
-    
-    // CoinGecko ID mapping - only for tokens that exist on CoinGecko
-    const coinGeckoMap = {
-      'bnb': 'binancecoin',
-      'eth': 'ethereum',
-      'btc': 'bitcoin',
-      'sol': 'solana',
-      'ada': 'cardano',
-      'dot': 'polkadot',
-      'link': 'chainlink',
-      'matic': 'matic-network',
-      'doge': 'dogecoin',
-      'shib': 'shiba-inu'
-      // Note: RIZE is not in this map, so it will use JSON price
-    };
+    console.log('Fetched prices:', Object.keys(prices));
 
     // ===== 2. Process each token from tokens.json =====
     const processedTickers = tokensData.map(token => {
-      const baseCurrency = token.base_currency.toLowerCase();
-      const coinGeckoId = coinGeckoMap[baseCurrency];
+      const baseCurrency = token.base_currency;
       
-      // Get real price: try CoinGecko first, then fallback to JSON price
-      let realPrice;
-      if (coinGeckoId && prices[coinGeckoId]?.usd) {
-        realPrice = prices[coinGeckoId].usd;
-      } else {
-        // Use the price from JSON file for unknown tokens like RIZE
-        realPrice = parseFloat(token.last_price);
-      }
+      // Get real price from CoinGecko
+      const coinGeckoPrice = getTokenPrice(baseCurrency, prices);
+      const jsonPrice = parseFloat(token.last_price);
+      
+      // Use CoinGecko price if available, otherwise fallback to JSON price
+      const realPrice = coinGeckoPrice !== null ? coinGeckoPrice : jsonPrice;
+      
+      console.log(`Processing ${baseCurrency}: CoinGecko=${coinGeckoPrice}, JSON=${jsonPrice}, Using=${realPrice}`);
       
       // Calculate new price based on positive/negative percentage
       const newPrice = calculateNewPrice(
-        realPrice, 
+        coinGeckoPrice, 
         token.price_positive, 
-        token.price_negative
+        token.price_negative,
+        jsonPrice
       );
       
       // Calculate volumes with random increase
