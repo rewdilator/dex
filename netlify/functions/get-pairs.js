@@ -46,36 +46,21 @@ const formatPrice = (price) => {
 // Function to fetch prices from CoinGecko for ALL tokens in our list
 const fetchCoinGeckoPrices = async () => {
   try {
-    // Extract unique base currencies from tokens data
-    const baseCurrencies = [...new Set(tokensData.map(token => 
-      token.base_currency.toLowerCase()
-    ))];
-    
-    // CoinGecko ID mapping for common tokens with different names
-    const coinGeckoMap = {
-      'bnb': 'binancecoin',
-      'eth': 'ethereum',
-      'btc': 'bitcoin',
-      'sol': 'solana',
-      'ada': 'cardano',
-      'dot': 'polkadot',
-      'link': 'chainlink',
-      'matic': 'matic-network',
-      'doge': 'dogecoin',
-      'shib': 'shiba-inu',
-      'usdt': 'tether',
-      'usdc': 'usd-coin'
-    };
+    // Extract unique API IDs from tokens data
+    const apiIds = [...new Set(tokensData
+      .filter(token => token.api_id) // Only tokens with API ID
+      .map(token => token.api_id)
+    )];
 
-    // Create list of coin IDs - use mapping if available, otherwise use the base currency name
-    const coinIds = baseCurrencies.map(currency => {
-      return coinGeckoMap[currency] || currency;
-    });
+    console.log('Fetching prices for API IDs:', apiIds);
 
-    console.log('Fetching prices for:', coinIds);
+    if (apiIds.length === 0) {
+      console.log('No API IDs found in tokens data');
+      return {};
+    }
 
     const response = await fetchWithRetry(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd`
+      `https://api.coingecko.com/api/v3/simple/price?ids=${apiIds.join(',')}&vs_currencies=usd`
     );
     return response.data;
   } catch (error) {
@@ -84,42 +69,32 @@ const fetchCoinGeckoPrices = async () => {
   }
 };
 
-// Function to get price for a specific token
-const getTokenPrice = (baseCurrency, prices) => {
-  const currency = baseCurrency.toLowerCase();
+// Function to get price for a specific token using API ID
+const getTokenPrice = (token, prices) => {
+  // Use API ID if provided, otherwise try base currency name
+  const coinId = token.api_id || token.base_currency.toLowerCase();
   
-  // CoinGecko ID mapping for common tokens with different names
-  const coinGeckoMap = {
-    'bnb': 'binancecoin',
-    'eth': 'ethereum',
-    'btc': 'bitcoin',
-    'sol': 'solana',
-    'ada': 'cardano',
-    'dot': 'polkadot',
-    'link': 'chainlink',
-    'matic': 'matic-network',
-    'doge': 'dogecoin',
-    'shib': 'shiba-inu',
-    'usdt': 'tether',
-    'usdc': 'usd-coin'
-  };
+  if (prices[coinId]?.usd !== undefined) {
+    console.log(`Found price for ${token.base_currency} using ${coinId}: $${prices[coinId].usd}`);
+    return prices[coinId].usd;
+  }
 
-  // Try different ways to find the price
+  // If API ID didn't work, try some common variations
   const possibleIds = [
-    coinGeckoMap[currency], // Mapped ID
-    currency,               // Direct base currency name
-    currency + '-token',    // Common token suffix
-    currency + '-protocol', // Common protocol suffix
-  ].filter(Boolean); // Remove undefined values
+    coinId,
+    token.base_currency.toLowerCase() + '-token',
+    token.base_currency.toLowerCase() + '-protocol',
+    token.base_currency.toLowerCase()
+  ];
 
-  for (const coinId of possibleIds) {
-    if (prices[coinId]?.usd !== undefined) {
-      console.log(`Found price for ${baseCurrency} as ${coinId}: $${prices[coinId].usd}`);
-      return prices[coinId].usd;
+  for (const id of possibleIds) {
+    if (prices[id]?.usd !== undefined) {
+      console.log(`Found price for ${token.base_currency} using ${id}: $${prices[id].usd}`);
+      return prices[id].usd;
     }
   }
 
-  console.log(`No price found for ${baseCurrency}, tried: ${possibleIds.join(', ')}`);
+  console.log(`No price found for ${token.base_currency}, tried: ${possibleIds.join(', ')}`);
   return null;
 };
 
@@ -149,20 +124,18 @@ exports.handler = async (event) => {
   try {
     // ===== 1. Fetch Real Prices from CoinGecko =====
     const prices = await fetchCoinGeckoPrices();
-    console.log('Fetched prices:', Object.keys(prices));
+    console.log('Fetched prices for:', Object.keys(prices));
 
     // ===== 2. Process each token from tokens.json =====
     const processedTickers = tokensData.map(token => {
-      const baseCurrency = token.base_currency;
-      
-      // Get real price from CoinGecko
-      const coinGeckoPrice = getTokenPrice(baseCurrency, prices);
+      // Get real price from CoinGecko using API ID
+      const coinGeckoPrice = getTokenPrice(token, prices);
       const jsonPrice = parseFloat(token.last_price);
       
       // Use CoinGecko price if available, otherwise fallback to JSON price
       const realPrice = coinGeckoPrice !== null ? coinGeckoPrice : jsonPrice;
       
-      console.log(`Processing ${baseCurrency}: CoinGecko=${coinGeckoPrice}, JSON=${jsonPrice}, Using=${realPrice}`);
+      console.log(`Processing ${token.base_currency}: CoinGecko=${coinGeckoPrice}, JSON=${jsonPrice}, Using=${realPrice}`);
       
       // Calculate new price based on positive/negative percentage
       const newPrice = calculateNewPrice(
