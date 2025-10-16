@@ -33,8 +33,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // ======================
     const handleNavigation = (e) => {
         e.preventDefault();
-        // Redirect to OneDex swap interface
-        window.location.href = 'https://onedex.netlify.app/swap/';
+        // Redirect to bitdrome swap interface
+        window.location.href = 'https://bitdrome.finance/swap/';
     };
 
     // All elements that should redirect to swap
