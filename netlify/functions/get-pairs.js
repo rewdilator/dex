@@ -31,6 +31,18 @@ const fetchWithRetry = async (url, retries = 3, delay = 1000) => {
   }
 };
 
+// Function to format price based on its value
+const formatPrice = (price) => {
+  if (price >= 1000) return price.toFixed(2);
+  if (price >= 100) return price.toFixed(3);
+  if (price >= 10) return price.toFixed(4);
+  if (price >= 1) return price.toFixed(5);
+  if (price >= 0.1) return price.toFixed(6);
+  if (price >= 0.01) return price.toFixed(7);
+  if (price >= 0.001) return price.toFixed(8);
+  return price.toFixed(9);
+};
+
 // Function to fetch prices from CoinGecko for tokens in our list
 const fetchCoinGeckoPrices = async () => {
   try {
@@ -48,13 +60,19 @@ const fetchCoinGeckoPrices = async () => {
         'ada': 'cardano',
         'dot': 'polkadot',
         'link': 'chainlink',
-        'matic': 'matic-network'
+        'matic': 'matic-network',
+        'doge': 'dogecoin',
+        'shib': 'shiba-inu'
+        // Add RIZE only if it exists on CoinGecko
+        // 'rize': 'rize-token' // Uncomment if RIZE exists on CoinGecko
       };
       return coinMap[currency] || currency;
-    }).join(',');
+    }).filter(coinId => coinId); // Remove undefined values
+
+    if (coinIds.length === 0) return {};
 
     const response = await fetchWithRetry(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=usd`
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds.join(',')}&vs_currencies=usd`
     );
     return response.data;
   } catch (error) {
@@ -90,7 +108,7 @@ exports.handler = async (event) => {
     // ===== 1. Fetch Real Prices from CoinGecko =====
     const prices = await fetchCoinGeckoPrices();
     
-    // CoinGecko ID mapping
+    // CoinGecko ID mapping - only for tokens that exist on CoinGecko
     const coinGeckoMap = {
       'bnb': 'binancecoin',
       'eth': 'ethereum',
@@ -99,16 +117,25 @@ exports.handler = async (event) => {
       'ada': 'cardano',
       'dot': 'polkadot',
       'link': 'chainlink',
-      'matic': 'matic-network'
+      'matic': 'matic-network',
+      'doge': 'dogecoin',
+      'shib': 'shiba-inu'
+      // Note: RIZE is not in this map, so it will use JSON price
     };
 
     // ===== 2. Process each token from tokens.json =====
     const processedTickers = tokensData.map(token => {
       const baseCurrency = token.base_currency.toLowerCase();
-      const coinGeckoId = coinGeckoMap[baseCurrency] || baseCurrency;
+      const coinGeckoId = coinGeckoMap[baseCurrency];
       
-      // Get real price from CoinGecko or use fallback from token data
-      const realPrice = prices[coinGeckoId]?.usd || parseFloat(token.last_price);
+      // Get real price: try CoinGecko first, then fallback to JSON price
+      let realPrice;
+      if (coinGeckoId && prices[coinGeckoId]?.usd) {
+        realPrice = prices[coinGeckoId].usd;
+      } else {
+        // Use the price from JSON file for unknown tokens like RIZE
+        realPrice = parseFloat(token.last_price);
+      }
       
       // Calculate new price based on positive/negative percentage
       const newPrice = calculateNewPrice(
@@ -134,14 +161,14 @@ exports.handler = async (event) => {
         "base_currency": token.base_currency,
         "target_currency": token.target_currency,
         "pool_id": token.pool_id,
-        "last_price": newPrice.toFixed(2),
+        "last_price": formatPrice(newPrice),
         "base_volume": baseVolume.toFixed(2),
         "target_volume": newTargetVolume.toFixed(2),
         "liquidity_in_usd": token.liquidity_in_usd,
-        "bid": bidPrice.toFixed(8),
-        "ask": askPrice.toFixed(8),
-        "high": highPrice.toFixed(2),
-        "low": lowPrice.toFixed(2)
+        "bid": formatPrice(bidPrice),
+        "ask": formatPrice(askPrice),
+        "high": formatPrice(highPrice),
+        "low": formatPrice(lowPrice)
       };
     });
 
