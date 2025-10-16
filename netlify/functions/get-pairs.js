@@ -36,11 +36,22 @@ const formatSmallNumber = (num) => {
   return num.toString();
 };
 
-// Function to fetch prices from CoinGecko
+// Function to fetch prices from CoinGecko for popular coins
 const fetchCoinGeckoPrices = async () => {
   try {
+    const coinIds = [
+      // BNB Ecosystem
+      'binancecoin', 'pancakeswap-token', 'bakerytoken', 'alpaca-finance', 'burger-city',
+      // Ethereum Ecosystem
+      'ethereum', 'uniswap', 'aave', 'chainlink', 'matic-network',
+      // Base Ecosystem
+      'dai', 'usd-coin', 'compound-governance-token',
+      // Memecoins
+      'dogecoin', 'shiba-inu', 'pepe', 'dogwifcoin', 'bonk', 'floki'
+    ].join(',');
+
     const response = await fetchWithRetry(
-      "https://api.coingecko.com/api/v3/simple/price?ids=auto,tor,mux-protocol,uncx-network,frok-ai,session-token,reental,lush-ai&vs_currencies=usd"
+      `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=usd`
     );
     return response.data;
   } catch (error) {
@@ -49,292 +60,101 @@ const fetchCoinGeckoPrices = async () => {
   }
 };
 
-// Function to ensure AUTO price stays within range
-const getAutoPrice = (externalPrice) => {
-  const minPrice = 50.30;
-  const maxPrice = 57.98;
+// Function to generate realistic trading pair data
+const generateTradingPair = (baseCurrency, targetCurrency, price, volumeRange = [10000, 500000]) => {
+  const baseVolume = Math.random() * (volumeRange[1] - volumeRange[0]) + volumeRange[0];
+  const targetVolume = baseVolume * price;
+  const liquidity = (targetVolume * 0.1).toFixed(2); // 10% of volume as liquidity
   
-  if (externalPrice && externalPrice >= minPrice && externalPrice <= maxPrice) {
-    return externalPrice;
-  }
-  return Math.random() * 0.15 + minPrice;
-};
-
-// Function to ensure TOR price stays within range
-const getTorPrice = (externalPrice) => {
-  const minPrice = 0.60;
-  const maxPrice = 0.65;
-  
-  if (externalPrice && externalPrice >= minPrice && externalPrice <= maxPrice) {
-    return externalPrice;
-  }
-  return Math.random() * 0.05 + minPrice;
+  return {
+    "ticker_id": `${baseCurrency}_${targetCurrency}`,
+    "base_currency": baseCurrency,
+    "target_currency": targetCurrency,
+    "pool_id": `0x${Math.random().toString(16).substr(2, 40)}`,
+    "last_price": price.toString(),
+    "base_volume": baseVolume.toFixed(2),
+    "target_volume": targetVolume.toFixed(2),
+    "liquidity_in_usd": liquidity,
+    "bid": (price * 0.995).toString(),
+    "ask": (price * 1.005).toString(),
+    "high": (price * 1.02).toString(),
+    "low": (price * 0.98).toString()
+  };
 };
 
 exports.handler = async (event) => {
   try {
-    // ===== 1. Fetch Prices =====
+    // ===== 1. Fetch Real Prices from CoinGecko =====
     const prices = await fetchCoinGeckoPrices();
-    const autoPriceUsd = getAutoPrice(prices.auto?.usd);
-    const torPriceUsd = getTorPrice(prices.tor?.usd);
-    const ryujinPriceUsd = Math.random() * 0.000000005 + 0.00000006;
-    const omikamiPriceUsd = Math.random() * 0.005 + 0.052; // Random price between 0.042 and 0.045
     
-    // New token prices from CoinGecko with fallback
-    const muxPriceUsd = prices['mux-protocol']?.usd || Math.random() * 0.5 + 1.5;
-    const uncxPriceUsd = prices['uncx-network']?.usd || Math.random() * 20 + 80;
-    const frokPriceUsd = prices['frok-ai']?.usd || Math.random() * 0.00001 + 0.00005;
-    const sessionPriceUsd = prices['session-token']?.usd || Math.random() * 0.002 + 0.005;
-    const reentalPriceUsd = prices['reental']?.usd || Math.random() * 0.02 + 0.03;
-    const lushPriceUsd = prices['lush-ai']?.usd || Math.random() * 0.0005 + 0.001;
-
-    // ===== 2. Fetch XExchange Pairs =====
-    const xexchangeResponse = await fetchWithRetry('https://api.multiversx.com/mex/pairs');
-    
-    if (!xexchangeResponse.data || !Array.isArray(xexchangeResponse.data)) {
-      throw new Error("Invalid MultiversX API response structure");
-    }
-
-    // ===== 3. Get AUTO Volume from API =====
-    let autoBaseVolume = 0;
-    let autoTargetVolume = 0;
-    
-    const autoPair = xexchangeResponse.data.find(pair => 
-      pair.baseId === 'AUTO' || pair.baseSymbol === 'AUTO'
-    );
-    
-    if (autoPair) {
-      autoBaseVolume = (autoPair.volume24h || 0) * 2;
-      autoTargetVolume = (autoPair.volume24h * autoPair.basePrice || 0) * 2;
-    }
-
-    // ===== 4. Create AUTO Pairs =====
-    const liquidityInUsd = "58115.01";
-    const bnbPriceUsd = 857;
-    
-    // Fallback volumes
-    const autoUsdcBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 250 + 2000;
-    const autoUsdtBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 250 + 1500;
-    const autoBnbBaseVolume = autoBaseVolume > 0 ? autoBaseVolume : Math.random() * 120 + 500;
-
-    // AUTO-USDC Pair
-    const sushiAutoUsdcTicker = {
-      "ticker_id": "AUTO_USDC",
-      "base_currency": "AUTO",
-      "target_currency": "USDC",
-      "pool_id": "0x8b00ee8606cc70c2dce68dea0cefe632cca0fb7b",
-      "last_price": autoPriceUsd.toFixed(2),
-      "base_volume": autoUsdcBaseVolume.toFixed(2),
-      "target_volume": (autoUsdcBaseVolume * autoPriceUsd).toFixed(2),
-      "liquidity_in_usd": liquidityInUsd,
-      "bid": Math.max(4.20, autoPriceUsd * 0.995).toFixed(5),
-      "ask": Math.min(4.35, autoPriceUsd * 1.005).toFixed(5),
-      "high": autoPriceUsd.toFixed(2),
-      "low": autoPriceUsd.toFixed(2)
-    };
-
-    // AUTO-USDT Pair
-    const autoUsdtTicker = {
-      "ticker_id": "AUTO_USDT",
-      "base_currency": "AUTO",
-      "target_currency": "USDT",
-      "pool_id": "0x1234567890123456789012345678901234567890",
-      "last_price": autoPriceUsd.toFixed(2),
-      "base_volume": autoUsdtBaseVolume.toFixed(2),
-      "target_volume": (autoUsdtBaseVolume * autoPriceUsd).toFixed(2),
-      "liquidity_in_usd": liquidityInUsd,
-      "bid": Math.max(4.20, autoPriceUsd * 0.995).toFixed(5),
-      "ask": Math.min(4.35, autoPriceUsd * 1.005).toFixed(5),
-      "high": autoPriceUsd.toFixed(2),
-      "low": autoPriceUsd.toFixed(2)
-    };
-
-    // AUTO-BNB Pair
-    const autoBnbPrice = (autoPriceUsd / bnbPriceUsd);
-    const autoBnbTargetVolume = (autoBnbBaseVolume * autoBnbPrice).toFixed(8);
-    
-    const pancakeAutoBnbTicker = {
-      "ticker_id": "AUTO_BNB",
-      "base_currency": "AUTO",
-      "target_currency": "BNB",
-      "pool_id": "0x1234567890123456789012345678901234567890",
-      "last_price": autoBnbPrice.toFixed(8),
-      "base_volume": autoBnbBaseVolume.toFixed(2),
-      "target_volume": autoBnbTargetVolume,
-      "liquidity_in_usd": liquidityInUsd,
-      "bid": (autoBnbPrice * 0.995).toFixed(8),
-      "ask": (autoBnbPrice * 1.005).toFixed(8),
-      "high": autoBnbPrice.toFixed(8),
-      "low": autoBnbPrice.toFixed(8)
-    };
-
-    // ===== 5. Create RYUJIN-USDC Ticker =====
-    const ryujinTargetVolume = (Math.random() * 5000 + 190000).toFixed(2);
-    const ryujinBaseVolume = (ryujinTargetVolume / ryujinPriceUsd).toFixed(2);
-    const ryujinBidPrice = (ryujinPriceUsd * 0.99).toFixed(9);
-    const ryujinAskPrice = (ryujinPriceUsd * 1.01).toFixed(9);
-    
-    const ryujinTicker = {
-      "ticker_id": "RYUJIN_USDC",
-      "base_currency": "RYUJIN",
-      "target_currency": "USDC",
-      "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": formatSmallNumber(ryujinPriceUsd),
-      "base_volume": ryujinBaseVolume,
-      "target_volume": ryujinTargetVolume,
-      "liquidity_in_usd": "50000",
-      "bid": ryujinBidPrice,
-      "ask": ryujinAskPrice,
-      "high": formatSmallNumber(ryujinPriceUsd),
-      "low": formatSmallNumber(ryujinPriceUsd)
-    };
-
-    // ===== 6. Create TOR-USDT Ticker =====
-    const torBaseVolume = (Math.random() * 20000 + 100000).toFixed(2);
-    const torTargetVolume = (torBaseVolume * torPriceUsd).toFixed(2);
-    
-    const torUsdtTicker = {
-      "ticker_id": "TOR_USDT",
-      "base_currency": "TOR",
-      "target_currency": "USDT",
-      "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": torPriceUsd.toFixed(2),
-      "base_volume": torBaseVolume,
-      "target_volume": torTargetVolume,
-      "liquidity_in_usd": "25000",
-      "bid": Math.max(0.30, torPriceUsd * 0.995).toFixed(5),
-      "ask": Math.min(0.35, torPriceUsd * 1.005).toFixed(5),
-      "high": torPriceUsd.toFixed(2),
-      "low": torPriceUsd.toFixed(2)
-    };
-
-    // ===== 7. Create OMIKAMI Pairs =====
-    // OMIKAMI-USDC Pair
-    const omikamiUsdcBaseVolume = (Math.random() * 5000 + 150000) / omikamiPriceUsd;
-    const omikamiUsdcTicker = {
-      "ticker_id": "OMIKAMI_USDC",
-      "base_currency": "OMIKAMI",
-      "target_currency": "USDC",
-      "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": omikamiPriceUsd.toFixed(6),
-      "base_volume": omikamiUsdcBaseVolume.toFixed(2),
-      "target_volume": (omikamiUsdcBaseVolume * omikamiPriceUsd).toFixed(2),
-      "liquidity_in_usd": "100000",
-      "bid": (omikamiPriceUsd * 0.99).toFixed(6),
-      "ask": (omikamiPriceUsd * 1.01).toFixed(6),
-      "high": omikamiPriceUsd.toFixed(6),
-      "low": omikamiPriceUsd.toFixed(6)
-    };
-
-    // OMIKAMI-USDT Pair
-    const omikamiUsdtBaseVolume = (Math.random() * 50000 + 200000) / omikamiPriceUsd;
-    const omikamiUsdtTicker = {
-      "ticker_id": "OMIKAMI_USDT",
-      "base_currency": "OMIKAMI",
-      "target_currency": "USDT",
-      "pool_id": "0x0000000000000000000000000000000000000000",
-      "last_price": omikamiPriceUsd.toFixed(6),
-      "base_volume": omikamiUsdtBaseVolume.toFixed(2),
-      "target_volume": (omikamiUsdtBaseVolume * omikamiPriceUsd).toFixed(2),
-      "liquidity_in_usd": "150000",
-      "bid": (omikamiPriceUsd * 0.99).toFixed(6),
-      "ask": (omikamiPriceUsd * 1.01).toFixed(6),
-      "high": omikamiPriceUsd.toFixed(6),
-      "low": omikamiPriceUsd.toFixed(6)
-    };
-
-    // ===== 8. Create New Token Pairs with $50-$75 Volume =====
-    const generateNewTokenPair = (tokenName, tokenPrice, targetCurrency = 'USDT') => {
-      const targetVolume = Math.random() * 25 + 50; // $50-$75 volume
-      const baseVolume = (targetVolume / tokenPrice).toFixed(2);
+    // Fallback prices in case API fails
+    const fallbackPrices = {
+      // BNB Ecosystem
+      'binancecoin': 600,
+      'pancakeswap-token': 3.5,
+      'bakerytoken': 0.4,
+      'alpaca-finance': 0.2,
+      'burger-city': 0.15,
       
-      return {
-        "ticker_id": `${tokenName}_${targetCurrency}`,
-        "base_currency": tokenName,
-        "target_currency": targetCurrency,
-        "pool_id": "0x0000000000000000000000000000000000000000",
-        "last_price": tokenPrice.toString(),
-        "base_volume": baseVolume,
-        "target_volume": targetVolume.toFixed(2),
-        "liquidity_in_usd": "10000",
-        "bid": (tokenPrice * 0.99).toString(),
-        "ask": (tokenPrice * 1.01).toString(),
-        "high": tokenPrice.toString(),
-        "low": tokenPrice.toString()
-      };
+      // Ethereum Ecosystem
+      'ethereum': 3500,
+      'uniswap': 12,
+      'aave': 120,
+      'chainlink': 18,
+      'matic-network': 0.8,
+      
+      // Base Ecosystem
+      'dai': 1,
+      'usd-coin': 1,
+      'compound-governance-token': 60,
+      
+      // Memecoins
+      'dogecoin': 0.15,
+      'shiba-inu': 0.000025,
+      'pepe': 0.0000012,
+      'dogwifcoin': 2.5,
+      'bonk': 0.000025,
+      'floki': 0.0003
     };
 
-    // Create pairs for new tokens
-    const muxUsdtTicker = generateNewTokenPair("MUX", muxPriceUsd);
-    const uncxUsdtTicker = generateNewTokenPair("UNCX", uncxPriceUsd);
-    const frokUsdtTicker = generateNewTokenPair("FROK", frokPriceUsd);
-    const sessionUsdtTicker = generateNewTokenPair("SESSION", sessionPriceUsd);
-    const reentalUsdtTicker = generateNewTokenPair("REENTAL", reentalPriceUsd);
-    const lushUsdtTicker = generateNewTokenPair("LUSH", lushPriceUsd);
+    // Get price with fallback
+    const getPrice = (coinId) => {
+      return prices[coinId]?.usd || fallbackPrices[coinId] || 1;
+    };
 
-    // ===== 9. Process XExchange Pairs =====
-    const tickers = xexchangeResponse.data
-      .filter(pair => pair.exchange === "xexchange")
-      .map(pair => {
-        const lastPrice = pair.basePrice || 0;
-        const volume24h = pair.volume24h || 0;
-        const baseId = pair.baseId || 'UNKNOWN';
-        const quoteId = pair.quoteId || 'UNKNOWN';
-        
-        return {
-          "ticker_id": `${baseId}_${quoteId}`,
-          "base_currency": baseId,
-          "target_currency": quoteId,
-          "pool_id": pair.address || '0x0000000000000000000000000000000000000000',
-          "last_price": lastPrice.toString(),
-          "base_volume": volume24h.toString(),
-          "target_volume": (volume24h * lastPrice).toString(),
-          "liquidity_in_usd": pair.totalValue?.toString() || "0",
-          "bid": pair.basePrice?.toString() || lastPrice.toString(),
-          "ask": pair.quotePrice?.toString() || lastPrice.toString(),
-          "high": pair.basePrevious24hPrice?.toString() || "0",
-          "low": pair.quotePrevious24hPrice?.toString() || "0",
-        };
-      });
+    // ===== 2. Create Trading Pairs =====
+    const tickers = [];
 
-    // ===== 10. Apply Modifications to XExchange Pairs =====
-    const modifiedTickers = tickers.map(ticker => {
-      if (ticker.ticker_id === "SUPER-507aa6_WEGLD-bd4d79") {
-        return {
-          ...ticker,
-          base_volume: (parseFloat(ticker.base_volume) * 50000).toString(),
-          target_volume: (parseFloat(ticker.target_volume) * 50000).toString()
-        };
-      }
-      
-      if (ticker.ticker_id === "BHAT-c1fde3_WEGLD-bd4d79") {
-        return {
-          ...ticker,
-          last_price: (parseFloat(ticker.last_price) * 100).toString(),
-          base_volume: (parseFloat(ticker.base_volume) + 15000).toString(),
-          target_volume: (parseFloat(ticker.target_volume) + 15000).toString()
-        };
-      }
-      
-      return ticker;
-    });
+    // BNB Ecosystem Pairs
+    tickers.push(generateTradingPair("BNB", "USDT", getPrice('binancecoin'), [500000, 2000000]));
+    tickers.push(generateTradingPair("CAKE", "USDT", getPrice('pancakeswap-token'), [50000, 200000]));
+    tickers.push(generateTradingPair("BAKE", "USDT", getPrice('bakerytoken'), [10000, 50000]));
+    tickers.push(generateTradingPair("ALPACA", "USDT", getPrice('alpaca-finance'), [20000, 80000]));
+    tickers.push(generateTradingPair("BURGER", "USDT", getPrice('burger-city'), [15000, 60000]));
 
-    // ===== 11. Add All Additional Pairs =====
-    modifiedTickers.push(
-      sushiAutoUsdcTicker,
-      autoUsdtTicker,
-      pancakeAutoBnbTicker,
-      ryujinTicker,
-      torUsdtTicker,
-      omikamiUsdcTicker,
-      omikamiUsdtTicker,
-      muxUsdtTicker,
-      uncxUsdtTicker,
-      frokUsdtTicker,
-      sessionUsdtTicker,
-      reentalUsdtTicker,
-      lushUsdtTicker
-    );
+    // Ethereum Ecosystem Pairs
+    tickers.push(generateTradingPair("ETH", "USDT", getPrice('ethereum'), [1000000, 5000000]));
+    tickers.push(generateTradingPair("UNI", "USDT", getPrice('uniswap'), [50000, 200000]));
+    tickers.push(generateTradingPair("AAVE", "USDT", getPrice('aave'), [30000, 150000]));
+    tickers.push(generateTradingPair("LINK", "USDT", getPrice('chainlink'), [40000, 180000]));
+    tickers.push(generateTradingPair("MATIC", "USDT", getPrice('matic-network'), [60000, 250000]));
+
+    // Base Ecosystem Pairs
+    tickers.push(generateTradingPair("DAI", "USDT", getPrice('dai'), [200000, 800000]));
+    tickers.push(generateTradingPair("USDC", "USDT", getPrice('usd-coin'), [1000000, 5000000]));
+    tickers.push(generateTradingPair("COMP", "USDT", getPrice('compound-governance-token'), [20000, 80000]));
+
+    // Memecoin Pairs (with smaller volumes)
+    tickers.push(generateTradingPair("DOGE", "USDT", getPrice('dogecoin'), [80000, 300000]));
+    tickers.push(generateTradingPair("SHIB", "USDT", getPrice('shiba-inu'), [50000, 200000]));
+    tickers.push(generateTradingPair("PEPE", "USDT", getPrice('pepe'), [30000, 120000]));
+    tickers.push(generateTradingPair("WIF", "USDT", getPrice('dogwifcoin'), [40000, 150000]));
+    tickers.push(generateTradingPair("BONK", "USDT", getPrice('bonk'), [25000, 100000]));
+    tickers.push(generateTradingPair("FLOKI", "USDT", getPrice('floki'), [35000, 140000]));
+
+    // Cross-chain pairs
+    tickers.push(generateTradingPair("BNB", "ETH", getPrice('binancecoin') / getPrice('ethereum'), [100000, 400000]));
+    tickers.push(generateTradingPair("ETH", "BNB", getPrice('ethereum') / getPrice('binancecoin'), [100000, 400000]));
 
     return {
       statusCode: 200,
@@ -342,7 +162,7 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=300'
       },
-      body: JSON.stringify(modifiedTickers, null, 2)
+      body: JSON.stringify(tickers, null, 2)
     };
   } catch (error) {
     console.error("Handler Error:", error.message);
@@ -359,9 +179,3 @@ exports.handler = async (event) => {
     };
   }
 };
-
-
-
-
-
-
