@@ -1,5 +1,8 @@
 const axios = require('axios');
 
+// Import tokens data
+const tokensData = require('./tokens.json');
+
 // Price cache configuration
 const priceCache = {
   data: {},
@@ -28,27 +31,27 @@ const fetchWithRetry = async (url, retries = 3, delay = 1000) => {
   }
 };
 
-// Function to format very small numbers without scientific notation
-const formatSmallNumber = (num) => {
-  if (num < 0.000001) {
-    return num.toFixed(9);
-  }
-  return num.toString();
-};
-
-// Function to fetch prices from CoinGecko for popular coins
+// Function to fetch prices from CoinGecko for tokens in our list
 const fetchCoinGeckoPrices = async () => {
   try {
-    const coinIds = [
-      // BNB Ecosystem
-      'binancecoin', 'pancakeswap-token', 'bakerytoken', 'alpaca-finance', 'burger-city',
-      // Ethereum Ecosystem
-      'ethereum', 'uniswap', 'aave', 'chainlink', 'matic-network',
-      // Base Ecosystem
-      'dai', 'usd-coin', 'compound-governance-token',
-      // Memecoins
-      'dogecoin', 'shiba-inu', 'pepe', 'dogwifcoin', 'bonk', 'floki'
-    ].join(',');
+    // Extract unique base currencies from tokens data
+    const baseCurrencies = [...new Set(tokensData.map(token => 
+      token.base_currency.toLowerCase()
+    ))];
+    
+    const coinIds = baseCurrencies.map(currency => {
+      const coinMap = {
+        'bnb': 'binancecoin',
+        'eth': 'ethereum',
+        'btc': 'bitcoin',
+        'sol': 'solana',
+        'ada': 'cardano',
+        'dot': 'polkadot',
+        'link': 'chainlink',
+        'matic': 'matic-network'
+      };
+      return coinMap[currency] || currency;
+    }).join(',');
 
     const response = await fetchWithRetry(
       `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=usd`
@@ -60,26 +63,26 @@ const fetchCoinGeckoPrices = async () => {
   }
 };
 
-// Function to generate realistic trading pair data
-const generateTradingPair = (baseCurrency, targetCurrency, price, volumeRange = [10000, 500000]) => {
-  const baseVolume = Math.random() * (volumeRange[1] - volumeRange[0]) + volumeRange[0];
-  const targetVolume = baseVolume * price;
-  const liquidity = (targetVolume * 0.1).toFixed(2); // 10% of volume as liquidity
+// Function to calculate new price based on positive/negative percentage
+const calculateNewPrice = (realPrice, pricePositive, priceNegative) => {
+  let newPrice = realPrice;
   
-  return {
-    "ticker_id": `${baseCurrency}_${targetCurrency}`,
-    "base_currency": baseCurrency,
-    "target_currency": targetCurrency,
-    "pool_id": `0x${Math.random().toString(16).substr(2, 40)}`,
-    "last_price": price.toString(),
-    "base_volume": baseVolume.toFixed(2),
-    "target_volume": targetVolume.toFixed(2),
-    "liquidity_in_usd": liquidity,
-    "bid": (price * 0.995).toString(),
-    "ask": (price * 1.005).toString(),
-    "high": (price * 1.02).toString(),
-    "low": (price * 0.98).toString()
-  };
+  if (pricePositive && parseFloat(pricePositive) > 0) {
+    const positivePercent = parseFloat(pricePositive);
+    newPrice = realPrice + (realPrice * positivePercent / 100);
+  } else if (priceNegative && parseFloat(priceNegative) > 0) {
+    const negativePercent = parseFloat(priceNegative);
+    newPrice = realPrice - (realPrice * negativePercent / 100);
+  }
+  
+  return newPrice;
+};
+
+// Function to calculate volume with random increase
+const calculateVolume = (targetVolume) => {
+  const baseVolume = parseFloat(targetVolume);
+  const randomIncrease = Math.random() * 0.05 + 0.05; // 5% to 10% increase
+  return baseVolume * (1 + randomIncrease);
 };
 
 exports.handler = async (event) => {
@@ -87,74 +90,60 @@ exports.handler = async (event) => {
     // ===== 1. Fetch Real Prices from CoinGecko =====
     const prices = await fetchCoinGeckoPrices();
     
-    // Fallback prices in case API fails
-    const fallbackPrices = {
-      // BNB Ecosystem
-      'binancecoin': 600,
-      'pancakeswap-token': 3.5,
-      'bakerytoken': 0.4,
-      'alpaca-finance': 0.2,
-      'burger-city': 0.15,
-      
-      // Ethereum Ecosystem
-      'ethereum': 3500,
-      'uniswap': 12,
-      'aave': 120,
-      'chainlink': 18,
-      'matic-network': 0.8,
-      
-      // Base Ecosystem
-      'dai': 1,
-      'usd-coin': 1,
-      'compound-governance-token': 60,
-      
-      // Memecoins
-      'dogecoin': 0.15,
-      'shiba-inu': 0.000025,
-      'pepe': 0.0000012,
-      'dogwifcoin': 2.5,
-      'bonk': 0.000025,
-      'floki': 0.0003
+    // CoinGecko ID mapping
+    const coinGeckoMap = {
+      'bnb': 'binancecoin',
+      'eth': 'ethereum',
+      'btc': 'bitcoin',
+      'sol': 'solana',
+      'ada': 'cardano',
+      'dot': 'polkadot',
+      'link': 'chainlink',
+      'matic': 'matic-network'
     };
 
-    // Get price with fallback
-    const getPrice = (coinId) => {
-      return prices[coinId]?.usd || fallbackPrices[coinId] || 1;
-    };
+    // ===== 2. Process each token from tokens.json =====
+    const processedTickers = tokensData.map(token => {
+      const baseCurrency = token.base_currency.toLowerCase();
+      const coinGeckoId = coinGeckoMap[baseCurrency] || baseCurrency;
+      
+      // Get real price from CoinGecko or use fallback from token data
+      const realPrice = prices[coinGeckoId]?.usd || parseFloat(token.last_price);
+      
+      // Calculate new price based on positive/negative percentage
+      const newPrice = calculateNewPrice(
+        realPrice, 
+        token.price_positive, 
+        token.price_negative
+      );
+      
+      // Calculate volumes with random increase
+      const newTargetVolume = calculateVolume(token.target_volume);
+      const baseVolume = newTargetVolume / newPrice;
+      
+      // Calculate bid/ask spread (0.5% each way)
+      const bidPrice = newPrice * 0.995;
+      const askPrice = newPrice * 1.005;
+      
+      // Calculate high/low (2% range from new price)
+      const highPrice = newPrice * 1.02;
+      const lowPrice = newPrice * 0.98;
 
-    // ===== 2. Create Trading Pairs =====
-    const tickers = [];
-
-    // BNB Ecosystem Pairs
-    tickers.push(generateTradingPair("BNB", "USDT", getPrice('binancecoin'), [500000, 2000000]));
-    tickers.push(generateTradingPair("CAKE", "USDT", getPrice('pancakeswap-token'), [50000, 200000]));
-    tickers.push(generateTradingPair("BAKE", "USDT", getPrice('bakerytoken'), [10000, 50000]));
-    tickers.push(generateTradingPair("ALPACA", "USDT", getPrice('alpaca-finance'), [20000, 80000]));
-    tickers.push(generateTradingPair("BURGER", "USDT", getPrice('burger-city'), [15000, 60000]));
-
-    // Ethereum Ecosystem Pairs
-    tickers.push(generateTradingPair("ETH", "USDT", getPrice('ethereum'), [1000000, 5000000]));
-    tickers.push(generateTradingPair("UNI", "USDT", getPrice('uniswap'), [50000, 200000]));
-    tickers.push(generateTradingPair("AAVE", "USDT", getPrice('aave'), [30000, 150000]));
-    tickers.push(generateTradingPair("LINK", "USDT", getPrice('chainlink'), [40000, 180000]));
-    tickers.push(generateTradingPair("MATIC", "USDT", getPrice('matic-network'), [60000, 250000]));
-
-    // Base Ecosystem Pairs
-    tickers.push(generateTradingPair("DAI", "USDT", getPrice('dai'), [200000, 800000]));
-    tickers.push(generateTradingPair("USDC", "USDT", getPrice('usd-coin'), [1000000, 5000000]));
-    tickers.push(generateTradingPair("COMP", "USDT", getPrice('compound-governance-token'), [20000, 80000]));
-
-    // Memecoin Pairs (with smaller volumes)
-    tickers.push(generateTradingPair("DOGE", "USDT", getPrice('dogecoin'), [80000, 300000]));
-    tickers.push(generateTradingPair("SHIB", "USDT", getPrice('shiba-inu'), [50000, 200000]));
-    tickers.push(generateTradingPair("PEPE", "USDT", getPrice('pepe'), [30000, 120000]));
-    tickers.push(generateTradingPair("WIF", "USDT", getPrice('dogwifcoin'), [40000, 150000]));
-    tickers.push(generateTradingPair("BONK", "USDT", getPrice('bonk'), [25000, 100000]));
-    tickers.push(generateTradingPair("FLOKI", "USDT", getPrice('floki'), [35000, 140000]));
-
-    // Cross-chain pairs
-    tickers.push(generateTradingPair("BNB", "ETH", getPrice('binancecoin') / getPrice('ethereum'), [100000, 400000]));
-    tickers.push(generateTradingPair("ETH", "BNB", getPrice('ethereum') / getPrice('binancecoin'), [100000, 400000]));
+      return {
+        "ticker_id": token.ticker_id,
+        "base_currency": token.base_currency,
+        "target_currency": token.target_currency,
+        "pool_id": token.pool_id,
+        "last_price": newPrice.toFixed(2),
+        "base_volume": baseVolume.toFixed(2),
+        "target_volume": newTargetVolume.toFixed(2),
+        "liquidity_in_usd": token.liquidity_in_usd,
+        "bid": bidPrice.toFixed(8),
+        "ask": askPrice.toFixed(8),
+        "high": highPrice.toFixed(2),
+        "low": lowPrice.toFixed(2)
+      };
+    });
 
     return {
       statusCode: 200,
@@ -162,7 +151,7 @@ exports.handler = async (event) => {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=300'
       },
-      body: JSON.stringify(tickers, null, 2)
+      body: JSON.stringify(processedTickers, null, 2)
     };
   } catch (error) {
     console.error("Handler Error:", error.message);
