@@ -28,6 +28,12 @@
             text-align: center;
             margin-bottom: 30px;
             padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .header:hover {
+            transform: translateY(-2px);
         }
 
         .header h1 {
@@ -91,7 +97,7 @@
 
         .table-header {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
             gap: 15px;
             padding: 20px;
             background: rgba(0, 212, 255, 0.1);
@@ -102,7 +108,7 @@
 
         .table-row {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
             gap: 15px;
             padding: 20px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
@@ -224,7 +230,7 @@
 </head>
 <body>
     <div class="container">
-        <div class="header">
+        <div class="header" onclick="window.location.href='../'">
             <h1>Bitdrome Exchange</h1>
             <p>Real-time trading pairs with volumes and prices</p>
         </div>
@@ -258,10 +264,8 @@
             <div class="table-header">
                 <div>Pair</div>
                 <div>Last Price</div>
-                <div>24h Change</div>
                 <div>24h Volume</div>
                 <div>Liquidity</div>
-                <div>Spread</div>
             </div>
             <div id="pairsContainer">
                 <div class="loading">
@@ -376,12 +380,6 @@
                 return '';
             }
 
-            calculateSpread(bid, ask) {
-                if (!bid || !ask || bid === 0) return '0%';
-                const spread = ((ask - bid) / bid) * 100;
-                return spread.toFixed(2) + '%';
-            }
-
             formatCurrency(value) {
                 const num = parseFloat(value);
                 if (num >= 1000000) {
@@ -434,10 +432,6 @@
                         if (index > 0) {
                             await new Promise(resolve => setTimeout(resolve, 1000));
                         }
-                        
-                        const spread = this.calculateSpread(parseFloat(token.bid), parseFloat(token.ask));
-                        const priceChange = token.price_positive ? '+' : token.price_negative ? '-' : '0%';
-                        const priceChangeClass = token.price_positive ? 'price-positive' : token.price_negative ? 'price-negative' : '';
 
                         return `
                             <div class="table-row">
@@ -452,10 +446,8 @@
                                     </div>
                                 </div>
                                 <div>$${parseFloat(token.last_price).toFixed(2)}</div>
-                                <div class="${priceChangeClass}">${priceChange}</div>
                                 <div class="volume">${this.formatCurrency(token.target_volume)}</div>
                                 <div class="liquidity">${this.formatCurrency(token.liquidity_in_usd)}</div>
-                                <div>${spread}</div>
                             </div>
                         `;
                     });
