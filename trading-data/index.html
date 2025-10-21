@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitdrome Exchange - Trading Pairs</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #00d4ff, #0099ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #8892b0;
+            font-size: 1.1rem;
+        }
+
+        .stats-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #00d4ff;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+
+        .pairs-table {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .table-header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            gap: 15px;
+            padding: 20px;
+            background: rgba(0, 212, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .table-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+            gap: 15px;
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
+        }
+
+        .table-row:hover {
+            background: rgba(255, 255, 255, 0.03);
+            transform: translateY(-2px);
+        }
+
+        .pair-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .pair-name {
+            font-weight: bold;
+        }
+
+        .pair-ticker {
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+
+        .price-positive {
+            color: #00ff88;
+        }
+
+        .price-negative {
+            color: #ff4444;
+        }
+
+        .volume {
+            color: #00d4ff;
+        }
+
+        .liquidity {
+            color: #ffd700;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #8892b0;
+        }
+
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top: 3px solid #00d4ff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            color: #ff4444;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .table-header, .table-row {
+                grid-template-columns: 1fr 1fr;
+                gap: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Bitdrome Exchange</h1>
+            <p>Real-time trading pairs with volumes and prices</p>
+        </div>
+
+        <div class="stats-card">
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-item">
+                    <div class="stat-label">Total Pairs</div>
+                    <div class="stat-value" id="totalPairs">0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Total Volume (24h)</div>
+                    <div class="stat-value" id="totalVolume">$0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Total Liquidity</div>
+                    <div class="stat-value" id="totalLiquidity">$0</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-label">Active Markets</div>
+                    <div class="stat-value" id="activeMarkets">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="pairs-table">
+            <div class="table-header">
+                <div>Pair</div>
+                <div>Last Price</div>
+                <div>24h Change</div>
+                <div>24h Volume</div>
+                <div>Liquidity</div>
+                <div>Spread</div>
+            </div>
+            <div id="pairsContainer">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading trading pairs...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class BitdromeExchange {
+            constructor() {
+                this.tokensUrl = 'https://bitdrome.finance/netlify/functions/tokens.json';
+                this.coingeckoBaseUrl = 'https://api.coingecko.com/api/v3';
+                this.tokens = [];
+                this.logoCache = new Map();
+                this.init();
+            }
+
+            async init() {
+                try {
+                    await this.loadTokens();
+                    this.updateStats();
+                    this.renderPairs();
+                } catch (error) {
+                    this.showError('Failed to load trading data: ' + error.message);
+                }
+            }
+
+            async loadTokens() {
+                const response = await fetch(this.tokensUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                this.tokens = await response.json();
+            }
+
+            async getCoinLogo(apiId) {
+                if (this.logoCache.has(apiId)) {
+                    return this.logoCache.get(apiId);
+                }
+
+                try {
+                    const response = await fetch(`${this.coingeckoBaseUrl}/coins/${apiId}`);
+                    if (!response.ok) {
+                        throw new Error('Coin not found');
+                    }
+                    const data = await response.json();
+                    const logoUrl = data.image?.small || '';
+                    this.logoCache.set(apiId, logoUrl);
+                    return logoUrl;
+                } catch (error) {
+                    console.warn(`Could not fetch logo for ${apiId}:`, error.message);
+                    return '';
+                }
+            }
+
+            calculateSpread(bid, ask) {
+                if (!bid || !ask || bid === 0) return '0%';
+                const spread = ((ask - bid) / bid) * 100;
+                return spread.toFixed(2) + '%';
+            }
+
+            formatCurrency(value) {
+                const num = parseFloat(value);
+                if (num >= 1000000) {
+                    return '$' + (num / 1000000).toFixed(2) + 'M';
+                } else if (num >= 1000) {
+                    return '$' + (num / 1000).toFixed(2) + 'K';
+                }
+                return '$' + num.toFixed(2);
+            }
+
+            formatNumber(value) {
+                const num = parseFloat(value);
+                if (num >= 1000000) {
+                    return (num / 1000000).toFixed(2) + 'M';
+                } else if (num >= 1000) {
+                    return (num / 1000).toFixed(2) + 'K';
+                }
+                return num.toFixed(2);
+            }
+
+            updateStats() {
+                const totalPairs = this.tokens.length;
+                const totalVolume = this.tokens.reduce((sum, token) => sum + parseFloat(token.target_volume || 0), 0);
+                const totalLiquidity = this.tokens.reduce((sum, token) => sum + parseFloat(token.liquidity_in_usd || 0), 0);
+                const activeMarkets = this.tokens.filter(token => parseFloat(token.target_volume) > 0).length;
+
+                document.getElementById('totalPairs').textContent = totalPairs;
+                document.getElementById('totalVolume').textContent = this.formatCurrency(totalVolume);
+                document.getElementById('totalLiquidity').textContent = this.formatCurrency(totalLiquidity);
+                document.getElementById('activeMarkets').textContent = activeMarkets;
+            }
+
+            async renderPairs() {
+                const container = document.getElementById('pairsContainer');
+                container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading trading pairs...</div>';
+
+                const pairsHTML = await Promise.all(
+                    this.tokens.map(async (token) => {
+                        const logoUrl = await this.getCoinLogo(token.api_id);
+                        const spread = this.calculateSpread(parseFloat(token.bid), parseFloat(token.ask));
+                        const priceChange = token.price_positive ? '+' : token.price_negative ? '-' : '0%';
+                        const priceChangeClass = token.price_positive ? 'price-positive' : token.price_negative ? 'price-negative' : '';
+
+                        return `
+                            <div class="table-row">
+                                <div class="pair-info">
+                                    ${logoUrl ? `<img src="${logoUrl}" alt="${token.base_currency}" class="logo">` : '<div class="logo"></div>'}
+                                    <div>
+                                        <div class="pair-name">${token.base_currency}/${token.target_currency}</div>
+                                        <div class="pair-ticker">${token.ticker_id}</div>
+                                    </div>
+                                </div>
+                                <div>$${parseFloat(token.last_price).toFixed(2)}</div>
+                                <div class="${priceChangeClass}">${priceChange}</div>
+                                <div class="volume">${this.formatCurrency(token.target_volume)}</div>
+                                <div class="liquidity">${this.formatCurrency(token.liquidity_in_usd)}</div>
+                                <div>${spread}</div>
+                            </div>
+                        `;
+                    })
+                );
+
+                container.innerHTML = pairsHTML.join('');
+            }
+
+            showError(message) {
+                const container = document.getElementById('pairsContainer');
+                container.innerHTML = `<div class="error">${message}</div>`;
+            }
+        }
+
+        // Initialize the exchange when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new BitdromeExchange();
+        });
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            new BitdromeExchange();
+        }, 30000);
+    </script>
+</body>
+</html>
