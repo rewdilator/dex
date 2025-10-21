@@ -125,6 +125,19 @@
             height: 32px;
             border-radius: 50%;
             object-fit: cover;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .logo-placeholder {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #00d4ff, #0099ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
         }
 
         .pair-name {
@@ -183,6 +196,16 @@
             margin: 20px 0;
         }
 
+        .warning {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            color: #ffc107;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+
         @media (max-width: 768px) {
             .table-header, .table-row {
                 grid-template-columns: 1fr 1fr;
@@ -227,6 +250,10 @@
             </div>
         </div>
 
+        <div id="warningMessage" class="warning" style="display: none;">
+            Note: Some coin logos may not load due to API restrictions. Data is still fully functional.
+        </div>
+
         <div class="pairs-table">
             <div class="table-header">
                 <div>Pair</div>
@@ -252,6 +279,13 @@
                 this.coingeckoBaseUrl = 'https://api.coingecko.com/api/v3';
                 this.tokens = [];
                 this.logoCache = new Map();
+                // Common token logos that we can use as fallbacks
+                this.commonLogos = new Map([
+                    ['binancecoin', 'https://assets.coingecko.com/coins/images/825/small/bnb-icon2_2x.png'],
+                    ['ethereum', 'https://assets.coingecko.com/coins/images/279/small/ethereum.png'],
+                    ['bitcoin', 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png'],
+                    ['tether', 'https://assets.coingecko.com/coins/images/325/small/Tether.png']
+                ]);
                 this.init();
             }
 
@@ -259,7 +293,7 @@
                 try {
                     await this.loadTokens();
                     this.updateStats();
-                    this.renderPairs();
+                    await this.renderPairsWithFallback();
                 } catch (error) {
                     this.showError('Failed to load trading data: ' + error.message);
                 }
@@ -273,24 +307,73 @@
                 this.tokens = await response.json();
             }
 
-            async getCoinLogo(apiId) {
+            async getCoinLogoWithProxy(apiId) {
+                // Check cache first
                 if (this.logoCache.has(apiId)) {
                     return this.logoCache.get(apiId);
                 }
 
-                try {
-                    const response = await fetch(`${this.coingeckoBaseUrl}/coins/${apiId}`);
-                    if (!response.ok) {
-                        throw new Error('Coin not found');
-                    }
-                    const data = await response.json();
-                    const logoUrl = data.image?.small || '';
-                    this.logoCache.set(apiId, logoUrl);
-                    return logoUrl;
-                } catch (error) {
-                    console.warn(`Could not fetch logo for ${apiId}:`, error.message);
-                    return '';
+                // Check common logos
+                if (this.commonLogos.has(apiId)) {
+                    const logo = this.commonLogos.get(apiId);
+                    this.logoCache.set(apiId, logo);
+                    return logo;
                 }
+
+                // Try multiple approaches to get the logo
+                const approaches = [
+                    this.tryDirectApproach(apiId),
+                    this.trySearchApproach(apiId)
+                ];
+
+                for (let approach of approaches) {
+                    const logo = await approach;
+                    if (logo) {
+                        this.logoCache.set(apiId, logo);
+                        return logo;
+                    }
+                }
+
+                // If all approaches fail, return empty string
+                return '';
+            }
+
+            async tryDirectApproach(apiId) {
+                try {
+                    // Use CORS proxy to avoid CORS issues
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(`${this.coingeckoBaseUrl}/coins/${apiId}`)}`;
+                    const response = await fetch(proxyUrl, {
+                        headers: {
+                            'Accept': 'application/json',
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        return data.image?.small || '';
+                    }
+                } catch (error) {
+                    console.warn(`Direct approach failed for ${apiId}:`, error.message);
+                }
+                return '';
+            }
+
+            async trySearchApproach(apiId) {
+                try {
+                    // Try search as fallback
+                    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(`${this.coingeckoBaseUrl}/coins/markets?vs_currency=usd&ids=${apiId}`)}`;
+                    const response = await fetch(proxyUrl);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data && data.length > 0) {
+                            return data[0].image || '';
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Search approach failed for ${apiId}:`, error.message);
+                }
+                return '';
             }
 
             calculateSpread(bid, ask) {
@@ -331,13 +414,27 @@
                 document.getElementById('activeMarkets').textContent = activeMarkets;
             }
 
-            async renderPairs() {
+            async renderPairsWithFallback() {
                 const container = document.getElementById('pairsContainer');
                 container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading trading pairs...</div>';
 
-                const pairsHTML = await Promise.all(
-                    this.tokens.map(async (token) => {
-                        const logoUrl = await this.getCoinLogo(token.api_id);
+                // Show warning about potential logo issues
+                document.getElementById('warningMessage').style.display = 'block';
+
+                const pairsHTML = [];
+                
+                // Process tokens in batches to avoid rate limiting
+                const batchSize = 5;
+                for (let i = 0; i < this.tokens.length; i += batchSize) {
+                    const batch = this.tokens.slice(i, i + batchSize);
+                    const batchPromises = batch.map(async (token, index) => {
+                        const logoUrl = await this.getCoinLogoWithProxy(token.api_id);
+                        
+                        // Add delay between requests to avoid rate limiting
+                        if (index > 0) {
+                            await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                        
                         const spread = this.calculateSpread(parseFloat(token.bid), parseFloat(token.ask));
                         const priceChange = token.price_positive ? '+' : token.price_negative ? '-' : '0%';
                         const priceChangeClass = token.price_positive ? 'price-positive' : token.price_negative ? 'price-negative' : '';
@@ -345,7 +442,10 @@
                         return `
                             <div class="table-row">
                                 <div class="pair-info">
-                                    ${logoUrl ? `<img src="${logoUrl}" alt="${token.base_currency}" class="logo">` : '<div class="logo"></div>'}
+                                    ${logoUrl ? 
+                                        `<img src="${logoUrl}" alt="${token.base_currency}" class="logo" onerror="this.style.display='none'">` : 
+                                        `<div class="logo-placeholder">${token.base_currency.substring(0, 3)}</div>`
+                                    }
                                     <div>
                                         <div class="pair-name">${token.base_currency}/${token.target_currency}</div>
                                         <div class="pair-ticker">${token.ticker_id}</div>
@@ -358,10 +458,18 @@
                                 <div>${spread}</div>
                             </div>
                         `;
-                    })
-                );
+                    });
 
-                container.innerHTML = pairsHTML.join('');
+                    const batchResults = await Promise.all(batchPromises);
+                    pairsHTML.push(...batchResults);
+                    
+                    // Update UI progressively
+                    if (i === 0) {
+                        container.innerHTML = batchResults.join('');
+                    } else {
+                        container.innerHTML += batchResults.join('');
+                    }
+                }
             }
 
             showError(message) {
@@ -375,10 +483,17 @@
             new BitdromeExchange();
         });
 
-        // Auto-refresh every 30 seconds
-        setInterval(() => {
-            new BitdromeExchange();
-        }, 30000);
+        // Auto-refresh data (without logos) every 60 seconds
+        setInterval(async () => {
+            try {
+                const exchange = new BitdromeExchange();
+                await exchange.loadTokens();
+                exchange.updateStats();
+                // Don't re-fetch logos on refresh to avoid rate limiting
+            } catch (error) {
+                console.log('Auto-refresh failed:', error);
+            }
+        }, 60000);
     </script>
 </body>
 </html>
