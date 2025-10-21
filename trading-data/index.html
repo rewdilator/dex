@@ -144,6 +144,7 @@
             justify-content: center;
             font-size: 12px;
             font-weight: bold;
+            color: white;
         }
 
         .pair-name {
@@ -257,151 +258,27 @@
     <script>
         class BitdromeExchange {
             constructor() {
-                this.tokensUrl = 'https://bitdrome.finance/netlify/functions/tokens.json';
+                this.tickersUrl = 'https://bitdrome.finance/api/all/tickers/';
                 this.tokens = [];
-                this.logoCache = new Map();
-                // Extended common token logos to avoid API calls
-                this.commonLogos = new Map([
-                    ['binancecoin', 'https://assets.coingecko.com/coins/images/825/small/bnb-icon2_2x.png'],
-                    ['ethereum', 'https://assets.coingecko.com/coins/images/279/small/ethereum.png'],
-                    ['bitcoin', 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png'],
-                    ['tether', 'https://assets.coingecko.com/coins/images/325/small/Tether.png'],
-                    ['usd-coin', 'https://assets.coingecko.com/coins/images/6319/small/usdc.png'],
-                    ['cardano', 'https://assets.coingecko.com/coins/images/975/small/cardano.png'],
-                    ['dogecoin', 'https://assets.coingecko.com/coins/images/5/small/dogecoin.png'],
-                    ['solana', 'https://assets.coingecko.com/coins/images/4128/small/solana.png'],
-                    ['polkadot', 'https://assets.coingecko.com/coins/images/12171/small/polkadot.png'],
-                    ['chainlink', 'https://assets.coingecko.com/coins/images/877/small/chainlink-new-logo.png']
-                ]);
                 this.init();
             }
 
             async init() {
                 try {
-                    // Load tokens and render immediately without waiting for logos
-                    await this.loadTokens();
+                    await this.loadTickers();
                     this.updateStats();
-                    this.renderPairsImmediately();
-                    
-                    // Load logos in background without blocking UI
-                    this.loadLogosInBackground();
+                    this.renderPairs();
                 } catch (error) {
                     this.showError('Failed to load trading data: ' + error.message);
                 }
             }
 
-            async loadTokens() {
-                const response = await fetch(this.tokensUrl);
+            async loadTickers() {
+                const response = await fetch(this.tickersUrl);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 this.tokens = await response.json();
-            }
-
-            getCoinLogo(apiId) {
-                // Check cache first
-                if (this.logoCache.has(apiId)) {
-                    return this.logoCache.get(apiId);
-                }
-
-                // Check common logos
-                if (this.commonLogos.has(apiId)) {
-                    const logo = this.commonLogos.get(apiId);
-                    this.logoCache.set(apiId, logo);
-                    return logo;
-                }
-
-                // Return empty for unknown tokens - we'll try to fetch later
-                return '';
-            }
-
-            async loadLogosInBackground() {
-                // Only try to fetch logos for tokens not in our common list
-                const tokensWithoutLogos = this.tokens.filter(token => 
-                    !this.commonLogos.has(token.api_id) && !this.logoCache.has(token.api_id)
-                );
-
-                // Process in very small batches with longer timeouts to avoid rate limits
-                for (let i = 0; i < tokensWithoutLogos.length; i++) {
-                    const token = tokensWithoutLogos[i];
-                    
-                    // Skip if we already have it (from parallel requests or cache)
-                    if (this.logoCache.has(token.api_id)) continue;
-
-                    try {
-                        const logoUrl = await this.tryFetchLogo(token.api_id);
-                        if (logoUrl) {
-                            this.logoCache.set(token.api_id, logoUrl);
-                            // Update the specific row with the new logo
-                            this.updatePairLogo(token.ticker_id, logoUrl);
-                        }
-                    } catch (error) {
-                        // Silent fail - we don't want to spam console with errors
-                    }
-
-                    // Longer delay to avoid rate limiting and connection timeouts
-                    if (i < tokensWithoutLogos.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                    }
-                }
-            }
-
-            async tryFetchLogo(apiId) {
-                // Try multiple CORS proxies with fallbacks
-                const proxies = [
-                    'https://api.allorigins.win/raw?url=',
-                    'https://cors-anywhere.herokuapp.com/',
-                    '' // Direct attempt as last resort
-                ];
-
-                const url = `https://api.coingecko.com/api/v3/coins/${apiId}`;
-                
-                for (const proxy of proxies) {
-                    try {
-                        const response = await fetch(proxy + url, {
-                            method: 'GET',
-                            headers: {
-                                'Accept': 'application/json',
-                            },
-                            signal: AbortSignal.timeout(5000) // 5 second timeout
-                        });
-                        
-                        if (response.ok) {
-                            const data = await response.json();
-                            return data.image?.small || '';
-                        }
-                    } catch (error) {
-                        // Try next proxy
-                        continue;
-                    }
-                }
-                return '';
-            }
-
-            updatePairLogo(tickerId, logoUrl) {
-                const rows = document.querySelectorAll('.table-row');
-                rows.forEach(row => {
-                    const pairInfo = row.querySelector('.pair-info');
-                    if (pairInfo && pairInfo.textContent.includes(tickerId)) {
-                        const existingImg = pairInfo.querySelector('img');
-                        const placeholder = pairInfo.querySelector('.logo-placeholder');
-                        
-                        if (placeholder) {
-                            placeholder.remove();
-                        }
-                        
-                        if (!existingImg) {
-                            const img = document.createElement('img');
-                            img.src = logoUrl;
-                            img.alt = tickerId.split('_')[0];
-                            img.className = 'logo';
-                            img.onerror = function() { this.style.display = 'none'; };
-                            pairInfo.insertBefore(img, pairInfo.firstChild);
-                        } else if (existingImg.src !== logoUrl) {
-                            existingImg.src = logoUrl;
-                        }
-                    }
-                });
             }
 
             formatCurrency(value) {
@@ -412,6 +289,37 @@
                     return '$' + (num / 1000).toFixed(2) + 'K';
                 }
                 return '$' + num.toFixed(2);
+            }
+
+            formatPrice(value) {
+                const num = parseFloat(value);
+                if (num >= 1000) {
+                    return '$' + num.toFixed(0);
+                } else if (num >= 100) {
+                    return '$' + num.toFixed(1);
+                } else if (num >= 10) {
+                    return '$' + num.toFixed(2);
+                } else if (num >= 1) {
+                    return '$' + num.toFixed(3);
+                } else {
+                    return '$' + num.toFixed(6);
+                }
+            }
+
+            getTokenColor(baseCurrency) {
+                // Generate consistent color based on token symbol
+                const colors = [
+                    '#00d4ff', '#0099ff', '#00ff88', '#ff4444', '#ffd700',
+                    '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57',
+                    '#ff9ff3', '#54a0ff', '#5f27cd', '#00d2d3', '#ff9f43'
+                ];
+                
+                let hash = 0;
+                for (let i = 0; i < baseCurrency.length; i++) {
+                    hash = baseCurrency.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                
+                return colors[Math.abs(hash) % colors.length];
             }
 
             updateStats() {
@@ -426,24 +334,29 @@
                 document.getElementById('activeMarkets').textContent = activeMarkets;
             }
 
-            renderPairsImmediately() {
+            renderPairs() {
                 const container = document.getElementById('pairsContainer');
-                const pairsHTML = this.tokens.map(token => {
-                    const logoUrl = this.getCoinLogo(token.api_id);
+                
+                if (this.tokens.length === 0) {
+                    container.innerHTML = '<div class="error">No trading pairs available</div>';
+                    return;
+                }
 
+                const pairsHTML = this.tokens.map(token => {
+                    const tokenColor = this.getTokenColor(token.base_currency);
+                    
                     return `
-                        <div class="table-row" data-ticker="${token.ticker_id}">
+                        <div class="table-row">
                             <div class="pair-info">
-                                ${logoUrl ? 
-                                    `<img src="${logoUrl}" alt="${token.base_currency}" class="logo" onerror="this.style.display='none'">` : 
-                                    `<div class="logo-placeholder">${token.base_currency.substring(0, 3)}</div>`
-                                }
+                                <div class="logo-placeholder" style="background: linear-gradient(45deg, ${tokenColor}, ${this.getTokenColor(token.target_currency)})">
+                                    ${token.base_currency.substring(0, 3)}
+                                </div>
                                 <div>
                                     <div class="pair-name">${token.base_currency}/${token.target_currency}</div>
                                     <div class="pair-ticker">${token.ticker_id}</div>
                                 </div>
                             </div>
-                            <div>$${parseFloat(token.last_price).toFixed(2)}</div>
+                            <div>${this.formatPrice(token.last_price)}</div>
                             <div class="volume">${this.formatCurrency(token.target_volume)}</div>
                             <div class="liquidity">${this.formatCurrency(token.liquidity_in_usd)}</div>
                         </div>
@@ -459,31 +372,22 @@
             }
         }
 
-        // Add timeout support for fetch
-        if (!AbortSignal.timeout) {
-            AbortSignal.timeout = function(ms) {
-                const controller = new AbortController();
-                setTimeout(() => controller.abort(new Error('Timeout')), ms);
-                return controller.signal;
-            };
-        }
-
         // Initialize the exchange when the page loads
         document.addEventListener('DOMContentLoaded', () => {
             new BitdromeExchange();
         });
 
-        // Auto-refresh data only (without logos) every 60 seconds
+        // Auto-refresh data every 30 seconds
         setInterval(async () => {
             try {
                 const exchange = new BitdromeExchange();
-                await exchange.loadTokens();
+                await exchange.loadTickers();
                 exchange.updateStats();
-                // Don't re-fetch logos on auto-refresh
+                exchange.renderPairs();
             } catch (error) {
                 console.log('Auto-refresh failed:', error);
             }
-        }, 60000);
+        }, 30000);
     </script>
 </body>
 </html>
